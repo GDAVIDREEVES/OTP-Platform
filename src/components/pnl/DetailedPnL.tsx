@@ -21,7 +21,8 @@ import BusinessIcon from '@mui/icons-material/Business';
 import CategoryIcon from '@mui/icons-material/Category';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { entities, Entity } from '../data/entities';
+import { Entity } from '../data/entities';
+import { useEntities } from '../../data/DataProvider';
 type Scope = 'country' | 'entity' | 'function';
 interface Account {
   id: string;
@@ -183,6 +184,7 @@ function fmt(n: number) {
   return `$${n.toFixed(0)}`;
 }
 export default function DetailedPnL() {
+  const entities = useEntities();
   const [scope, setScope] = useState<Scope>('country');
   const [countryFilter, setCountryFilter] = useState<string>('all');
   const [functionFilter, setFunctionFilter] = useState<string>('all');
@@ -193,7 +195,7 @@ export default function DetailedPnL() {
   });
   const allCountries = useMemo(
     () => Array.from(new Set(entities.map((e) => e.countryCode))),
-    []
+    [entities]
   );
   const allFunctions = useMemo(() => {
     const set = new Set<string>();
@@ -201,7 +203,7 @@ export default function DetailedPnL() {
     parseFunctions(e.function).forEach((f) => set.add(f))
     );
     return Array.from(set).sort();
-  }, []);
+  }, [entities]);
   // Build columns + grouping bands per scope
   const { columns, countryBands, entityBands } = useMemo(() => {
     if (scope === 'country') {
@@ -309,7 +311,7 @@ export default function DetailedPnL() {
       countryBands: cBands,
       entityBands: eBands
     };
-  }, [scope, countryFilter, functionFilter]);
+  }, [scope, countryFilter, functionFilter, entities]);
   const initialMatrix = useMemo(() => buildInitialMatrix(columns), [columns]);
   const matrix: Matrix = useMemo(() => {
     const merged: Matrix = {};
@@ -385,7 +387,7 @@ export default function DetailedPnL() {
   // Count of entities with multiple functions (for messaging)
   const multiFunctionEntities = useMemo(
     () => entities.filter((e) => parseFunctions(e.function).length > 1).length,
-    []
+    [entities]
   );
   return (
     <Paper

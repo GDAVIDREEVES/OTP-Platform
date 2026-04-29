@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Paper,
   Typography,
@@ -11,7 +11,13 @@ import {
   TableRow,
   TableCell,
   LinearProgress,
-  Chip } from
+  Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  CircularProgress,
+  Alert } from
 '@mui/material';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -25,10 +31,14 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ReferenceLine,
   BarChart } from
 'recharts';
-// Monthly Base Income + Operating Margin data
-const monthlyData = [
+import { useBerryTrend } from '../../data/DataProvider';
+import { useEntities } from '../../data/DataProvider';
+import { formatCurrency } from '../theme';
+// Monthly Base Income + Operating Margin data — REPLACED by /api/berry; kept for reference
+const _legacyMonthlyData = [
 {
   month: 'Jan',
   income: 1435.3,
@@ -392,6 +402,31 @@ const KpiCard = ({
   </Paper>;
 
 export default function ProductPricing() {
+  const entities = useEntities();
+  // Berry analysis is most meaningful for distributors and toll mfrs; default to UK LRD
+  const defaultEntity = useMemo(
+    () => (entities.find((e) => e.id === '3300') ? '3300' : entities[0]?.id),
+    [entities]
+  );
+  const [entityId, setEntityId] = useState<string>(defaultEntity ?? '3300');
+  const trend = useBerryTrend({ entity: entityId });
+
+  // YTD aggregates derived from the live monthly trend
+  const totals = useMemo(() => {
+    if (!trend.data || trend.data.length === 0)
+      return { revenue: 0, gp: 0, opex: 0, avgBerry: 0, target: 1.2 };
+    const revenue = trend.data.reduce((a, r) => a + r.revenue, 0);
+    const gp = trend.data.reduce((a, r) => a + r.gp, 0);
+    const opex = trend.data.reduce((a, r) => a + r.opex, 0);
+    const avgBerry = opex > 0 ? gp / opex : 0;
+    const target = trend.data[0].target;
+    return { revenue, gp, opex, avgBerry, target };
+  }, [trend.data]);
+
+  const selectedEntity = entities.find((e) => e.id === entityId);
+  const currency = selectedEntity?.currency ?? 'USD';
+  const variance = totals.avgBerry - totals.target;
+
   return (
     <Box>
       {/* Top row: KPIs + Monthly chart */}
@@ -401,27 +436,45 @@ export default function ProductPricing() {
         sx={{
           mb: 2.5
         }}>
-        
+
         <Grid item xs={12} md={3}>
           <Stack spacing={2}>
             <KpiCard
-              label="Base Income for Operating Margin"
-              subtitle="in Million"
-              value="23.14"
-              delta="-0.07" />
-            
+              label="YTD Revenue"
+              subtitle={`${selectedEntity?.id ?? ''} — ${currency}`}
+              value={formatCurrency(totals.revenue, currency, true)}
+              delta={trend.loading ? '…' : `${(totals.revenue / 1e6).toFixed(1)}M`} />
+
             <KpiCard
-              label="GP"
-              subtitle="in Million"
-              value="119"
-              delta="-0.07" />
-            
+              label="Gross Profit (rev − COGS − IC)"
+              subtitle={currency}
+              value={formatCurrency(totals.gp, currency, true)}
+              delta={
+                totals.revenue > 0
+                  ? `${((totals.gp / totals.revenue) * 100).toFixed(1)}% of rev`
+                  : '—'
+              } />
+
             <KpiCard
-              label="OPEX"
-              subtitle="in Million"
-              value="96"
-              delta="-0.00" />
-            
+              label="OpEx (S,G&A)"
+              subtitle={currency}
+              value={formatCurrency(totals.opex, currency, true)}
+              delta={
+                totals.revenue > 0
+                  ? `${((totals.opex / totals.revenue) * 100).toFixed(1)}% of rev`
+                  : '—'
+              } />
+
+            <KpiCard
+              label="YTD Berry ratio"
+              subtitle={`Target ${totals.target.toFixed(2)}`}
+              value={totals.avgBerry.toFixed(2)}
+              delta={
+                trend.loading
+                  ? '…'
+                  : `${variance >= 0 ? '+' : ''}${variance.toFixed(2)} vs target`
+              } />
+
           </Stack>
         </Grid>
         <Grid item xs={12} md={9}>
@@ -430,102 +483,141 @@ export default function ProductPricing() {
               p: 2.5,
               height: '100%'
             }}>
-            
-            <Typography
-              variant="subtitle1"
-              sx={{
-                fontWeight: 700
-              }}>
-              
-              Monthly analysis of Income and Operating Margin for FY21
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                color: '#64748B'
-              }}>
-              
-              in Thousand
-            </Typography>
-            <Box
-              sx={{
-                width: '100%',
-                height: 360,
-                mt: 1
-              }}>
-              
-              <ResponsiveContainer>
-                <ComposedChart
-                  data={monthlyData}
-                  margin={{
-                    top: 10,
-                    right: 10,
-                    bottom: 0,
-                    left: 0
+
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="flex-end"
+              sx={{ mb: 1, flexWrap: 'wrap', gap: 1.5 }}>
+              <Box>
+                <Typography
+                  variant="subtitle1"
+                  sx={{
+                    fontWeight: 700
                   }}>
-                  
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                  <XAxis
-                    dataKey="month"
-                    tick={{
-                      fontSize: 12,
-                      fill: '#64748B'
-                    }} />
-                  
-                  <YAxis
-                    yAxisId="left"
-                    tick={{
-                      fontSize: 12,
-                      fill: '#64748B'
-                    }} />
-                  
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    domain={[1.0, 1.4]}
-                    tick={{
-                      fontSize: 12,
-                      fill: '#64748B'
-                    }} />
-                  
-                  <Tooltip />
-                  <Legend
-                    wrapperStyle={{
-                      fontSize: 12
-                    }} />
-                  
-                  <Bar
-                    yAxisId="left"
-                    dataKey="income"
-                    name="Base Income for Operating Margin"
-                    fill="#5EEAD4"
-                    radius={[4, 4, 0, 0]} />
-                  
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="target"
-                    name="Target Operating Margin"
-                    stroke="#F59E0B"
-                    strokeWidth={2}
-                    dot={{
-                      r: 3
-                    }} />
-                  
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="berry"
-                    name="Operating Margin"
-                    stroke="#1E293B"
-                    strokeWidth={2}
-                    dot={{
-                      r: 4
-                    }} />
-                  
-                </ComposedChart>
-              </ResponsiveContainer>
-            </Box>
+                  Monthly Berry-ratio analysis
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: '#64748B'
+                  }}>
+                  Bar: revenue ({currency}). Lines: Berry ratio (left) vs. arm's-length target.
+                </Typography>
+              </Box>
+              <FormControl size="small" sx={{ minWidth: 200 }}>
+                <InputLabel id="berry-entity-label">Entity</InputLabel>
+                <Select
+                  labelId="berry-entity-label"
+                  label="Entity"
+                  value={entityId}
+                  onChange={(e) => setEntityId(e.target.value as string)}>
+                  {entities.map((e) => (
+                    <MenuItem key={e.id} value={e.id}>
+                      {e.id} — {e.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Stack>
+
+            {trend.loading ? (
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <CircularProgress size={28} />
+              </Box>
+            ) : trend.error ? (
+              <Alert severity="warning">{trend.error.message}</Alert>
+            ) : (
+              <Box
+                sx={{
+                  width: '100%',
+                  height: 360,
+                  mt: 1
+                }}>
+
+                <ResponsiveContainer>
+                  <ComposedChart
+                    data={trend.data ?? []}
+                    margin={{
+                      top: 10,
+                      right: 10,
+                      bottom: 0,
+                      left: 0
+                    }}>
+
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{
+                        fontSize: 12,
+                        fill: '#64748B'
+                      }} />
+
+                    <YAxis
+                      yAxisId="left"
+                      tickFormatter={(v: number) => `${(v / 1_000_000).toFixed(1)}M`}
+                      tick={{
+                        fontSize: 12,
+                        fill: '#64748B'
+                      }} />
+
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tick={{
+                        fontSize: 12,
+                        fill: '#64748B'
+                      }} />
+
+                    <Tooltip
+                      formatter={(value: number, name: string) => {
+                        if (name === 'Revenue') return formatCurrency(value, currency, true);
+                        return value.toFixed(2);
+                      }} />
+                    <Legend
+                      wrapperStyle={{
+                        fontSize: 12
+                      }} />
+
+                    <ReferenceLine
+                      yAxisId="right"
+                      y={totals.target}
+                      stroke="#F59E0B"
+                      strokeDasharray="3 3" />
+
+                    <Bar
+                      yAxisId="left"
+                      dataKey="revenue"
+                      name="Revenue"
+                      fill="#5EEAD4"
+                      radius={[4, 4, 0, 0]} />
+
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="target"
+                      name="Target Berry"
+                      stroke="#F59E0B"
+                      strokeWidth={2}
+                      dot={{
+                        r: 3
+                      }} />
+
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="berry"
+                      name="Actual Berry"
+                      stroke="#1E293B"
+                      strokeWidth={2}
+                      dot={{
+                        r: 4
+                      }} />
+
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </Box>
+            )}
           </Paper>
         </Grid>
       </Grid>

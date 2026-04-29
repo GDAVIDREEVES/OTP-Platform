@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import AppShell from '../components/layout/AppShell';
 import {
   Paper,
@@ -19,6 +19,7 @@ import {
   TableCell,
   Avatar } from
 '@mui/material';
+import { useSaveSettings, useSettings } from '../data/DataProvider';
 const users = [
 {
   name: 'Maria Chen',
@@ -74,6 +75,24 @@ const connectors = [
 }];
 
 export default function Settings() {
+  const initial = useSettings();
+  const { save, pending } = useSaveSettings();
+  const [companyName, setCompanyName] = useState(initial.companyName);
+  const [defaultCurrency, setDefaultCurrency] = useState(initial.defaultCurrency);
+  const [defaultReviewer, setDefaultReviewer] = useState(initial.defaultReviewer);
+  const [notifyOnDeviation, setNotifyOnDeviation] = useState(initial.notifyOnDeviation);
+  const dirty =
+    companyName !== initial.companyName ||
+    defaultCurrency !== initial.defaultCurrency ||
+    defaultReviewer !== initial.defaultReviewer ||
+    notifyOnDeviation !== initial.notifyOnDeviation;
+  // If a refetch updates the cached settings, sync local state
+  useEffect(() => {
+    setCompanyName(initial.companyName);
+    setDefaultCurrency(initial.defaultCurrency);
+    setDefaultReviewer(initial.defaultReviewer);
+    setNotifyOnDeviation(initial.notifyOnDeviation);
+  }, [initial.companyName, initial.defaultCurrency, initial.defaultReviewer, initial.notifyOnDeviation]);
   return (
     <AppShell pageTitle="Settings">
       <Grid container spacing={2.5}>
@@ -96,27 +115,48 @@ export default function Settings() {
               <TextField
                 label="Organization name"
                 size="small"
-                defaultValue="Meridian Industrial Group"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
                 fullWidth />
-              
+
               <TextField
                 label="Functional currency"
                 size="small"
-                defaultValue="USD"
+                value={defaultCurrency}
+                onChange={(e) => setDefaultCurrency(e.target.value)}
                 fullWidth />
-              
+
               <TextField
-                label="Fiscal year end"
+                label="Default reviewer"
                 size="small"
-                defaultValue="December 31"
+                value={defaultReviewer}
+                onChange={(e) => setDefaultReviewer(e.target.value)}
+                helperText="Used as the default sign-off on adjustments and policy edits."
                 fullWidth />
-              
-              <TextField
-                label="Data residency"
-                size="small"
-                defaultValue="European Union (Frankfurt)"
-                fullWidth />
-              
+
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={notifyOnDeviation}
+                    onChange={(e) => setNotifyOnDeviation(e.target.checked)} />
+                }
+                label="Notify on out-of-range deviations" />
+
+              <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+                <Button
+                  variant="contained"
+                  disabled={!dirty || pending}
+                  onClick={() =>
+                    save({
+                      companyName,
+                      defaultCurrency,
+                      defaultReviewer,
+                      notifyOnDeviation,
+                    })
+                  }>
+                  {pending ? 'Saving…' : 'Save settings'}
+                </Button>
+              </Stack>
             </Stack>
           </Paper>
         </Grid>

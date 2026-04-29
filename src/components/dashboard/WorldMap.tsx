@@ -7,7 +7,8 @@ import {
   Marker,
   ZoomableGroup } from
 'react-simple-maps';
-import { entities, Entity, statusColor, statusLabel } from '../data/entities';
+import { Entity, statusColor, statusLabel } from '../data/entities';
+import { useEntities } from '../../data/DataProvider';
 // Public world topology (countries) — 110m resolution, light enough for dashboards
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 interface HoverState {
@@ -20,6 +21,7 @@ export default function WorldMap({
 
 
 }: {onEntityClick?: (e: Entity) => void;}) {
+  const entities = useEntities();
   const [hover, setHover] = useState<HoverState | null>(null);
   const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
   const handleMouseMove = (e: Entity) => (event: React.MouseEvent) => {
@@ -62,7 +64,7 @@ export default function WorldMap({
               color: '#64748B'
             }}>
             
-            20 entities across 5 countries • Hover a dot for details
+            {entities.length} entities across {new Set(entities.map((e) => e.countryCode)).size} countries • Hover a dot for details
           </Typography>
         </Box>
         <Stack

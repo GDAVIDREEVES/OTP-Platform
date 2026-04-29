@@ -28,13 +28,16 @@ import {
 '@mui/material';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import { getEntity, statusColor } from '../components/data/entities';
+import { useEntity, useJournalEntries, useSubmitAdjustment, useSettings } from '../data/DataProvider';
 import { formatCurrency } from '../components/theme';
 import { useResearchBrain } from '../components/research-brain/ResearchBrainContext';
 export default function Adjustment() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const e = getEntity(id || '');
+  const e = useEntity(id);
+  const journal = useJournalEntries({ entity: id, limit: 25 });
+  const settings = useSettings();
+  const { submit, pending: submitting } = useSubmitAdjustment();
   const { openPanel } = useResearchBrain();
   const [step, setStep] = useState(0);
   const [mode, setMode] = useState<'median' | 'upper' | 'custom'>('median');
@@ -413,6 +416,78 @@ export default function Adjustment() {
                 </Table>
               </Paper>
             </Grid>
+
+            {/* Supporting journal entries — audit trail from ACDOCA */}
+            <Grid item xs={12}>
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="flex-end"
+                  sx={{ mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                      Supporting journal entries
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#64748B' }}>
+                      Recent ACDOCA postings for {e.id} — these are the line items the adjustment will sit alongside.
+                    </Typography>
+                  </Box>
+                  {journal.data && (
+                    <Chip
+                      label={`${journal.data.length} of latest 25 lines`}
+                      size="small"
+                      sx={{ bgcolor: '#F1F5F9', color: '#475569', fontWeight: 600 }}
+                    />
+                  )}
+                </Stack>
+                {journal.loading ? (
+                  <Typography variant="body2" sx={{ color: '#64748B', py: 1.5 }}>
+                    Loading journal entries…
+                  </Typography>
+                ) : journal.error ? (
+                  <Alert severity="warning">{journal.error.message}</Alert>
+                ) : journal.data && journal.data.length > 0 ? (
+                  <Box sx={{ overflowX: 'auto' }}>
+                    <Table size="small" sx={{ minWidth: 720 }}>
+                      <TableBody>
+                        {journal.data.slice(0, 12).map((j, i) => (
+                          <TableRow key={`${j.BELNR}-${j.DOCLN}-${i}`} hover>
+                            <TableCell sx={{ color: '#64748B', fontSize: 12 }}>
+                              {j.BUDAT}
+                            </TableCell>
+                            <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+                              {j.BELNR}/{j.DOCLN}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: 12 }}>
+                              <Box sx={{ fontWeight: 600 }}>{j.RACCT}</Box>
+                              {j.RASSC && (
+                                <Box sx={{ color: '#64748B', fontSize: 11 }}>
+                                  TP: {j.RASSC}
+                                </Box>
+                              )}
+                            </TableCell>
+                            <TableCell sx={{ color: '#475569', fontSize: 12 }}>
+                              {j.SGTXT || '—'}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700, fontSize: 12 }}>
+                              {formatCurrency(j.HSL, j.RHCUR || 'USD', false)}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: 11, color: '#64748B' }}>
+                              {j.BLART}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Box>
+                ) : (
+                  <Typography variant="body2" sx={{ color: '#64748B', py: 1.5 }}>
+                    No journal entries found for this entity.
+                  </Typography>
+                )}
+              </Paper>
+            </Grid>
           </Grid>
         }
 
@@ -626,16 +701,37 @@ export default function Adjustment() {
               </Button>
               <Button
               variant="contained"
-              onClick={() => {
+              disabled={submitting}
+              onClick={async () => {
                 if (step === 1) {
-                  setSubmitted(true);
-                  setStep(2);
+                  const result = await submit({
+                    entityId: e.id,
+                    entityName: e.name,
+                    amount: Math.abs(adjustmentAmount),
+                    currency: e.currency || 'USD',
+                    mode,
+                    targetMargin,
+                    actualMargin: actual,
+                    notes:
+                      mode === 'custom'
+                        ? `Custom target ${customMargin}%`
+                        : undefined,
+                    submittedBy: settings.defaultReviewer || 'You',
+                  });
+                  if (result) {
+                    setSubmitted(true);
+                    setStep(2);
+                  }
                 } else {
                   setStep((s) => s + 1);
                 }
               }}>
-              
-                {step === 1 ? 'Submit for approval' : 'Continue'}
+
+                {submitting
+                  ? 'Submitting…'
+                  : step === 1
+                  ? 'Submit for approval'
+                  : 'Continue'}
               </Button>
             </Stack>
           </>

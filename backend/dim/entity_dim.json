@@ -1,0 +1,76 @@
+{
+  "entities": [
+    {
+      "rbukrs": "1000",
+      "display_name": "US IP Principal Co.",
+      "country": "United States",
+      "country_code": "US",
+      "function": "Principal",
+      "lat": 39.74,
+      "lng": -75.55
+    },
+    {
+      "rbukrs": "3000",
+      "display_name": "Germany Manufacturing Co.",
+      "country": "Germany",
+      "country_code": "DE",
+      "function": "Manufacturer",
+      "lat": 50.11,
+      "lng": 8.68
+    },
+    {
+      "rbukrs": "3100",
+      "display_name": "Switzerland IP Principal",
+      "country": "Switzerland",
+      "country_code": "CH",
+      "function": "IP Holding / Principal",
+      "lat": 47.37,
+      "lng": 8.54
+    },
+    {
+      "rbukrs": "3200",
+      "display_name": "France Distribution Co.",
+      "country": "France",
+      "country_code": "FR",
+      "function": "Distributor",
+      "lat": 48.86,
+      "lng": 2.35
+    },
+    {
+      "rbukrs": "3300",
+      "display_name": "UK Distribution Co.",
+      "country": "United Kingdom",
+      "country_code": "GB",
+      "function": "Distributor",
+      "lat": 51.51,
+      "lng": -0.13
+    },
+    {
+      "rbukrs": "3400",
+      "display_name": "Ireland Financing Co.",
+      "country": "Ireland",
+      "country_code": "IE",
+      "function": "Treasury / Finance",
+      "lat": 53.35,
+      "lng": -6.26
+    },
+    {
+      "rbukrs": "3800",
+      "display_name": "Netherlands Distribution Co.",
+      "country": "Netherlands",
+      "country_code": "NL",
+      "function": "Distributor",
+      "lat": 52.37,
+      "lng": 4.90
+    },
+    {
+      "rbukrs": "4100",
+      "display_name": "India Toll Manufacturer",
+      "country": "India",
+      "country_code": "IN",
+      "function": "Manufacturer",
+      "lat": 19.08,
+      "lng": 72.88
+    }
+  ]
+}

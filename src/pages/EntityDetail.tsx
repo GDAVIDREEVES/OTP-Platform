@@ -22,13 +22,12 @@ import {
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import {
-  getEntity,
   statusColor,
   statusLabel } from
 '../components/data/entities';
+import { useEntity, useMarginTrend, useEntityFlows } from '../data/DataProvider';
 import { formatCurrency } from '../components/theme';
 import { useResearchBrain } from '../components/research-brain/ResearchBrainContext';
-import { monthlyMarginTrend } from '../components/data/transactions';
 import {
   LineChart,
   Line,
@@ -42,7 +41,9 @@ import {
 export default function EntityDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const e = getEntity(id || '');
+  const e = useEntity(id);
+  const monthlyMarginTrend = useMarginTrend();
+  const flows = useEntityFlows(id);
   const { openPanel } = useResearchBrain();
   if (!e)
   return (
@@ -332,18 +333,126 @@ export default function EntityDetail() {
             </Box>
           </Paper>
 
+          {/* Flows by material type — driven by /api/entities/{id}/flows */}
+          <Paper
+            sx={{
+              p: 2.5,
+              mb: 2.5
+            }}>
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="flex-end"
+              sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  Flows by material type
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#64748B' }}>
+                  Aggregated from supply-chain steps where this entity is the seller or buyer
+                </Typography>
+              </Box>
+            </Stack>
+            {flows.loading ? (
+              <Typography variant="body2" sx={{ color: '#64748B', py: 2 }}>
+                Loading flow breakdown…
+              </Typography>
+            ) : flows.error ? (
+              <Alert severity="warning" sx={{ mb: 1 }}>
+                {flows.error.message}
+              </Alert>
+            ) : flows.data && flows.data.length > 0 ? (
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Direction</TableCell>
+                    <TableCell>Material type</TableCell>
+                    <TableCell>Method</TableCell>
+                    <TableCell>Counterparties</TableCell>
+                    <TableCell align="right">Chains</TableCell>
+                    <TableCell align="right">YTD Volume</TableCell>
+                    <TableCell>Tags</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {flows.data.map((f, i) => (
+                    <TableRow key={`${f.direction}-${f.materialType}-${f.tpMethod}-${i}`} hover>
+                      <TableCell>
+                        <Chip
+                          label={f.direction === 'sell' ? 'Sells' : 'Buys'}
+                          size="small"
+                          sx={{
+                            bgcolor: f.direction === 'sell' ? '#DCFCE7' : '#EFF6FF',
+                            color: f.direction === 'sell' ? '#15803D' : '#1D4ED8',
+                            fontWeight: 700,
+                            minWidth: 56
+                          }} />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {f.materialLabel}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#64748B' }}>
+                          {f.materialType}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{f.tpMethod}</TableCell>
+                      <TableCell sx={{ color: '#475569' }}>
+                        {f.counterparties.join(', ')}
+                      </TableCell>
+                      <TableCell align="right">{f.chains}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>
+                        {formatCurrency(f.ytdVolume, e.currency || 'USD', true)}
+                      </TableCell>
+                      <TableCell>
+                        <Stack direction="row" spacing={0.5}>
+                          {f.apa && (
+                            <Chip
+                              label="APA"
+                              size="small"
+                              sx={{
+                                bgcolor: '#EFF6FF',
+                                color: '#1D4ED8',
+                                fontWeight: 700,
+                                border: '1px solid #BFDBFE'
+                              }} />
+                          )}
+                          {f.challenged && (
+                            <Chip
+                              label="Challenged"
+                              size="small"
+                              sx={{
+                                bgcolor: '#FEF2F2',
+                                color: '#B91C1C',
+                                fontWeight: 700,
+                                border: '1px solid #FECACA'
+                              }} />
+                          )}
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <Typography variant="body2" sx={{ color: '#64748B', py: 2 }}>
+                No supply-chain flows found for this entity.
+              </Typography>
+            )}
+          </Paper>
+
           <Paper
             sx={{
               p: 2.5
             }}>
-            
+
             <Typography
               variant="subtitle1"
               sx={{
                 fontWeight: 700,
                 mb: 2
               }}>
-              
+
               Underlying transactions
             </Typography>
             <Table size="small">
@@ -363,7 +472,7 @@ export default function EntityDetail() {
                     sx={{
                       fontWeight: 700
                     }}>
-                    
+
                       {t.id}
                     </TableCell>
                     <TableCell>{t.date}</TableCell>

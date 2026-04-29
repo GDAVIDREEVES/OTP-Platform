@@ -19,11 +19,13 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import { entities, statusColor } from '../components/data/entities';
+import { statusColor } from '../components/data/entities';
+import { useEntities } from '../data/DataProvider';
 import { formatCurrency } from '../components/theme';
 import ProductPricing from '../components/pricing/ProductPricing';
 export default function PriceSetting() {
   const [tab, setTab] = useState(0);
+  const entities = useEntities();
   const tested = entities.filter((e) => e.actualMargin !== null);
   const passed = tested.filter((e) => e.status === 'in-range').length;
   const failed = tested.filter((e) => e.status === 'out-of-range').length;

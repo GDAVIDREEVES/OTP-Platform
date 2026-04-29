@@ -39,15 +39,8 @@ import {
   ResponsiveContainer } from
 'recharts';
 import WorldMap from '../components/dashboard/WorldMap';
-import {
-  entities,
-  statusColor,
-  statusLabel,
-  totalICVolume,
-  entitiesInRange,
-  entitiesOutOfRange } from
-'../components/data/entities';
-import { monthlyMarginTrend } from '../components/data/transactions';
+import { statusColor, statusLabel } from '../components/data/entities';
+import { useEntities, useKpis, useMarginTrend } from '../data/DataProvider';
 import { formatCurrency } from '../components/theme';
 import { useResearchBrain } from '../components/research-brain/ResearchBrainContext';
 interface KpiCardProps {
@@ -186,14 +179,6 @@ function KpiCard({
     </Paper>);
 
 }
-const tableEntityIds = [
-'IE-002',
-'MX-002',
-'CA-001',
-'UK-001',
-'US-003',
-'CH-001'];
-
 interface Alert {
   id: string;
   entityId: string;
@@ -203,49 +188,54 @@ interface Alert {
   timestamp: string;
   primaryAction: string;
 }
-const alerts: Alert[] = [
-{
-  id: 'a1',
-  entityId: 'IE-002',
-  severity: 'HIGH',
-  title: 'IE-002 Operating Margin Overshoot',
-  body: 'Ireland Distribution Co. operating margin is 29%, exceeding the 4% TNMM target by +25pp. TP adjustment of $286,764,240 required. Year-end true-up recommended.',
-  timestamp: 'Dec 10, 2025 — 09:14 AM',
-  primaryAction: 'Run Adjustment'
-},
-{
-  id: 'a2',
-  entityId: 'MX-002',
-  severity: 'MEDIUM',
-  title: 'MX-002 Approaching Lower Threshold',
-  body: "Mexico Distribution Co. operating margin at 17%, approaching arm's length floor. Monitor Q4 freight costs. No action required yet.",
-  timestamp: 'Dec 9, 2025 — 03:47 PM',
-  primaryAction: 'Review'
-},
-{
-  id: 'a3',
-  entityId: 'CA-001',
-  severity: 'MEDIUM',
-  title: 'CA-001 Approaching Lower Threshold',
-  body: 'Canada Distribution Co. operating margin at 18%, within range but trending toward lower bound. Q4 volume uptick may resolve.',
-  timestamp: 'Dec 8, 2025 — 11:22 AM',
-  primaryAction: 'Review'
-}];
+
+import type { Entity } from '../components/data/entities';
+/** Build live alerts from the entities array — surface the 3 worst variance offenders. */
+function buildAlerts(entities: Entity[]): Alert[] {
+  const candidates = entities
+    .filter((e) => e.status !== 'in-range' && e.variance != null)
+    .slice()
+    .sort((a, b) => Math.abs((b.variance ?? 0)) - Math.abs((a.variance ?? 0)));
+  return candidates.slice(0, 3).map((e, i) => {
+    const v = e.variance ?? 0;
+    const direction = v > 0 ? 'over' : 'below';
+    const sign = v > 0 ? '+' : '';
+    return {
+      id: `a${i + 1}`,
+      entityId: e.id,
+      severity: e.status === 'out-of-range' ? 'HIGH' : 'MEDIUM',
+      title: `${e.id} ${direction === 'over' ? 'Operating Margin Overshoot' : 'Below Lower Threshold'}`,
+      body:
+        `${e.name} YTD operating margin is ${e.actualMargin?.toFixed(1)}%, ` +
+        `${direction} the ${e.targetMarginLabel} ${e.tpMethod} target by ${sign}${v.toFixed(1)}pp. ` +
+        (e.status === 'out-of-range'
+          ? 'Year-end true-up recommended.'
+          : 'Monitor closely.'),
+      timestamp: e.lastUpdated ?? '',
+      primaryAction: e.status === 'out-of-range' ? 'Run Adjustment' : 'Review',
+    };
+  });
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { openPanel } = useResearchBrain();
+  const entities = useEntities();
+  const kpis = useKpis();
+  const monthlyMarginTrend = useMarginTrend();
   const [filterOutOfRange, setFilterOutOfRange] = useState(false);
   const tableEntities = useMemo(() => {
-    const base = entities.
-    filter((e) => tableEntityIds.includes(e.id)).
-    sort(
-      (a, b) => tableEntityIds.indexOf(a.id) - tableEntityIds.indexOf(b.id)
+    // With the live dataset (8 entities) we just show all of them by default,
+    // sorted with out-of-range first so the alerts surface at the top.
+    const order = { 'out-of-range': 0, watch: 1, 'in-range': 2 } as const;
+    const base = [...entities].sort(
+      (a, b) => order[a.status] - order[b.status]
     );
     return filterOutOfRange ?
     base.filter((e) => e.status === 'out-of-range') :
     base;
-  }, [filterOutOfRange]);
+  }, [entities, filterOutOfRange]);
+  const alerts = useMemo(() => buildAlerts(entities), [entities]);
   const askBrainForAlert = (a: Alert) => {
     const entity = entities.find((e) => e.id === a.entityId);
     openPanel({
@@ -273,26 +263,26 @@ export default function Dashboard() {
             <Grid item xs={12} sm={6} md={3}>
               <KpiCard
                 label="Total IC Volume (YTD)"
-                value={formatCurrency(totalICVolume, 'USD', true)}
-                subtitle="Across 20 entities, 10 transaction types"
+                value={formatCurrency(kpis.totalICVolume, 'USD', true)}
+                subtitle={`Across ${kpis.entityCount} entities`}
                 accent="primary"
                 icon={<TrendingUpIcon />}
                 trend="+8.3% vs. prior year" />
-              
+
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <KpiCard
                 label="Entities In Range"
-                value={`${entitiesInRange} of 20`}
+                value={`${kpis.entitiesInRange} of ${kpis.entityCount}`}
                 subtitle="Operating within arm's length policy"
                 accent="success"
                 icon={<CheckCircleIcon />} />
-              
+
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <KpiCard
                 label="Entities Out of Range"
-                value={String(entitiesOutOfRange)}
+                value={String(kpis.entitiesOutOfRange)}
                 subtitle="Require attention or adjustment"
                 accent="error"
                 icon={<ErrorIcon />}
@@ -302,7 +292,7 @@ export default function Dashboard() {
             <Grid item xs={12} sm={6} md={3}>
               <KpiCard
                 label="Pending Actions"
-                value="7"
+                value={String(kpis.openAdjustments)}
                 subtitle="3 invoices awaiting approval · 4 adjustments pending review"
                 accent="warning"
                 icon={<AccessTimeIcon />}
@@ -311,12 +301,63 @@ export default function Dashboard() {
             </Grid>
           </Grid>
 
+          {/* Tax-controversy posture strip */}
+          <Paper
+            sx={{
+              p: 1.5,
+              mb: 2.5,
+              display: 'flex',
+              gap: 2,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              borderLeft: '3px solid #2563EB'
+            }}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: '#64748B',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em'
+              }}>
+              Tax controversy posture
+            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Chip
+                label={`${kpis.flowsUnderAPA} chains under APA`}
+                size="small"
+                sx={{
+                  bgcolor: '#EFF6FF',
+                  color: '#1D4ED8',
+                  fontWeight: 700,
+                  border: '1px solid #BFDBFE'
+                }}
+              />
+              <Chip
+                label={`${kpis.flowsChallenged} chains challenged`}
+                size="small"
+                sx={{
+                  bgcolor: '#FEF2F2',
+                  color: '#B91C1C',
+                  fontWeight: 700,
+                  border: '1px solid #FECACA'
+                }}
+                onClick={() => navigate('/policy')}
+              />
+            </Stack>
+            <Typography variant="caption" sx={{ color: '#64748B', ml: 'auto' }}>
+              {kpis.flowsChallenged > 0
+                ? 'Click "challenged" to review flows in the Policy view'
+                : 'No open challenges from tax authorities'}
+            </Typography>
+          </Paper>
+
           {/* World map */}
           <Box
             sx={{
               mb: 2.5
             }}>
-            
+
             <WorldMap onEntityClick={(e) => navigate(`/entities/${e.id}`)} />
           </Box>
 
@@ -509,7 +550,7 @@ export default function Dashboard() {
                   color: '#64748B'
                 }}>
                 
-                Showing {tableEntities.length} of 20 entities
+                Showing {tableEntities.length} of {entities.length} entities
               </Typography>
               <MuiLink
                 component="button"

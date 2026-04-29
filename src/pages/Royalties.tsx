@@ -18,9 +18,10 @@ import {
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AddIcon from '@mui/icons-material/Add';
-import { royalties } from '../components/data/transactions';
+import { useRoyalties } from '../data/DataProvider';
 import { formatCurrency } from '../components/theme';
 export default function Royalties() {
+  const royalties = useRoyalties();
   const totalFees = royalties.reduce((a, r) => a + r.ytdFees, 0);
   const flagged = royalties.filter((r) => !r.withinBenchmark).length;
   return (

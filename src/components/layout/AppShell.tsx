@@ -35,8 +35,20 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
+import RefreshIcon from '@mui/icons-material/RestartAlt';
 import ResearchBrainFab from '../research-brain/ResearchBrainFab';
 import ResearchBrainPanel from '../research-brain/ResearchBrainPanel';
+import {
+  useLastFetchedAt,
+  useRefetch,
+  useRefreshing,
+  usePeriod,
+  useSetPeriod,
+  useSetYear,
+  useAvailableYears,
+  periodLabel,
+  type PeriodKey,
+} from '../../data/DataProvider';
 const DRAWER_WIDTH = 248;
 const navItems = [
 {
@@ -89,12 +101,38 @@ interface Props {
   pageTitle: string;
   children: React.ReactNode;
 }
+/** Render "Data as of …" using a relative phrase that auto-rolls. */
+function formatAsOf(d: Date): string {
+  const diffMs = Date.now() - d.getTime();
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 5) return 'just now';
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hr ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 export default function AppShell({ pageTitle, children }: Props) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const lastFetchedAt = useLastFetchedAt();
+  const refetch = useRefetch();
+  const refreshing = useRefreshing();
+  const period = usePeriod();
+  const setPeriod = useSetPeriod();
+  const setYear = useSetYear();
+  const availableYears = useAvailableYears();
+  // re-render once a minute so the "as of" chip stays fresh without polling
+  const [, forceTick] = useState(0);
+  React.useEffect(() => {
+    const t = window.setInterval(() => forceTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
   const drawer =
   <Box
     sx={{
@@ -378,6 +416,33 @@ export default function AppShell({ pageTitle, children }: Props) {
             </Typography>
 
             <Stack direction="row" spacing={1.5} alignItems="center">
+              {availableYears.length > 1 && (
+                <FormControl
+                  size="small"
+                  sx={{
+                    display: {
+                      xs: 'none',
+                      sm: 'block'
+                    },
+                    minWidth: 110
+                  }}>
+                  <Select
+                    value={period.year}
+                    onChange={(e) => setYear(Number(e.target.value))}
+                    disabled={refreshing}
+                    sx={{
+                      fontSize: 14,
+                      bgcolor: '#F8FAFC'
+                    }}>
+                    {availableYears.map((y) => (
+                      <MenuItem key={y} value={y}>
+                        FY{y}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+
               <FormControl
                 size="small"
                 sx={{
@@ -387,44 +452,71 @@ export default function AppShell({ pageTitle, children }: Props) {
                   },
                   minWidth: 180
                 }}>
-                
                 <Select
-                  defaultValue="q4"
+                  value={period.key}
+                  onChange={(e) => setPeriod(e.target.value as PeriodKey)}
+                  disabled={refreshing}
                   sx={{
                     fontSize: 14,
                     bgcolor: '#F8FAFC'
                   }}>
-                  
-                  <MenuItem value="q4">FY2025 — Q4 (Oct–Dec)</MenuItem>
-                  <MenuItem value="q3">FY2025 — Q3 (Jul–Sep)</MenuItem>
-                  <MenuItem value="q2">FY2025 — Q2 (Apr–Jun)</MenuItem>
-                  <MenuItem value="q1">FY2025 — Q1 (Jan–Mar)</MenuItem>
-                  <MenuItem value="fy">FY2025 — Full Year</MenuItem>
+                  {(['fy', 'q1', 'q2', 'q3', 'q4'] as const).map((k) => (
+                    <MenuItem key={k} value={k}>
+                      {availableYears.length > 1 ? periodLabel(k) : `FY${period.year} — ${periodLabel(k)}`}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
 
-              <Chip
-                icon={
-                <CloudDoneIcon
+              <Tooltip
+                title={`Data fetched at ${lastFetchedAt.toLocaleTimeString()}`}
+                arrow>
+                <Chip
+                  icon={
+                    <CloudDoneIcon
+                      sx={{
+                        fontSize: 16,
+                        color: '#16A34A !important'
+                      }} />
+                  }
+                  label={`As of ${formatAsOf(lastFetchedAt)}`}
+                  size="small"
                   sx={{
-                    fontSize: 16,
-                    color: '#16A34A !important'
+                    display: {
+                      xs: 'none',
+                      lg: 'flex'
+                    },
+                    bgcolor: '#F8FAFC',
+                    color: '#475569',
+                    border: '1px solid #E2E8F0',
+                    fontWeight: 500
                   }} />
+              </Tooltip>
 
-                }
-                label="Last synced 4 min ago"
-                size="small"
-                sx={{
-                  display: {
-                    xs: 'none',
-                    lg: 'flex'
-                  },
-                  bgcolor: '#F8FAFC',
-                  color: '#475569',
-                  border: '1px solid #E2E8F0',
-                  fontWeight: 500
-                }} />
-              
+              <Tooltip
+                title={refreshing ? 'Refreshing…' : 'Refresh data from SAP'}
+                arrow>
+                <span>
+                  <IconButton
+                    aria-label="Refresh data"
+                    onClick={() => void refetch()}
+                    disabled={refreshing}
+                    sx={{
+                      color: refreshing ? '#94A3B8' : '#475569',
+                      '& svg': {
+                        animation: refreshing
+                          ? 'otp-spin 0.9s linear infinite'
+                          : 'none'
+                      },
+                      '@keyframes otp-spin': {
+                        '0%': { transform: 'rotate(0deg)' },
+                        '100%': { transform: 'rotate(360deg)' }
+                      }
+                    }}>
+                    <RefreshIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
 
               <Tooltip title="Notifications">
                 <IconButton aria-label="Notifications">

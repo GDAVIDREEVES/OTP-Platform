@@ -1,0 +1,37 @@
+{
+  "adjustments": [
+    {
+      "id": "ADJ-78B3D5C7",
+      "submittedAt": "2026-04-29T17:35:10.383022+00:00",
+      "status": "Reversed",
+      "entityId": "3300",
+      "amount": 1000000,
+      "currency": "GBP",
+      "mode": "median",
+      "targetMargin": 3,
+      "actualMargin": -6.29,
+      "submittedBy": "Greg",
+      "approvedBy": "Sam",
+      "updatedAt": "2026-04-29T17:35:10.390246+00:00",
+      "updatedBy": "Sam",
+      "exportedRef": "EXP-XYZ",
+      "reversedById": "ADJ-36D0DA18",
+      "reversedAt": "2026-04-29T17:35:10.393080+00:00",
+      "reversedBy": "Sam"
+    }
+  ],
+  "policy_overrides": {
+    "TXN-001": {
+      "tpMethod": "TNMM",
+      "reviewer": "Maria",
+      "flowId": "TXN-001",
+      "updatedAt": "2026-04-29T17:23:33.959304+00:00"
+    }
+  },
+  "settings": {
+    "companyName": "Greg & Co.",
+    "defaultCurrency": "USD",
+    "defaultReviewer": "Maria",
+    "notifyOnDeviation": false
+  }
+}

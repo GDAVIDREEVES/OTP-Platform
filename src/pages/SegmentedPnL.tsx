@@ -31,33 +31,13 @@ import {
   Legend } from
 'recharts';
 import {
-  entities,
   statusColor,
   statusLabel,
   EntityStatus } from
 '../components/data/entities';
+import { useEntities } from '../data/DataProvider';
 import { formatCurrency } from '../components/theme';
 import DetailedPnL from '../components/pnl/DetailedPnL';
-const segments = entities.map((e) => {
-  const revenue = e.ytdVolume;
-  const opMargin = e.actualMargin ?? 8;
-  const operatingProfit = Math.round(revenue * (opMargin / 100));
-  const costs = revenue - operatingProfit;
-  const etr = 22 + Math.round(e.lat % 5 * 2);
-  return {
-    id: e.id,
-    name: e.name,
-    country: e.country,
-    countryCode: e.countryCode,
-    function: e.function,
-    revenue,
-    costs,
-    operatingProfit,
-    opMargin,
-    etr,
-    status: e.status
-  };
-});
 // Worst status wins for jurisdiction-level rollup
 const statusRank: Record<EntityStatus, number> = {
   'in-range': 0,
@@ -69,6 +49,30 @@ export default function SegmentedPnL() {
   const [tab, setTab] = useState(0);
   const [shift, setShift] = useState(0);
   const [view, setView] = useState<'entity' | 'jurisdiction'>('entity');
+  const entities = useEntities();
+  const segments = useMemo(
+    () => entities.map((e) => {
+      const revenue = e.ytdVolume;
+      const opMargin = e.actualMargin ?? 8;
+      const operatingProfit = Math.round(revenue * (opMargin / 100));
+      const costs = revenue - operatingProfit;
+      const etr = 22 + Math.round(e.lat % 5 * 2);
+      return {
+        id: e.id,
+        name: e.name,
+        country: e.country,
+        countryCode: e.countryCode,
+        function: e.function,
+        revenue,
+        costs,
+        operatingProfit,
+        opMargin,
+        etr,
+        status: e.status,
+      };
+    }),
+    [entities]
+  );
   const scenarioSegments = useMemo(
     () =>
     segments.map((s) => {
@@ -80,7 +84,7 @@ export default function SegmentedPnL() {
         scenarioProfit: newProfit
       };
     }),
-    [shift]
+    [shift, segments]
   );
   const byJurisdiction = useMemo(() => {
     const map = new Map<

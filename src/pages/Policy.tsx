@@ -27,16 +27,29 @@ import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import PsychologyIcon from '@mui/icons-material/Psychology';
-import {
-  transactionFlows,
-  TransactionFlow } from
-'../components/data/transactions';
+import { TransactionFlow } from '../components/data/transactions';
 import { statusColor, statusLabel } from '../components/data/entities';
+import { useFlows, useSavePolicyOverride, useSettings } from '../data/DataProvider';
 import { formatCurrency } from '../components/theme';
 import { useResearchBrain } from '../components/research-brain/ResearchBrainContext';
 export default function Policy() {
   const [editing, setEditing] = useState<TransactionFlow | null>(null);
+  const [draftMethod, setDraftMethod] = useState<string>('');
+  const [draftReviewer, setDraftReviewer] = useState<string>('');
+  const [draftNotes, setDraftNotes] = useState<string>('');
   const { openPanel } = useResearchBrain();
+  const transactionFlows = useFlows();
+  const settings = useSettings();
+  const { save: savePolicy, pending: savingPolicy } = useSavePolicyOverride();
+
+  // Reset drawer fields whenever the user opens a different row
+  React.useEffect(() => {
+    if (editing) {
+      setDraftMethod(editing.tpMethod);
+      setDraftReviewer(settings.defaultReviewer);
+      setDraftNotes('');
+    }
+  }, [editing, settings.defaultReviewer]);
   return (
     <AppShell pageTitle="Policy Configuration">
       <Stack
@@ -124,15 +137,40 @@ export default function Policy() {
                     {formatCurrency(t.ytdVolume, 'USD', true)}
                   </TableCell>
                   <TableCell>
-                    <Chip
-                    label={statusLabel[t.status]}
-                    size="small"
-                    sx={{
-                      bgcolor: `${statusColor[t.status]}18`,
-                      color: statusColor[t.status],
-                      fontWeight: 700
-                    }} />
-                  
+                    <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <Chip
+                        label={statusLabel[t.status]}
+                        size="small"
+                        sx={{
+                          bgcolor: `${statusColor[t.status]}18`,
+                          color: statusColor[t.status],
+                          fontWeight: 700
+                        }} />
+                      {t.apa && (
+                        <Chip
+                          label="APA"
+                          size="small"
+                          title="Covered by an Advance Pricing Agreement"
+                          sx={{
+                            bgcolor: '#EFF6FF',
+                            color: '#1D4ED8',
+                            fontWeight: 700,
+                            border: '1px solid #BFDBFE'
+                          }} />
+                      )}
+                      {t.challenged && (
+                        <Chip
+                          label="Challenged"
+                          size="small"
+                          title="Position challenged by a tax authority"
+                          sx={{
+                            bgcolor: '#FEF2F2',
+                            color: '#B91C1C',
+                            fontWeight: 700,
+                            border: '1px solid #FECACA'
+                          }} />
+                      )}
+                    </Stack>
                   </TableCell>
                   <TableCell align="right">
                     <IconButton
@@ -224,7 +262,10 @@ export default function Policy() {
             <Stack spacing={2}>
               <FormControl size="small" fullWidth>
                 <InputLabel>Pricing method</InputLabel>
-                <Select defaultValue={editing.tpMethod} label="Pricing method">
+                <Select
+                  value={draftMethod}
+                  onChange={(ev) => setDraftMethod(ev.target.value as string)}
+                  label="Pricing method">
                   {[
                 'CUP',
                 'TNMM',
@@ -279,33 +320,48 @@ export default function Policy() {
               <TextField
               label="Primary reviewer"
               size="small"
-              defaultValue="Maria Chen — Group TP Manager"
+              value={draftReviewer}
+              onChange={(ev) => setDraftReviewer(ev.target.value)}
               fullWidth />
-            
+
               <TextField
               label="Approver"
               size="small"
               defaultValue="Sam Rodriguez — Tax Director"
               fullWidth />
-            
+
               <TextField
               label="Notes"
               size="small"
               multiline
               rows={3}
               placeholder="Documentation source, benchmarking study ID, etc."
+              value={draftNotes}
+              onChange={(ev) => setDraftNotes(ev.target.value)}
               fullWidth />
-            
+
             </Stack>
             <Divider
             sx={{
               my: 3
             }} />
-          
+
             <Stack direction="row" spacing={1.5} justifyContent="flex-end">
               <Button onClick={() => setEditing(null)}>Cancel</Button>
-              <Button variant="contained" onClick={() => setEditing(null)}>
-                Save policy
+              <Button
+                variant="contained"
+                disabled={savingPolicy}
+                onClick={async () => {
+                  if (!editing) return;
+                  const result = await savePolicy(editing.id, {
+                    tpMethod: draftMethod,
+                    reviewer: draftReviewer,
+                    notes: draftNotes,
+                    updatedBy: settings.defaultReviewer,
+                  });
+                  if (result) setEditing(null);
+                }}>
+                {savingPolicy ? 'Saving…' : 'Save policy'}
               </Button>
             </Stack>
           </Box>
