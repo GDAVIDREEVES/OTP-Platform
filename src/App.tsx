@@ -8,26 +8,26 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { theme } from './components/theme';
-import { ResearchBrainProvider } from './components/research-brain/ResearchBrainContext';
-import { DataProvider } from './data/DataProvider';
+import { theme } from '@/shared/theme';
+import { ResearchBrainProvider } from '@/features/research-brain/ResearchBrainContext';
+import { DataProvider } from '@/shared/providers/DataProvider';
 
 // Each route is a separate JS chunk loaded on first navigation.
 // This keeps the initial bundle small (login + dashboard only) and pays the
 // download cost lazily as the user moves through the app.
-const Login = lazy(() => import('./pages/Login'));
-const Onboarding = lazy(() => import('./pages/Onboarding'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Policy = lazy(() => import('./pages/Policy'));
-const PriceSetting = lazy(() => import('./pages/PriceSetting'));
-const SegmentedPnL = lazy(() => import('./pages/SegmentedPnL'));
-const Royalties = lazy(() => import('./pages/Royalties'));
-const Invoicing = lazy(() => import('./pages/Invoicing'));
-const Reports = lazy(() => import('./pages/Reports'));
-const Settings = lazy(() => import('./pages/Settings'));
-const EntityDetail = lazy(() => import('./pages/EntityDetail'));
-const Adjustment = lazy(() => import('./pages/Adjustment'));
-const ResearchBrain = lazy(() => import('./pages/ResearchBrain'));
+const Login = lazy(() => import('@/features/auth/LoginPage'));
+const Onboarding = lazy(() => import('@/features/onboarding/OnboardingPage'));
+const Dashboard = lazy(() => import('@/features/dashboard/DashboardPage'));
+const Policy = lazy(() => import('@/features/policy/PolicyPage'));
+const PriceSetting = lazy(() => import('@/features/pricing/PriceSettingPage'));
+const SegmentedPnL = lazy(() => import('@/features/pnl/SegmentedPnLPage'));
+const Royalties = lazy(() => import('@/features/royalties/RoyaltiesPage'));
+const Invoicing = lazy(() => import('@/features/invoicing/InvoicingPage'));
+const Reports = lazy(() => import('@/features/reports/ReportsPage'));
+const Settings = lazy(() => import('@/features/settings/SettingsPage'));
+const EntityDetail = lazy(() => import('@/features/entities/EntityDetailPage'));
+const Adjustment = lazy(() => import('@/features/adjustment/AdjustmentPage'));
+const ResearchBrain = lazy(() => import('@/features/research-brain/ResearchBrainPage'));
 
 function RouteFallback() {
   return (

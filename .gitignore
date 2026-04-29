@@ -9,8 +9,18 @@ lerna-debug.log*
 
 node_modules
 dist
+dist*/
 dist-ssr
 *.local
+
+# Vite incremental cache
+vite.config.ts.timestamp-*
+vite.config.js.timestamp-*
+
+# Python
+__pycache__/
+*.pyc
+backend/.env
 
 # Editor directories and files
 .vscode/*
