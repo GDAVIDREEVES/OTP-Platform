@@ -4,24 +4,44 @@ FastAPI service that serves the React frontend by querying the four parquet
 datasets (`entity_roles`, `segment_pl`, `supply_chain_flows`, `journal_entries`)
 through DuckDB. No data copy — DuckDB reads parquet in place via `read_parquet`.
 
-## Quickstart
+## Run locally
+
+From the **repo root** (not this folder):
 
 ```bash
-# from this folder (OTP-Platform/backend)
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# point at your parquet directory (or copy .env.example -> .env and edit)
-export DATA_DIR="/Users/gregreeves/Documents/acdoca_exports/20260429-115302 NEW 29april26"
-
-# run
-python main.py
-# or:  uvicorn main:app --reload --port 8000
+./scripts/dev.sh
 ```
 
-The server boots on `http://127.0.0.1:8000` and exposes interactive docs at
-`/docs` (Swagger UI) and `/redoc`.
+This boots both services with prefixed logs in one terminal:
+
+- `[api]` FastAPI on http://127.0.0.1:8000 (auto-reload)
+- `[web]` Vite dev server on http://127.0.0.1:5173
+
+Ctrl-C tears both down.
+
+### First-time setup
+
+The venv lives at the **repo root** (`.venv/`), not inside `backend/`, so a
+single environment can host future cross-stack tooling (e.g., generating
+TypeScript types from Pydantic schemas).
+
+```bash
+# from the repo root
+/opt/homebrew/bin/python3.13 -m venv .venv
+.venv/bin/pip install -r backend/requirements.txt
+npm install
+```
+
+### Backend-only / manual
+
+If you don't want the dev script:
+
+```bash
+.venv/bin/uvicorn main:app --reload --port 8000  # from backend/
+# or:  .venv/bin/python backend/main.py
+```
+
+The server exposes interactive docs at `/docs` (Swagger UI) and `/redoc`.
 
 ## Configuration
 
