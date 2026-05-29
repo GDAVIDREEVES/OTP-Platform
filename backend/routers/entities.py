@@ -33,11 +33,11 @@ def get_entity(
     periodFrom: str | None = None,
     periodTo: str | None = None,
 ):
-    rows = list_entities(year=year, periodFrom=periodFrom, periodTo=periodTo)
-    for e in rows:
-        if e["id"] == entity_id:
-            return e
-    raise HTTPException(status_code=404, detail=f"Entity {entity_id} not found")
+    pf = PeriodFilter(year=year, period_from=periodFrom, period_to=periodTo)
+    rows = _list_entities(pf, entity_id=entity_id)
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"Entity {entity_id} not found")
+    return rows[0]
 
 
 @router.get("/api/entities/{entity_id}/flows")

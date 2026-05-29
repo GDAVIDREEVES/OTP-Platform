@@ -76,7 +76,7 @@ export default function WorldMap({
             flexWrap: 'wrap'
           }}>
           
-          {(['in-range', 'watch', 'out-of-range'] as const).map((s) =>
+          {(['in-range', 'watch', 'out-of-range', 'no-data'] as const).map((s) =>
           <Stack key={s} direction="row" alignItems="center" spacing={0.5}>
               <Box
               sx={{

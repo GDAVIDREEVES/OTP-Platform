@@ -24,6 +24,7 @@ def kpis(
     in_range = sum(1 for e in entities if e["status"] == "in-range")
     watch = sum(1 for e in entities if e["status"] == "watch")
     out_of_range = sum(1 for e in entities if e["status"] == "out-of-range")
+    no_data = sum(1 for e in entities if e["status"] == "no-data")
     open_adj = sum(1 for e in entities if e["status"] == "out-of-range")
 
     pf_clause, pf_params = pf.where()
@@ -50,6 +51,7 @@ def kpis(
         "entitiesInRange": in_range,
         "entitiesWatch": watch,
         "entitiesOutOfRange": out_of_range,
+        "entitiesNoData": no_data,
         "openAdjustments": open_adj,
         "flowsUnderAPA": int(apa_chains or 0),
         "flowsChallenged": int(challenged_chains or 0),

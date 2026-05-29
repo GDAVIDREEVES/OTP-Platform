@@ -29,7 +29,7 @@ export default function Dashboard() {
   const [filterOutOfRange, setFilterOutOfRange] = useState(false);
 
   const tableEntities = useMemo(() => {
-    const order = { 'out-of-range': 0, watch: 1, 'in-range': 2 } as const;
+    const order = { 'out-of-range': 0, watch: 1, 'in-range': 2, 'no-data': 3 } as const;
     const base = [...entities].sort(
       (a, b) => order[a.status] - order[b.status],
     );

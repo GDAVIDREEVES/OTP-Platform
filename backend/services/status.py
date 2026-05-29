@@ -23,13 +23,14 @@ def compute_status(
       status   = 'in-range' | 'watch' | 'out-of-range'
       variance = points outside the band (0 if inside; signed otherwise)
     Rule:
+      - no-data:      margin is None (entity has no P&L for the period)
       - in-range:     low ≤ m ≤ high
       - watch:        within +/- 1.5 * band-width of the band
       - out-of-range: otherwise
     Special case: financing entity (band 0–0) uses a 1pt tolerance.
     """
     if actual_margin is None:
-        return "in-range", None
+        return "no-data", None
 
     if low == 0 and high == 0:
         # Financing entity — flat target with tight tolerance

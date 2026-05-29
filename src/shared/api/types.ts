@@ -10,6 +10,8 @@ export interface KpiSummary {
   entitiesInRange: number;
   entitiesWatch: number;
   entitiesOutOfRange: number;
+  /** Entities with no P&L data for the period (status 'no-data'). */
+  entitiesNoData: number;
   openAdjustments: number;
   /** Distinct supply-chain chains under an APA. */
   flowsUnderAPA: number;

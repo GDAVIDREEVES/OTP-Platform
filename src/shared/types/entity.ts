@@ -4,7 +4,7 @@
  * Backend contract: `backend/main.py::list_entities` (after layering: `backend/routers/entities.py`).
  */
 
-export type EntityStatus = 'in-range' | 'watch' | 'out-of-range';
+export type EntityStatus = 'in-range' | 'watch' | 'out-of-range' | 'no-data';
 
 export interface Entity {
   id: string;

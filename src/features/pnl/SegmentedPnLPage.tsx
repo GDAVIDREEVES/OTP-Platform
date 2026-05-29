@@ -36,12 +36,15 @@ import { useEntities } from '@/shared/providers/DataProvider';
 import { formatCurrency } from '@/shared/utils/format';
 import DetailedPnL from '@/features/pnl/DetailedPnL';
 // Worst status wins for jurisdiction-level rollup
+// no-data ranks below every real status so it never masks an out-of-range
+// entity in the "worst status wins" jurisdiction rollup below.
 const statusRank: Record<EntityStatus, number> = {
-  'in-range': 0,
-  watch: 1,
-  'out-of-range': 2
+  'no-data': 0,
+  'in-range': 1,
+  watch: 2,
+  'out-of-range': 3
 };
-const rankStatus: EntityStatus[] = ['in-range', 'watch', 'out-of-range'];
+const rankStatus: EntityStatus[] = ['no-data', 'in-range', 'watch', 'out-of-range'];
 export default function SegmentedPnL() {
   const [tab, setTab] = useState(0);
   const [shift, setShift] = useState(0);

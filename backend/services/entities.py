@@ -12,9 +12,16 @@ from services.labels import pretty_method
 from services.status import compute_status, fmt_pct_band, short_date
 
 
-def list_entities(pf: PeriodFilter) -> list[dict[str, Any]]:
-    """Return one row per legal entity in the format the React `Entity` type expects."""
+def list_entities(
+    pf: PeriodFilter, entity_id: str | None = None
+) -> list[dict[str, Any]]:
+    """Return one row per legal entity in the format the React `Entity` type expects.
+
+    Pass `entity_id` to filter to a single entity in SQL (used by the
+    /api/entities/{id} detail route) instead of materialising every entity.
+    """
     pf_clause, pf_params = pf.where()
+    entity_clause = " WHERE r.RBUKRS = ?" if entity_id is not None else ""
     sql = f"""
     WITH ytd AS (
       SELECT RBUKRS,
@@ -74,10 +81,13 @@ def list_entities(pf: PeriodFilter) -> list[dict[str, Any]]:
     LEFT JOIN last_post  lp USING (RBUKRS)
     LEFT JOIN method     m  USING (RBUKRS)
     LEFT JOIN sell_method sm USING (RBUKRS)
+    {entity_clause}
     ORDER BY r.RBUKRS
     """
-    # Period clause appears twice (ytd CTE + latest_p CTE), so duplicate the params.
-    rows = q(sql, pf_params + pf_params)
+    # Period clause appears twice (ytd CTE + latest_p CTE), so duplicate the
+    # params; the optional entity filter binds last (outer WHERE).
+    params = pf_params + pf_params + ([entity_id] if entity_id is not None else [])
+    rows = q(sql, params)
     out: list[dict[str, Any]] = []
     for r in rows:
         rb = r["RBUKRS"]
