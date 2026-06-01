@@ -250,4 +250,17 @@ export const api = {
       '/api/research-brain/prepare',
       body
     ),
+
+  /** Process-aware TP knowledge Q&A (researchbrain retrieval, with fallback). */
+  researchBrainAsk: (body: {
+    question: string;
+    process_id?: string;
+    jurisdiction?: string;
+    tp_method?: string;
+  }) =>
+    sendJSON<{
+      answer: string;
+      citations: { source: string; ref: string; snippet: string }[];
+      live: boolean;
+    }>('POST', '/api/research-brain/ask', body),
 };

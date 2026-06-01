@@ -8,6 +8,9 @@ import {
   TextField,
   InputAdornment,
   Stack,
+  Chip,
+  CircularProgress,
+  Divider,
   Collapse,
   Slide } from
 '@mui/material';
@@ -20,10 +23,40 @@ import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import { useResearchBrain } from './ResearchBrainContext';
 import ResearchBrainConversation from './ResearchBrainConversation';
+import { api } from '@/shared/api/client';
+
+interface LiveMsg {
+  q: string;
+  answer: string;
+  citations: { source: string; ref: string; snippet: string }[];
+  live: boolean;
+}
+
 export default function ResearchBrainPanel() {
   const { open, closePanel, context } = useResearchBrain();
   const [minimized, setMinimized] = useState(false);
   const navigate = useNavigate();
+  const [input, setInput] = useState('');
+  const [msgs, setMsgs] = useState<LiveMsg[]>([]);
+  const [loading, setLoading] = useState(false);
+  const send = async () => {
+    const q = input.trim();
+    if (!q || loading) return;
+    setInput('');
+    setLoading(true);
+    try {
+      const res = await api.researchBrainAsk({
+        question: q,
+        jurisdiction: context?.jurisdiction,
+        tp_method: context?.method,
+      });
+      setMsgs((m) => [...m, { q, answer: res.answer, citations: res.citations, live: res.live }]);
+    } catch {
+      setMsgs((m) => [...m, { q, answer: 'Request failed — the assistant is unavailable.', citations: [], live: false }]);
+    } finally {
+      setLoading(false);
+    }
+  };
   const contextLabel = context ?
   `Context loaded: ${context.entityId || ''} — ${context.entityName || ''} — ${context.function || ''} — ${context.transactionType || ''} — ${context.method || ''}`.
   replace(/— ($|—)/g, '').
@@ -208,6 +241,36 @@ export default function ResearchBrainPanel() {
               }}>
               
               <ResearchBrainConversation />
+              {msgs.length > 0 && <Divider sx={{ my: 2, fontSize: 11, color: '#94A3B8' }}>Live</Divider>}
+              {msgs.map((m, i) => (
+                <Box key={i} sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                    <Box sx={{ maxWidth: '85%', bgcolor: '#2563EB', color: 'white', px: 2, py: 1.25, borderRadius: '12px 12px 2px 12px' }}>
+                      <Typography variant="body2" sx={{ lineHeight: 1.5 }}>{m.q}</Typography>
+                    </Box>
+                  </Box>
+                  <Paper elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: '12px 12px 12px 2px', p: 2 }}>
+                    <Chip
+                      size="small"
+                      label={m.live ? 'researchbrain · live' : 'offline fallback'}
+                      sx={{ mb: 1, height: 20, fontSize: 10, fontWeight: 700, bgcolor: m.live ? '#EDE9FE' : '#FEF3C7', color: m.live ? '#7C3AED' : '#B45309' }}
+                    />
+                    <Typography variant="body2" sx={{ color: '#0F172A', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{m.answer}</Typography>
+                    {m.citations.length > 0 && (
+                      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+                        {m.citations.map((c, j) => (
+                          <Chip key={j} label={c.ref ? `${c.source} · ${c.ref}` : c.source} size="small" sx={{ bgcolor: '#EFF6FF', color: '#1D4ED8', fontSize: 11, fontWeight: 600 }} />
+                        ))}
+                      </Stack>
+                    )}
+                  </Paper>
+                </Box>
+              ))}
+              {loading && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                  <CircularProgress size={20} />
+                </Box>
+              )}
             </Box>
 
             {/* Input */}
@@ -221,6 +284,14 @@ export default function ResearchBrainPanel() {
               <TextField
                 fullWidth
                 size="small"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    void send();
+                  }
+                }}
                 placeholder="Ask a transfer pricing or global trade question…"
                 InputProps={{
                   startAdornment:
@@ -239,6 +310,8 @@ export default function ResearchBrainPanel() {
                   <InputAdornment position="end">
                       <IconButton
                       size="small"
+                      onClick={() => void send()}
+                      disabled={loading}
                       sx={{
                         bgcolor: '#2563EB',
                         color: 'white',
@@ -247,7 +320,7 @@ export default function ResearchBrainPanel() {
                         }
                       }}
                       aria-label="Send">
-                      
+
                         <SendIcon fontSize="small" />
                       </IconButton>
                     </InputAdornment>

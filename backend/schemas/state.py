@@ -37,3 +37,12 @@ class PrepareIn(BaseModel):
     gap_pp: float | None = None
     postings: int | None = None
     summary: str | None = None
+
+
+class AskIn(BaseModel):
+    """A process-aware TP knowledge question for the Research Brain."""
+
+    question: str
+    process_id: str | None = None
+    jurisdiction: str | None = None
+    tp_method: str | None = None

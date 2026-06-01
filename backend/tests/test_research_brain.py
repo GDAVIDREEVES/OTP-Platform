@@ -29,3 +29,13 @@ def test_prepare_logs_assisted_event(state_db):
     assert prepared, "expected a prepared event"
     assert prepared[0]["actor_kind"] == "assistant"
     assert prepared[0]["actor"] == "research-brain"
+
+
+def test_ask_returns_shaped_answer_with_fallback():
+    # researchbrain isn't running in the test env -> graceful fallback path.
+    r = client.post("/api/research-brain/ask", json={"question": "How is a royalty rate benchmarked?", "process_id": "OTP-3"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["answer"]
+    assert isinstance(body["citations"], list) and body["citations"]
+    assert isinstance(body["live"], bool)
