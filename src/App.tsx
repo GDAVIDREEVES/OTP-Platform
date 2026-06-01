@@ -11,6 +11,7 @@ import {
 import { theme } from '@/shared/theme';
 import { ResearchBrainProvider } from '@/features/research-brain/ResearchBrainContext';
 import { DataProvider } from '@/shared/providers/DataProvider';
+import CommandPalette from '@/kernel/navigation/CommandPalette';
 
 // Each route is a separate JS chunk loaded on first navigation.
 // This keeps the initial bundle small (login + dashboard only) and pays the
@@ -28,6 +29,8 @@ const Settings = lazy(() => import('@/features/settings/SettingsPage'));
 const EntityDetail = lazy(() => import('@/features/entities/EntityDetailPage'));
 const Adjustment = lazy(() => import('@/features/adjustment/AdjustmentPage'));
 const ResearchBrain = lazy(() => import('@/features/research-brain/ResearchBrainPage'));
+const ProcessLibrary = lazy(() => import('@/kernel/navigation/ProcessLibraryPage'));
+const ProcessShellRoute = lazy(() => import('@/kernel/shell/ProcessShell'));
 
 function RouteFallback() {
   return (
@@ -69,9 +72,13 @@ export function App() {
                 <Route path="/entities/:id" element={<EntityDetail />} />
                 <Route path="/adjustment/:id" element={<Adjustment />} />
                 <Route path="/research-brain" element={<ResearchBrain />} />
+                <Route path="/process" element={<ProcessLibrary />} />
+                <Route path="/process/:otpId" element={<ProcessShellRoute />} />
+                <Route path="/process/:otpId/:tab" element={<ProcessShellRoute />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
+            <CommandPalette />
           </ResearchBrainProvider>
         </DataProvider>
       </BrowserRouter>

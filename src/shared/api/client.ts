@@ -15,6 +15,7 @@ import type {
   MonthlyMarginRow,
 } from '@/shared/types/transaction';
 import type { PeriodParams } from '@/shared/types/period';
+import type { ProcessCatalog } from '@/kernel/registry/types';
 import type {
   KpiSummary,
   EntityFlow,
@@ -82,6 +83,9 @@ export const api = {
 
   /** Distinct fiscal years present in the data, newest first. */
   years: () => getJSON<number[]>('/api/years'),
+
+  /** The OTP-1…50 process catalog + pharmaceutical overlay. */
+  processes: () => getJSON<ProcessCatalog>('/api/processes'),
 
   kpis: (period: PeriodParams = {}) =>
     getJSON<KpiSummary>('/api/kpis', period as Record<string, unknown>),
