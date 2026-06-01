@@ -31,6 +31,7 @@ const Adjustment = lazy(() => import('@/features/adjustment/AdjustmentPage'));
 const ResearchBrain = lazy(() => import('@/features/research-brain/ResearchBrainPage'));
 const ProcessLibrary = lazy(() => import('@/kernel/navigation/ProcessLibraryPage'));
 const ProcessShellRoute = lazy(() => import('@/kernel/shell/ProcessShell'));
+const ReviewQueue = lazy(() => import('@/kernel/review/ReviewQueuePage'));
 
 function RouteFallback() {
   return (
@@ -75,6 +76,7 @@ export function App() {
                 <Route path="/process" element={<ProcessLibrary />} />
                 <Route path="/process/:otpId" element={<ProcessShellRoute />} />
                 <Route path="/process/:otpId/:tab" element={<ProcessShellRoute />} />
+                <Route path="/review" element={<ReviewQueue />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>

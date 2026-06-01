@@ -232,4 +232,19 @@ export const api = {
 
   evidence: (recordRef: string) =>
     getJSON<EvidencePacket>(`/api/evidence/${encodeURIComponent(recordRef)}`),
+
+  /** Research Brain agentic "prepare steps" hand-off (logs an assisted event). */
+  researchBrainPrepare: (body: {
+    process_id: string;
+    record_ref: string;
+    entity_id?: string;
+    gap_pp?: number;
+    postings?: number;
+    summary?: string;
+  }) =>
+    sendJSON<{ summary: string; actor: string; event_id: number }>(
+      'POST',
+      '/api/research-brain/prepare',
+      body
+    ),
 };

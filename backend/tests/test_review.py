@@ -46,3 +46,9 @@ def test_reject_requires_comment(state_db):
         review.decide(item["id"], checker="u_sam", decision="reject")
     decided = review.decide(item["id"], checker="u_sam", decision="reject", comments="out of range")
     assert decided["status"] == "rejected"
+
+
+def test_create_item_logs_submitted_event(state_db):
+    review.create_item(process_id="OTP-16", record_ref="adj:ADJ-5", maker="u_maria")
+    events = audit.list_events(record_ref="adj:ADJ-5")
+    assert any(e["event_type"] == "submitted" and e["actor"] == "u_maria" for e in events)

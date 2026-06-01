@@ -26,3 +26,14 @@ class ReviewItemIn(BaseModel):
 class ReviewDecisionIn(BaseModel):
     checker: str
     comments: str | None = None
+
+
+class PrepareIn(BaseModel):
+    """Request for the Research Brain's agentic 'prepare steps' hand-off."""
+
+    process_id: str
+    record_ref: str
+    entity_id: str | None = None
+    gap_pp: float | None = None
+    postings: int | None = None
+    summary: str | None = None

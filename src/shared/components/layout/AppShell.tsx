@@ -25,6 +25,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import DashboardIcon from '@mui/icons-material/SpaceDashboard';
 import GridViewIcon from '@mui/icons-material/GridView';
+import FactCheckIcon from '@mui/icons-material/FactCheck';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import PolicyIcon from '@mui/icons-material/Policy';
 import PieChartIcon from '@mui/icons-material/PieChart';
@@ -55,6 +56,7 @@ const DRAWER_WIDTH = 248;
 const navItems = [
   { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { label: 'Processes', icon: <GridViewIcon />, path: '/process' },
+  { label: 'Review queue', icon: <FactCheckIcon />, path: '/review' },
   { label: 'Price Setting', icon: <CalculateIcon />, path: '/price-setting' },
   { label: 'Policy', icon: <PolicyIcon />, path: '/policy' },
   { label: 'Segmented P&L', icon: <PieChartIcon />, path: '/segmented-pnl' },

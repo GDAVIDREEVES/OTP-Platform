@@ -35,6 +35,11 @@ def create_item(*, process_id: str, record_ref: str, maker: str) -> dict[str, An
             (process_id, record_ref, maker, now),
         )
         conn.commit()
+        # Enqueuing for review IS the maker submitting — record it.
+        audit.record(
+            actor=maker, actor_kind="human",
+            process_id=process_id, record_ref=record_ref, event_type="submitted",
+        )
         row = conn.execute("SELECT * FROM review_items WHERE id = ?", (cur.lastrowid,)).fetchone()
     return _to_dict(row)
 
