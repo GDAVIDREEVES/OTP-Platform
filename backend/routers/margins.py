@@ -6,7 +6,6 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
-from config import SEGMENT_PL
 from db import q
 from period_filter import PeriodFilter
 
@@ -35,7 +34,7 @@ def margin_trend(
 
     sql = f"""
       SELECT RBUKRS, GJAHR, POPER, operating_margin
-      FROM read_parquet('{SEGMENT_PL}')
+      FROM segment_pl
       {where} {pf_clause}
       ORDER BY RBUKRS, GJAHR, POPER
     """

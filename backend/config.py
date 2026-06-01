@@ -10,16 +10,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = Path(__file__).parent
+REPO_ROOT = BASE_DIR.parent
 
 # Path to the directory containing the parquet sub-folders:
 #   entity_roles/  segment_pl/  supply_chain_flows/  journal_entries/
-# A local-machine default is kept for convenience; override via DATA_DIR env.
-DATA_DIR = Path(
-    os.getenv(
-        "DATA_DIR",
-        "/Users/gregreeves/Documents/acdoca_exports/20260429-115302 NEW 29april26",
-    )
-)
+# Defaults to the committed sample dataset (data/parquet/) so a fresh clone
+# boots. Point DATA_DIR at a full ACDOCA export — e.g. in backend/.env — for
+# full-fidelity demos.
+DATA_DIR = Path(os.getenv("DATA_DIR", str(REPO_ROOT / "data" / "parquet")))
 
 CORS_ORIGINS = [
     o.strip()

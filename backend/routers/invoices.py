@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from config import SUPPLY_CHAIN
 from constants import ENTITY_CCY, MATERIAL_LABELS
 from db import q
 from period_filter import PeriodFilter
@@ -32,7 +31,7 @@ def list_invoices(
              GJAHR, POPER,
              MATERIAL_TYPE,
              SUM(TOTAL_LEGAL_PRICE) AS amount
-      FROM read_parquet('{SUPPLY_CHAIN}')
+      FROM supply_chain
       WHERE 1=1 {pf_clause}
       GROUP BY 1,2,3,4,5
       HAVING SUM(TOTAL_LEGAL_PRICE) > 0

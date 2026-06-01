@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from config import JOURNAL, SEGMENT_PL, SUPPLY_CHAIN
 from db import q
 
 router = APIRouter()
@@ -14,11 +13,11 @@ router = APIRouter()
 def list_years():
     rows = q(
         f"""
-        SELECT DISTINCT GJAHR AS y FROM read_parquet('{SEGMENT_PL}')
+        SELECT DISTINCT GJAHR AS y FROM segment_pl
         UNION
-        SELECT DISTINCT GJAHR FROM read_parquet('{JOURNAL}')
+        SELECT DISTINCT GJAHR FROM journal
         UNION
-        SELECT DISTINCT GJAHR FROM read_parquet('{SUPPLY_CHAIN}')
+        SELECT DISTINCT GJAHR FROM supply_chain
         ORDER BY y DESC
         """
     )

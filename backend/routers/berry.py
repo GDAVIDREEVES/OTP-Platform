@@ -6,7 +6,6 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
-from config import SEGMENT_PL
 from db import q
 from period_filter import PeriodFilter
 
@@ -52,7 +51,7 @@ def berry_trend(
                + COALESCE(opex_sm,0)
                + COALESCE(opex_ga,0)
                + COALESCE(opex_dist,0)) AS opex_sga
-      FROM read_parquet('{SEGMENT_PL}')
+      FROM segment_pl
       {where} {pf_clause}
       GROUP BY 1, 2
       ORDER BY 1, 2

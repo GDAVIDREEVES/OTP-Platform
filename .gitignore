@@ -23,6 +23,11 @@ __pycache__/
 *.pyc
 backend/.env
 
+# SQLite app-state DB (derived from committed seeds + legacy JSON import)
+backend/state/*.db
+backend/state/*.db-wal
+backend/state/*.db-shm
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -6,7 +6,6 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
-from config import JOURNAL
 from db import q
 
 router = APIRouter()
@@ -34,7 +33,7 @@ def journal_entries(
              RACCT, RASSC, MATNR, WERKS,
              HSL, RHCUR,
              SGTXT
-      FROM read_parquet('{JOURNAL}')
+      FROM journal
       {where}
       ORDER BY BUDAT DESC, BELNR DESC, DOCLN
       LIMIT {limit}
