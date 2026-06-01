@@ -39,3 +39,18 @@ def test_ask_returns_shaped_answer_with_fallback():
     assert body["answer"]
     assert isinstance(body["citations"], list) and body["citations"]
     assert isinstance(body["live"], bool)
+
+
+def test_prepare_computes_draftpatch_from_entity(state_db):
+    # Agentic prepare pulls the real posting count + gap-to-median from the warehouse.
+    r = client.post(
+        "/api/research-brain/prepare",
+        json={"process_id": "OTP-16", "record_ref": "OTP16-1000", "entity_id": "1000"},
+    )
+    assert r.status_code == 200
+    dp = r.json()["draftPatch"]
+    assert dp is not None
+    assert dp["postings"] > 0
+    assert "amount" in dp and "gapPp" in dp
+    events = client.get("/api/audit", params={"process_id": "OTP-16"}).json()
+    assert any(e["event_type"] == "prepared" and e["actor_kind"] == "assistant" for e in events)

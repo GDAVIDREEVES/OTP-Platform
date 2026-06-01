@@ -150,8 +150,13 @@ function Adjustment({ entityId }: { entityId: string }) {
   const runPrepare = async () => {
     setPreparing(true);
     try {
-      const res = await api_prepare(recordRef, entityId, entity.variance ?? 0);
-      wf.patchPayload({ prepared: true, rbSummary: res });
+      const res = await api.researchBrainPrepare({ process_id: 'OTP-16', record_ref: recordRef, entity_id: entityId });
+      const patch: Record<string, unknown> = { prepared: true, rbSummary: res.summary };
+      if (res.draftPatch) {
+        patch.mode = res.draftPatch.mode; // the AI chose the basis…
+        patch.aiAmount = res.draftPatch.amount; // …and computed the amount from real postings
+      }
+      wf.patchPayload(patch);
     } catch (e) {
       toast.show(`Prep failed: ${String(e)}`, 'error');
     } finally {
@@ -297,17 +302,6 @@ function Adjustment({ entityId }: { entityId: string }) {
       lastSavedAt={wf.lastSavedAt}
     />
   );
-}
-
-async function api_prepare(recordRef: string, entityId: string, variance: number): Promise<string> {
-  const res = await api.researchBrainPrepare({
-    process_id: 'OTP-16',
-    record_ref: recordRef,
-    entity_id: entityId,
-    gap_pp: variance,
-    postings: 3147,
-  });
-  return res.summary;
 }
 
 const Overview: FC<BindingCtx> = () => {

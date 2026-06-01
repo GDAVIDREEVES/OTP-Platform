@@ -245,11 +245,12 @@ export const api = {
     postings?: number;
     summary?: string;
   }) =>
-    sendJSON<{ summary: string; actor: string; event_id: number }>(
-      'POST',
-      '/api/research-brain/prepare',
-      body
-    ),
+    sendJSON<{
+      summary: string;
+      draftPatch: { mode: string; amount: number; gapPp: number; postings: number } | null;
+      actor: string;
+      event_id: number;
+    }>('POST', '/api/research-brain/prepare', body),
 
   /** Process-aware TP knowledge Q&A (researchbrain retrieval, with fallback). */
   researchBrainAsk: (body: {
