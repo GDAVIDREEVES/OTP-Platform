@@ -28,13 +28,31 @@ cd backend && ../.venv/bin/python -m state.migrate --reset
 This wipes `backend/state/otp_state.db` (git-ignored), recreates the schema, and
 re-imports the seeds. The ACDOCA Parquet data is untouched.
 
-## Live Research Brain (optional)
+## AI surfaces (graceful degradation)
 
-The Research Brain answers TP questions from the separate **researchbrain**
-service. With it running at `http://127.0.0.1:3000` (override via
-`RESEARCH_BRAIN_BASE_URL`), answers are live and citation-backed; set
-`ANTHROPIC_API_KEY` for Claude synthesis. Without it, the panel degrades
-gracefully to a shaped "offline" answer — the demo never breaks.
+Two AI surfaces; both degrade gracefully — the demo never breaks if a service or
+key is missing.
+
+- **Agentic prepare** (OTP-16 step 1, and the OTP-3 / OTP-9 / OTP-25 wizards) is
+  always real: it computes from the warehouse server-side (real posting counts,
+  gap-to-range) and logs an assisted "prepared" event to the audit trail. No
+  external service required.
+- **TP Q&A** (the Research Brain panel) calls the separate **researchbrain**
+  service for citation-backed retrieval. To run the live path:
+
+  ```bash
+  # 1. Qdrant vector DB on :6333  (researchbrain dependency)
+  # 2. in the researchbrain repo:
+  export ANTHROPIC_API_KEY=sk-ant-...   # Claude synthesis
+  export VOYAGE_API_KEY=pa-...          # embeddings + rerank
+  npm start                              # serves :3000
+  curl http://127.0.0.1:3000/api/health  # verify
+  ```
+
+  Point the OTP backend at it with `RESEARCH_BRAIN_BASE_URL` (default
+  `http://127.0.0.1:3000`), and set `ANTHROPIC_API_KEY` for the OTP backend too if
+  you want it to synthesise the retrieved chunks into prose. Without researchbrain
+  the panel shows a shaped "offline" answer with a clear live/offline indicator.
 
 ## The walkthrough (operator → reviewer → director)
 
@@ -55,6 +73,13 @@ gracefully to a shaped "offline" answer — the demo never breaks.
    chain verification.
 7. **Director** (`/director`) — group exposure: IC flow, Pillar Two top-up, TP
    reserve, jurisdictional risk, top-15 health; board-pack from live data.
+8. **Audit rail & evidence** — the history icon by the tabs toggles a live event
+   rail on any module. From a submitted record (OTP-16 confirmation, a
+   review-queue item, or a wizard completion) open the **Evidence packet**: event
+   history, before/after diffs, linked ACDOCA postings, chain-verify, Print/export.
+9. **Guided wizards** — OTP-3 (rate setting), OTP-9 (charge → stage → post), and
+   OTP-25 (benchmarking refresh) each run a prepare → … → gated-submit path that
+   lands in the review queue.
 
 ## Tests
 
