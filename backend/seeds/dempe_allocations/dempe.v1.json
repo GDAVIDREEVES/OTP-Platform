@@ -1,0 +1,126 @@
+{
+  "version": "1",
+  "allocations": [
+    {
+      "intangible_id": "IP-API-001",
+      "rbukrs": "1000",
+      "develop": 60,
+      "enhance": 50,
+      "maintain": 40,
+      "protect": 70,
+      "exploit": 55,
+      "fte": 120,
+      "notes": "Lead R&D + IP legal"
+    },
+    {
+      "intangible_id": "IP-API-001",
+      "rbukrs": "3100",
+      "develop": 25,
+      "enhance": 30,
+      "maintain": 40,
+      "protect": 20,
+      "exploit": 35,
+      "fte": 40,
+      "notes": "Principal — funds & exploits"
+    },
+    {
+      "intangible_id": "IP-API-001",
+      "rbukrs": "3000",
+      "develop": 15,
+      "enhance": 20,
+      "maintain": 20,
+      "protect": 10,
+      "exploit": 10,
+      "fte": 30,
+      "notes": "Process development"
+    },
+    {
+      "intangible_id": "IP-DPR-001",
+      "rbukrs": "3100",
+      "develop": 55,
+      "enhance": 50,
+      "maintain": 50,
+      "protect": 60,
+      "exploit": 60,
+      "fte": 35,
+      "notes": "Formulation centre"
+    },
+    {
+      "intangible_id": "IP-DPR-001",
+      "rbukrs": "3000",
+      "develop": 45,
+      "enhance": 50,
+      "maintain": 50,
+      "protect": 40,
+      "exploit": 40,
+      "fte": 25,
+      "notes": "Scale-up"
+    },
+    {
+      "intangible_id": "IP-TM-GLOBE",
+      "rbukrs": "1000",
+      "develop": 50,
+      "enhance": 40,
+      "maintain": 50,
+      "protect": 80,
+      "exploit": 30,
+      "fte": 15,
+      "notes": "Brand strategy + legal"
+    },
+    {
+      "intangible_id": "IP-TM-GLOBE",
+      "rbukrs": "3200",
+      "develop": 15,
+      "enhance": 20,
+      "maintain": 15,
+      "protect": 5,
+      "exploit": 25,
+      "fte": 8,
+      "notes": "Local marketing (FR)"
+    },
+    {
+      "intangible_id": "IP-TM-GLOBE",
+      "rbukrs": "3300",
+      "develop": 15,
+      "enhance": 20,
+      "maintain": 15,
+      "protect": 5,
+      "exploit": 25,
+      "fte": 8,
+      "notes": "Local marketing (UK)"
+    },
+    {
+      "intangible_id": "IP-TM-GLOBE",
+      "rbukrs": "3800",
+      "develop": 20,
+      "enhance": 20,
+      "maintain": 20,
+      "protect": 10,
+      "exploit": 20,
+      "fte": 6,
+      "notes": "Local marketing (NL)"
+    },
+    {
+      "intangible_id": "IP-PLATFORM",
+      "rbukrs": "3000",
+      "develop": 70,
+      "enhance": 65,
+      "maintain": 70,
+      "protect": 60,
+      "exploit": 55,
+      "fte": 50,
+      "notes": "Owns process IP"
+    },
+    {
+      "intangible_id": "IP-PLATFORM",
+      "rbukrs": "4100",
+      "develop": 30,
+      "enhance": 35,
+      "maintain": 30,
+      "protect": 40,
+      "exploit": 45,
+      "fte": 60,
+      "notes": "Toll mfr applies process"
+    }
+  ]
+}

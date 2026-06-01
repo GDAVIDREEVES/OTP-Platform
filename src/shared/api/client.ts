@@ -233,6 +233,9 @@ export const api = {
   evidence: (recordRef: string) =>
     getJSON<EvidencePacket>(`/api/evidence/${encodeURIComponent(recordRef)}`),
 
+  /** Read-only reference seed set (benchmarks, intangibles, dempe, cbcr, pillar_two, utp_reserve). */
+  reference: <T = unknown>(name: string) => getJSON<T>(`/api/reference/${name}`),
+
   /** Research Brain agentic "prepare steps" hand-off (logs an assisted event). */
   researchBrainPrepare: (body: {
     process_id: string;

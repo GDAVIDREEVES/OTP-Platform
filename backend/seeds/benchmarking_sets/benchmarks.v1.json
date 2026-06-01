@@ -1,0 +1,83 @@
+{
+  "version": "1",
+  "sets": [
+    {
+      "set_id": "BM-ROY-API",
+      "method": "CUP",
+      "applies_to": "Royalty — patented API",
+      "pli": "royalty_rate",
+      "lower": 4.0,
+      "median": 6.0,
+      "upper": 8.0,
+      "unit": "%",
+      "source": "RoyaltyRange — patented compounds",
+      "comparables": 24,
+      "year": 2026
+    },
+    {
+      "set_id": "BM-ROY-TM",
+      "method": "CUP",
+      "applies_to": "Royalty — trademark",
+      "pli": "royalty_rate",
+      "lower": 1.5,
+      "median": 2.5,
+      "upper": 4.0,
+      "unit": "%",
+      "source": "RoyaltyRange — consumer-health marks",
+      "comparables": 17,
+      "year": 2026
+    },
+    {
+      "set_id": "BM-LRD",
+      "method": "TNMM",
+      "applies_to": "Limited-risk distributor",
+      "pli": "operating_margin",
+      "lower": 2.0,
+      "median": 3.0,
+      "upper": 4.0,
+      "unit": "%",
+      "source": "Amadeus — EU pharma distributors",
+      "comparables": 18,
+      "year": 2026
+    },
+    {
+      "set_id": "BM-TOLL",
+      "method": "TNMM",
+      "applies_to": "Toll / contract manufacturer",
+      "pli": "net_cost_plus",
+      "lower": 5.0,
+      "median": 8.0,
+      "upper": 12.0,
+      "unit": "%",
+      "source": "Amadeus — APAC contract mfrs",
+      "comparables": 21,
+      "year": 2026
+    },
+    {
+      "set_id": "BM-SVC",
+      "method": "TNMM",
+      "applies_to": "Intra-group services",
+      "pli": "net_cost_plus",
+      "lower": 3.0,
+      "median": 5.0,
+      "upper": 7.5,
+      "unit": "%",
+      "source": "Amadeus — management services",
+      "comparables": 15,
+      "year": 2026
+    },
+    {
+      "set_id": "BM-FIN",
+      "method": "CUP",
+      "applies_to": "Intercompany financing",
+      "pli": "interest_rate",
+      "lower": 3.5,
+      "median": 4.5,
+      "upper": 5.5,
+      "unit": "%",
+      "source": "Loan-comparable (Bloomberg)",
+      "comparables": 30,
+      "year": 2026
+    }
+  ]
+}

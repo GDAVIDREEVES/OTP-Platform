@@ -32,6 +32,7 @@ from routers import (
     overrides,
     pnl,
     processes,
+    reference,
     research_brain,
     review,
     settings,
@@ -79,6 +80,7 @@ for r in (
     review.router,
     evidence.router,
     research_brain.router,
+    reference.router,
 ):
     app.include_router(r)
 

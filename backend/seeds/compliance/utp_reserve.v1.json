@@ -1,0 +1,49 @@
+{
+  "version": "1",
+  "reserves": [
+    {
+      "reserve_id": "UTP-001",
+      "issue": "Royalty rate on API-001 above CH comparable median",
+      "entity_rbukrs": "3100",
+      "jurisdiction": "Switzerland",
+      "gross_reserve": 8400000,
+      "currency": "USD",
+      "basis": "MLTN",
+      "status": "Open",
+      "year": 2026
+    },
+    {
+      "reserve_id": "UTP-002",
+      "issue": "CSA buy-in valuation — DPR-001 platform",
+      "entity_rbukrs": "1000",
+      "jurisdiction": "United States",
+      "gross_reserve": 12500000,
+      "currency": "USD",
+      "basis": "MLTN",
+      "status": "Open",
+      "year": 2026
+    },
+    {
+      "reserve_id": "UTP-003",
+      "issue": "Limited-risk distributor margin — FR field audit",
+      "entity_rbukrs": "3200",
+      "jurisdiction": "France",
+      "gross_reserve": 3100000,
+      "currency": "EUR",
+      "basis": "MLTN",
+      "status": "Under audit",
+      "year": 2026
+    },
+    {
+      "reserve_id": "UTP-004",
+      "issue": "Toll-manufacturer markup — IN APA renewal",
+      "entity_rbukrs": "4100",
+      "jurisdiction": "India",
+      "gross_reserve": 2200000,
+      "currency": "USD",
+      "basis": "MLTN",
+      "status": "APA pending",
+      "year": 2026
+    }
+  ]
+}
