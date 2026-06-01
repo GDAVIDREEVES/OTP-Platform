@@ -133,3 +133,56 @@ export interface AppSettings {
   defaultReviewer: string;
   notifyOnDeviation: boolean;
 }
+
+// ----------------- Phase 2: state layer (audit / drafts / review) -----------------
+
+export interface AuditEvent {
+  id: number;
+  ts: string;
+  actor: string;
+  actor_kind: 'human' | 'assistant';
+  process_id: string | null;
+  record_ref: string;
+  event_type: string;
+  before: unknown;
+  after: unknown;
+  rationale: string | null;
+  prev_hash: string;
+  hash: string;
+}
+
+export interface Draft {
+  id: number;
+  user_id: string;
+  process_id: string;
+  record_ref: string;
+  step: string;
+  step_index: number;
+  payload: Record<string, unknown>;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReviewItem {
+  id: number;
+  process_id: string;
+  record_ref: string;
+  maker: string;
+  checker: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  comments: string | null;
+  created_at: string;
+  decided_at: string | null;
+}
+
+export interface ChainVerify {
+  ok: boolean;
+  broken_at: number | null;
+}
+
+export interface EvidencePacket {
+  record_ref: string;
+  events: AuditEvent[];
+  verify: ChainVerify;
+}

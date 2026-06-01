@@ -11,14 +11,13 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
-import HistoryIcon from '@mui/icons-material/History';
 import AppShell from '@/shared/components/layout/AppShell';
 import { useProcess } from '../registry/useProcesses';
 import { getBinding } from '../bindings';
 import type { BindableTab, BindingCtx, TabKey } from '../bindings/types';
 import ProcessHeader from './ProcessHeader';
-import KpiStrip from './KpiStrip';
 import EmptyTabState from './EmptyTabState';
+import AuditTab from '../audit/AuditTab';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -31,23 +30,6 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 const TAB_KEYS = TABS.map((t) => t.key);
 const labelFor = (key: TabKey) => TABS.find((t) => t.key === key)?.label ?? key;
-
-/** Phase 1 placeholder; Phase 2 replaces this with the live AuditRail/useAudit. */
-function AuditPlaceholder() {
-  return (
-    <Box sx={{ py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', color: 'text.secondary' }}>
-      <HistoryIcon sx={{ fontSize: 40, color: '#CBD5E1', mb: 1.5 }} />
-      <Typography variant="subtitle2" sx={{ color: 'text.primary', fontWeight: 700 }}>
-        The audit trail opens here, beside the record
-      </Typography>
-      <Typography variant="body2" sx={{ maxWidth: 440, mt: 0.5 }}>
-        An append-only, hash-chained event stream with actor, rationale, and
-        provenance — generated automatically as work happens. No events for this
-        process yet.
-      </Typography>
-    </Box>
-  );
-}
 
 export default function ProcessShell() {
   const { otpId, tab } = useParams();
@@ -84,12 +66,12 @@ export default function ProcessShell() {
   const activeTab: TabKey = (tab && TAB_KEYS.includes(tab as TabKey) ? tab : 'overview') as TabKey;
   const binding = getBinding(def);
   const ctx: BindingCtx = { def };
-  const kpis = binding.kpis?.(ctx) ?? [];
+  const KpisComp = binding.kpis;
   const primary = binding.primaryAction?.(ctx);
 
   let body: ReactNode;
   if (activeTab === 'audit') {
-    body = <AuditPlaceholder />;
+    body = <AuditTab def={def} />;
   } else {
     const TabComp = binding.tabs?.[activeTab as BindableTab];
     body = TabComp ? <TabComp def={def} /> : <EmptyTabState label={labelFor(activeTab)} />;
@@ -99,7 +81,7 @@ export default function ProcessShell() {
     <AppShell pageTitle={`${def.id} · ${def.name}`}>
       <Stack spacing={2.5}>
         <ProcessHeader def={def} />
-        {kpis.length > 0 && <KpiStrip items={kpis} />}
+        {KpisComp && <KpisComp def={def} />}
 
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs

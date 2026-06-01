@@ -19,8 +19,11 @@ from db import close_db, db
 from state import migrate
 from routers import (
     adjustments,
+    audit,
     berry,
+    drafts,
     entities,
+    evidence,
     health,
     invoices,
     journal_entries,
@@ -29,6 +32,7 @@ from routers import (
     overrides,
     pnl,
     processes,
+    review,
     settings,
     transactions,
     years,
@@ -69,6 +73,10 @@ for r in (
     berry.router,
     journal_entries.router,
     years.router,
+    audit.router,
+    drafts.router,
+    review.router,
+    evidence.router,
 ):
     app.include_router(r)
 

@@ -38,7 +38,8 @@ export type BindableTab = Exclude<TabKey, 'audit'>;
 /** Per-process wiring. Marquee processes provide rich tabs/KPIs/actions; the
  *  rest fall back to an informative binding (Overview + Docs). */
 export interface ProcessBinding {
-  kpis?: (ctx: BindingCtx) => KpiItem[];
+  /** Answer-first KPI strip, as a component so it can read live data via hooks. */
+  kpis?: FC<BindingCtx>;
   tabs?: Partial<Record<BindableTab, FC<BindingCtx>>>;
   primaryAction?: (ctx: BindingCtx) => PrimaryAction;
 }

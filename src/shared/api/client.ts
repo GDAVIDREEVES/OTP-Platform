@@ -26,6 +26,11 @@ import type {
   SubmittedAdjustment,
   PolicyOverride,
   AppSettings,
+  AuditEvent,
+  ChainVerify,
+  Draft,
+  ReviewItem,
+  EvidencePacket,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -185,4 +190,46 @@ export const api = {
   settings: () => getJSON<AppSettings>('/api/settings'),
 
   saveSettings: (body: AppSettings) => sendJSON<AppSettings>('PUT', '/api/settings', body),
+
+  // ------------ Phase 2: audit / drafts / review / evidence ------------
+
+  audit: (params: { record_ref?: string; process_id?: string } = {}) =>
+    getJSON<AuditEvent[]>('/api/audit', params),
+
+  auditVerify: () => getJSON<ChainVerify>('/api/audit/verify'),
+
+  drafts: (userId: string) => getJSON<Draft[]>('/api/drafts', { user_id: userId }),
+
+  draft: (processId: string, recordRef: string, userId: string) =>
+    getJSON<Draft>(
+      `/api/drafts/${encodeURIComponent(processId)}/${encodeURIComponent(recordRef)}`,
+      { user_id: userId }
+    ),
+
+  putDraft: (body: {
+    user_id: string;
+    process_id: string;
+    record_ref: string;
+    step: string;
+    step_index?: number;
+    payload?: Record<string, unknown>;
+    status?: string;
+  }) => sendJSON<Draft>('PUT', '/api/drafts', body),
+
+  deleteDraft: (id: number) => sendJSON<{ deleted: boolean }>('DELETE', `/api/drafts/${id}`),
+
+  reviewQueue: (status: string = 'pending') =>
+    getJSON<ReviewItem[]>('/api/review-queue', { status }),
+
+  enqueueReview: (body: { process_id: string; record_ref: string; maker: string }) =>
+    sendJSON<ReviewItem>('POST', '/api/review-queue', body),
+
+  approveReview: (id: number, body: { checker: string; comments?: string }) =>
+    sendJSON<ReviewItem>('POST', `/api/review/${id}/approve`, body),
+
+  rejectReview: (id: number, body: { checker: string; comments: string }) =>
+    sendJSON<ReviewItem>('POST', `/api/review/${id}/reject`, body),
+
+  evidence: (recordRef: string) =>
+    getJSON<EvidencePacket>(`/api/evidence/${encodeURIComponent(recordRef)}`),
 };
