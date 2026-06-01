@@ -13,6 +13,7 @@ import { ResearchBrainProvider } from '@/features/research-brain/ResearchBrainCo
 import { DataProvider } from '@/shared/providers/DataProvider';
 import { SessionProvider } from '@/shared/providers/SessionProvider';
 import CommandPalette from '@/kernel/navigation/CommandPalette';
+import ErrorBoundary from '@/shared/components/ErrorBoundary';
 
 // Each route is a separate JS chunk loaded on first navigation.
 // This keeps the initial bundle small (login + dashboard only) and pays the
@@ -62,6 +63,7 @@ export function App() {
         <DataProvider>
           <SessionProvider>
           <ResearchBrainProvider>
+            <ErrorBoundary>
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route path="/" element={<Login />} />
@@ -86,6 +88,7 @@ export function App() {
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
+            </ErrorBoundary>
             <CommandPalette />
           </ResearchBrainProvider>
           </SessionProvider>

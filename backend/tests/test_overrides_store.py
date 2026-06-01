@@ -29,7 +29,7 @@ def test_submit_adjustment_creates_pending_record(state_db):
 def test_submit_adjustment_writes_audit_event(state_db):
     rec = store.submit_adjustment({"entityId": "3000", "amount": 1000.0})
     events = audit.list_events(record_ref=f"adj:{rec['id']}")
-    assert any(e["event_type"] == "submitted" for e in events)
+    assert any(e["event_type"] == "created" for e in events)
 
 
 def test_update_adjustment_to_approved_logs_audit(state_db):

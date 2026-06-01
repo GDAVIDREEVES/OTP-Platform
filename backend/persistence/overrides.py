@@ -83,9 +83,11 @@ def submit_adjustment(payload: dict[str, Any]) -> dict[str, Any]:
         record = {"id": _new_id(), "submittedAt": _now(), "status": "Pending Approval", **payload}
         _insert(conn, record)
         conn.commit()
+        # "created" here; submitting for review (review.create_item) logs the
+        # distinct "submitted" event, so a record's trail reads created -> submitted.
         audit.record(
             actor=payload.get("submittedBy", "system"), actor_kind="human",
-            record_ref=_ref(record["id"]), event_type="submitted",
+            record_ref=_ref(record["id"]), event_type="created",
             after=record, rationale=payload.get("notes"),
         )
     return record
