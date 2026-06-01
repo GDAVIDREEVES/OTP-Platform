@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useEntities, useEntity, useToast } from '@/shared/providers/DataProvider';
+import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { api } from '@/shared/api/client';
 import { statusColor, statusLabel } from '@/shared/utils/status';
 import { formatCurrency } from '@/shared/utils/format';
@@ -32,7 +33,6 @@ const STEPS: StepDef[] = [
   { key: 'review', label: 'Review & post', actor: 'human', gate: true, description: 'Confirm, capture rationale, submit for review' },
 ];
 
-const MAKER = 'u_maria'; // Phase 3 replaces this with the session user.
 const pct = (n: number) => `${n.toFixed(2)}%`;
 
 interface Calc {
@@ -107,9 +107,10 @@ function Picker() {
 function Adjustment({ entityId }: { entityId: string }) {
   const navigate = useNavigate();
   const toast = useToast();
+  const user = useSessionUser();
   const entity = useEntity(entityId);
   const recordRef = `OTP16-${entityId}`;
-  const wf = useWorkflowState('OTP-16', recordRef, MAKER, STEPS);
+  const wf = useWorkflowState('OTP-16', recordRef, user.id, STEPS);
   const [preparing, setPreparing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState<string | null>(null);
@@ -169,10 +170,10 @@ function Adjustment({ entityId }: { entityId: string }) {
         mode: mode === 'edge' ? 'custom' : (mode as 'median' | 'upper' | 'custom'),
         targetMargin: c.median,
         actualMargin: c.actual,
-        submittedBy: MAKER,
+        submittedBy: user.id,
         notes: rationale,
       });
-      await api.enqueueReview({ process_id: 'OTP-16', record_ref: `adj:${adj.id}`, maker: MAKER });
+      await api.enqueueReview({ process_id: 'OTP-16', record_ref: `adj:${adj.id}`, maker: user.id });
       await wf.clearDraft();
       toast.show('Submitted for review', 'success');
       setSubmitted(adj.id);

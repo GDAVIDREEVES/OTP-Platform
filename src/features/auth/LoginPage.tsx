@@ -230,7 +230,7 @@ export default function Login() {
               size="small"
               fullWidth />
             
-            <Button variant="text" onClick={() => navigate('/dashboard')}>
+            <Button variant="text" onClick={() => navigate('/home')}>
               Sign in with email
             </Button>
           </Stack>
@@ -244,7 +244,7 @@ export default function Login() {
             fullWidth
             variant="contained"
             color="secondary"
-            onClick={() => navigate('/dashboard')}>
+            onClick={() => navigate('/home')}>
             
             Enter Demo Workspace →
           </Button>

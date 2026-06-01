@@ -20,14 +20,12 @@ import {
 import AppShell from '@/shared/components/layout/AppShell';
 import { api } from '@/shared/api/client';
 import { useToast } from '@/shared/providers/DataProvider';
+import { useSessionUser } from '@/shared/providers/SessionProvider';
 import type { ReviewItem } from '@/shared/api/types';
-
-// Phase 3's SessionProvider replaces this with the signed-in reviewer.
-const REVIEWER = 'u_sam';
-const REVIEWER_NAME = 'Sam Rodriguez';
 
 export default function ReviewQueuePage() {
   const toast = useToast();
+  const user = useSessionUser();
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
@@ -49,7 +47,7 @@ export default function ReviewQueuePage() {
   const approve = async (it: ReviewItem) => {
     setBusy(it.id);
     try {
-      await api.approveReview(it.id, { checker: REVIEWER });
+      await api.approveReview(it.id, { checker: user.id });
       toast.show(`Approved ${it.record_ref}`, 'success');
       refresh();
     } catch (e) {
@@ -63,7 +61,7 @@ export default function ReviewQueuePage() {
     if (!rejecting) return;
     setBusy(rejecting.id);
     try {
-      await api.rejectReview(rejecting.id, { checker: REVIEWER, comments: comment });
+      await api.rejectReview(rejecting.id, { checker: user.id, comments: comment });
       toast.show(`Returned ${rejecting.record_ref}`, 'info');
       setRejecting(null);
       setComment('');
@@ -79,8 +77,9 @@ export default function ReviewQueuePage() {
     <AppShell pageTitle="Review queue">
       <Stack spacing={2}>
         <Alert severity="info" variant="outlined">
-          Acting as <b>{REVIEWER_NAME}</b> (Reviewer). A maker can&rsquo;t approve their own work —
-          segregation of duties is enforced, and every decision is logged.
+          Acting as <b>{user.name}</b> ({user.title}). A maker can&rsquo;t approve their own work —
+          segregation of duties is enforced, and every decision is logged. Switch role from the avatar
+          (top-right) to approve as a different person.
         </Alert>
 
         {loading ? (

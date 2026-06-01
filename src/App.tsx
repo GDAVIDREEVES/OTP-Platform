@@ -11,6 +11,7 @@ import {
 import { theme } from '@/shared/theme';
 import { ResearchBrainProvider } from '@/features/research-brain/ResearchBrainContext';
 import { DataProvider } from '@/shared/providers/DataProvider';
+import { SessionProvider } from '@/shared/providers/SessionProvider';
 import CommandPalette from '@/kernel/navigation/CommandPalette';
 
 // Each route is a separate JS chunk loaded on first navigation.
@@ -32,6 +33,8 @@ const ResearchBrain = lazy(() => import('@/features/research-brain/ResearchBrain
 const ProcessLibrary = lazy(() => import('@/kernel/navigation/ProcessLibraryPage'));
 const ProcessShellRoute = lazy(() => import('@/kernel/shell/ProcessShell'));
 const ReviewQueue = lazy(() => import('@/kernel/review/ReviewQueuePage'));
+const Home = lazy(() => import('@/kernel/home/OperatingCadenceHome'));
+const Director = lazy(() => import('@/kernel/director/ExposureDashboard'));
 
 function RouteFallback() {
   return (
@@ -57,11 +60,13 @@ export function App() {
       <CssBaseline />
       <BrowserRouter>
         <DataProvider>
+          <SessionProvider>
           <ResearchBrainProvider>
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route path="/" element={<Login />} />
                 <Route path="/onboarding" element={<Onboarding />} />
+                <Route path="/home" element={<Home />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/policy" element={<Policy />} />
                 <Route path="/price-setting" element={<PriceSetting />} />
@@ -77,11 +82,13 @@ export function App() {
                 <Route path="/process/:otpId" element={<ProcessShellRoute />} />
                 <Route path="/process/:otpId/:tab" element={<ProcessShellRoute />} />
                 <Route path="/review" element={<ReviewQueue />} />
+                <Route path="/director" element={<Director />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
             <CommandPalette />
           </ResearchBrainProvider>
+          </SessionProvider>
         </DataProvider>
       </BrowserRouter>
     </ThemeProvider>);
