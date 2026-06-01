@@ -9,6 +9,8 @@ export interface KpiItem {
   value: string;
   tone?: KpiTone;
   hint?: string;
+  /** Optional source lineage shown as a provenance chip under the value. */
+  provenance?: string;
 }
 
 /** Context handed to every binding tab/KPI/action provider. */

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -26,6 +27,7 @@ import type { ReviewItem } from '@/shared/api/types';
 export default function ReviewQueuePage() {
   const toast = useToast();
   const user = useSessionUser();
+  const navigate = useNavigate();
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
@@ -110,6 +112,9 @@ export default function ReviewQueuePage() {
                   <TableCell>{new Date(it.created_at).toLocaleString()}</TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <Button size="small" onClick={() => navigate(`/evidence/${encodeURIComponent(it.record_ref)}`)}>
+                        Evidence
+                      </Button>
                       <Button size="small" color="error" disabled={busy === it.id} onClick={() => { setRejecting(it); setComment(''); }}>
                         Return
                       </Button>

@@ -36,7 +36,7 @@ const fmtVar = (v: number | null) => (v == null || v === 0 ? '—' : `${v > 0 ? 
 const Kpis: FC<BindingCtx> = () => {
   const k = useKpis();
   const items: KpiItem[] = [
-    { key: 'vol', label: 'Intercompany volume', value: formatCurrency(k.totalICVolume, 'USD', true) },
+    { key: 'vol', label: 'Intercompany volume', value: formatCurrency(k.totalICVolume, 'USD', true), provenance: 'supply_chain · ACDOCA' },
     { key: 'oor', label: 'Out of range', value: String(k.entitiesOutOfRange), tone: k.entitiesOutOfRange > 0 ? 'risk' : 'ok', hint: 'tested parties beyond range' },
     { key: 'watch', label: 'On watch', value: String(k.entitiesWatch), tone: k.entitiesWatch > 0 ? 'watch' : 'ok', hint: 'approaching tolerance' },
     { key: 'in', label: 'In range', value: `${k.entitiesInRange}/${k.entityCount}`, tone: 'ok', hint: 'within arm’s-length band' },

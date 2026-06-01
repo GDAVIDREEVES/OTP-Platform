@@ -76,3 +76,15 @@ def test_evidence_packet(state_db):
     assert packet["record_ref"] == "adj:ADJ-9"
     assert any(e["event_type"] == "approved" for e in packet["events"])
     assert packet["verify"]["ok"] is True
+    assert isinstance(packet["diffs"], list) and isinstance(packet["postings"], list)
+
+
+def test_evidence_packet_with_real_adjustment(state_db):
+    from persistence import overrides as store
+
+    adj = store.submit_adjustment({"entityId": "1000", "entityName": "US IP Principal Co.", "amount": -1000000.0, "currency": "USD"})
+    client.post("/api/review-queue", json={"process_id": "OTP-16", "record_ref": f"adj:{adj['id']}", "maker": "u_maria"})
+    packet = client.get(f"/api/evidence/adj:{adj['id']}").json()
+    assert packet["subject"]  # resolved entity/adjustment label
+    assert packet["postings"]  # entity 1000 has ACDOCA postings
+    assert packet["diffs"]  # the created event carries field changes

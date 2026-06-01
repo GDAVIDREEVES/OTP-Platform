@@ -1,5 +1,6 @@
-import { Paper, Stack, Typography } from '@mui/material';
+import { Box, Paper, Stack, Typography } from '@mui/material';
 import { tokens } from '@/shared/theme';
+import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
 import type { KpiItem, KpiTone } from '../bindings/types';
 
 const toneColor = (tone?: KpiTone): string =>
@@ -34,9 +35,14 @@ export default function KpiStrip({ items }: { items: KpiItem[] }) {
             {k.value}
           </Typography>
           {k.hint && (
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
               {k.hint}
             </Typography>
+          )}
+          {k.provenance && (
+            <Box sx={{ mt: 0.5 }}>
+              <ProvenanceChip source={k.provenance} tooltip="Source lineage" />
+            </Box>
           )}
         </Paper>
       ))}

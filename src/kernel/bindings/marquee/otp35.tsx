@@ -17,7 +17,7 @@ const Kpis: FC<BindingCtx> = () => {
   const topup = rows.reduce((s, r) => s + r.top_up_tax, 0);
   const below = rows.filter((r) => r.etr < 15).length;
   const items: KpiItem[] = [
-    { key: 't', label: 'GloBE top-up tax', value: formatCurrency(topup, 'USD', true), tone: topup > 0 ? 'risk' : 'ok' },
+    { key: 't', label: 'GloBE top-up tax', value: formatCurrency(topup, 'USD', true), tone: topup > 0 ? 'risk' : 'ok', provenance: 'pillar_two · CbCR' },
     { key: 'b', label: 'Below 15% ETR', value: String(below), tone: below ? 'watch' : 'ok' },
     { key: 'j', label: 'Jurisdictions', value: String(rows.length) },
   ];

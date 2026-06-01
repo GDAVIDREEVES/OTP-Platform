@@ -1,16 +1,19 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
   Button,
   CircularProgress,
+  IconButton,
   Paper,
   Stack,
   Tab,
   Tabs,
+  Tooltip,
   Typography,
 } from '@mui/material';
+import HistoryIcon from '@mui/icons-material/History';
 import AppShell from '@/shared/components/layout/AppShell';
 import { useProcess } from '../registry/useProcesses';
 import { getBinding } from '../bindings';
@@ -18,6 +21,7 @@ import type { BindableTab, BindingCtx, TabKey } from '../bindings/types';
 import ProcessHeader from './ProcessHeader';
 import EmptyTabState from './EmptyTabState';
 import AuditTab from '../audit/AuditTab';
+import AuditRail from '../audit/AuditRail';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -35,6 +39,7 @@ export default function ProcessShell() {
   const { otpId, tab } = useParams();
   const navigate = useNavigate();
   const { def, loading } = useProcess(otpId);
+  const [railOpen, setRailOpen] = useState(false);
 
   if (loading) {
     return (
@@ -83,21 +88,30 @@ export default function ProcessShell() {
         <ProcessHeader def={def} />
         {KpisComp && <KpisComp def={def} />}
 
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center' }}>
           <Tabs
             value={activeTab}
             onChange={(_, v) => navigate(`/process/${def.id}/${v}`)}
             variant="scrollable"
             scrollButtons="auto"
             allowScrollButtonsMobile
+            sx={{ flex: 1, minWidth: 0 }}
           >
             {TABS.map((t) => (
               <Tab key={t.key} value={t.key} label={t.label} sx={{ fontWeight: 600, textTransform: 'none' }} />
             ))}
           </Tabs>
+          <Tooltip title="Audit & provenance" arrow>
+            <IconButton onClick={() => setRailOpen((o) => !o)} aria-label="Toggle audit rail" color={railOpen ? 'primary' : 'default'}>
+              <HistoryIcon />
+            </IconButton>
+          </Tooltip>
         </Box>
 
-        <Box>{body}</Box>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>{body}</Box>
+          {railOpen && <AuditRail def={def} onClose={() => setRailOpen(false)} />}
+        </Box>
 
         {primary && (
           <Paper

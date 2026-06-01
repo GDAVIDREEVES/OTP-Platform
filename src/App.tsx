@@ -36,6 +36,7 @@ const ProcessShellRoute = lazy(() => import('@/kernel/shell/ProcessShell'));
 const ReviewQueue = lazy(() => import('@/kernel/review/ReviewQueuePage'));
 const Home = lazy(() => import('@/kernel/home/OperatingCadenceHome'));
 const Director = lazy(() => import('@/kernel/director/ExposureDashboard'));
+const EvidencePacketPage = lazy(() => import('@/kernel/audit/EvidencePacket'));
 
 function RouteFallback() {
   return (
@@ -85,6 +86,7 @@ export function App() {
                 <Route path="/process/:otpId/:tab" element={<ProcessShellRoute />} />
                 <Route path="/review" element={<ReviewQueue />} />
                 <Route path="/director" element={<Director />} />
+                <Route path="/evidence/:ref" element={<EvidencePacketPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>

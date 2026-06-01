@@ -138,7 +138,8 @@ function Adjustment({ entityId }: { entityId: string }) {
           Adjustment <b>{submitted}</b> submitted for review. It now awaits a second set of eyes — a
           maker can&rsquo;t approve their own work.
         </Alert>
-        <Stack direction="row" spacing={1.5}>
+        <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', gap: 1 }}>
+          <Button variant="outlined" onClick={() => navigate(`/evidence/${encodeURIComponent('adj:' + submitted)}`)}>Evidence packet</Button>
           <Button variant="outlined" onClick={() => navigate('/process/OTP-16/audit')}>View audit trail</Button>
           <Button variant="outlined" onClick={() => navigate('/review')}>Open review queue</Button>
           <Button onClick={() => navigate('/process/OTP-20/worklist')}>Back to monitoring</Button>

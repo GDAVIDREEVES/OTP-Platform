@@ -181,8 +181,19 @@ export interface ChainVerify {
   broken_at: number | null;
 }
 
+export interface EvidenceDiff {
+  event_id: number;
+  event_type: string;
+  ts: string;
+  actor: string;
+  changes: { field: string; from: unknown; to: unknown }[];
+}
+
 export interface EvidencePacket {
   record_ref: string;
+  subject: string | null;
   events: AuditEvent[];
+  diffs: EvidenceDiff[];
+  postings: JournalEntryRow[];
   verify: ChainVerify;
 }
