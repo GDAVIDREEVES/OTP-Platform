@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from state import master_data as md
-from schemas.state import EntityFunctionIn, MappingDecisionIn, MappingSubmitIn, OverlayIn
+from schemas.state import EntityFunctionIn, MappingDecisionIn, MappingSubmitIn, OverlayIn, PromoteFlowIn
 from services.mapping_ai import propose_mapping
 from state import review
 
@@ -49,6 +49,21 @@ def post_entity_function(body: EntityFunctionIn):
 @router.get("/api/master-data/staging")
 def staging():
     return md.list_staging()
+
+
+@router.post("/api/master-data/staging/promote")
+def promote(body: PromoteFlowIn):
+    md.add_staging_batch([{
+        "id": body.flow_id,
+        "kind": "unplanned_transaction",
+        "raw": {
+            "payer_rbukrs": body.payer_rbukrs,
+            "counterparty_rbukrs": body.counterparty_rbukrs,
+            "label": body.label or "Unplanned intercompany flow",
+            "amount": body.amount,
+        },
+    }])
+    return {"id": body.flow_id, "status": "unmapped"}
 
 
 @router.post("/api/master-data/staging/simulate")

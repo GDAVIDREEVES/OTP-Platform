@@ -73,3 +73,11 @@ class MappingSubmitIn(BaseModel):
 class MappingDecisionIn(BaseModel):
     checker: str
     comments: str | None = None
+
+
+class PromoteFlowIn(BaseModel):
+    flow_id: str
+    payer_rbukrs: str
+    counterparty_rbukrs: str
+    label: str | None = None
+    amount: float | None = None

@@ -61,3 +61,14 @@ def test_unplanned_flow_maps_to_covered_transaction(state_db):
     mapped = [r for r in rows if r["ctx_id"] == "CTX-UNPL-3300-3400"]
     assert mapped and mapped[0]["txn_type_id"] == "SVC" and mapped[0]["method"] == "TNMM"
     assert api.get("/api/audit/verify").json()["ok"] is True
+
+
+def test_promote_stages_a_detected_flow(state_db):
+    md.seed_if_empty()
+    r = api.post("/api/master-data/staging/promote", json={
+        "flow_id": "UNPL-1000-4100", "payer_rbukrs": "1000",
+        "counterparty_rbukrs": "4100", "label": "Unplanned IC flow", "amount": 500000.0})
+    assert r.status_code == 200 and r.json()["id"] == "UNPL-1000-4100"
+    items = api.get("/api/master-data/staging").json()
+    it = [i for i in items if i["id"] == "UNPL-1000-4100"][0]
+    assert it["kind"] == "unplanned_transaction" and it["status"] == "unmapped"
