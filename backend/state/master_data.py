@@ -308,7 +308,9 @@ def _identity(rbukrs: str) -> dict[str, Any]:
 
 
 def entity_master() -> list[dict[str, Any]]:
-    """entity × function grain: SAP identity (incl. onboarded) joined to functions."""
+    """entity × function grain: SAP identity (incl. onboarded) joined to functions,
+    plus the transaction types the entity participates in (derived)."""
+    part = entity_participation()
     out = []
     for ef in list_entity_functions():
         ident = _identity(ef["rbukrs"])
@@ -319,6 +321,7 @@ def entity_master() -> list[dict[str, Any]]:
             "is_primary": ef["is_primary"],
             "tested_party": ef["tested_party"],
             "applies_to": ef["applies_to"],
+            "participates_in": part.get(ef["rbukrs"], []),
         })
     return out
 
@@ -326,6 +329,26 @@ def entity_master() -> list[dict[str, Any]]:
 @lru_cache(maxsize=1)
 def _covered_seed() -> list[dict[str, Any]]:
     return _doc("covered_transactions.v1.json")["covered_transactions"]
+
+
+def entity_participation() -> dict[str, list[str]]:
+    """For each entity, the transaction-type labels it participates in (payer /
+    payee / tested) across the covered transactions — the real 'participates in'."""
+    tt_label = {t["txn_type_id"]: t["label"] for t in transaction_types()}
+    by_rb: dict[str, set[str]] = {}
+    for c in _covered_for_participation():
+        label = tt_label.get(c["txn_type_id"], c["txn_type_id"])
+        for key in ("payer_rbukrs", "payee_rbukrs", "tested_rbukrs"):
+            rb = c.get(key)
+            if rb:
+                by_rb.setdefault(rb, set()).add(label)
+    return {rb: sorted(labels) for rb, labels in by_rb.items()}
+
+
+def _covered_for_participation() -> list[dict[str, Any]]:
+    """Covered transactions feeding participation. (A later task extends this to
+    include mapped-unplanned; for now it's the planned seed.)"""
+    return _covered_seed()
 
 
 def _entity_role(rbukrs: str) -> str:

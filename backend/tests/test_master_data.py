@@ -77,3 +77,15 @@ def test_transaction_types_and_functions_endpoints(state_db):
     assert client.get("/api/master-data/functions").status_code == 200
     tt = client.get("/api/master-data/transaction-types").json()
     assert any(t["txn_type_id"] == "DIST-LRD" for t in tt)
+
+
+def test_entity_participation_derives_from_covered(state_db):
+    md.seed_if_empty()
+    part = md.entity_participation()
+    # 3000 (Germany) is payer on royalty + distribution flows and the SVC tested party
+    assert "Royalty — patented API" in part["3000"]
+    assert "Distribution (LRD)" in part["3000"]
+    # entity_master rows expose participates_in
+    rows = md.entity_master()
+    de = [r for r in rows if r["rbukrs"] == "3000"][0]
+    assert de["participates_in"] == part["3000"]
