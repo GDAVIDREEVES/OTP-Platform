@@ -68,7 +68,7 @@ export default function EntityMaster() {
             <TableCell sx={{ bgcolor: OVERLAY }}>TP function</TableCell>
             <TableCell sx={{ bgcolor: OVERLAY }}>Tested</TableCell>
             <TableCell sx={{ bgcolor: OVERLAY }}>Currency</TableCell>
-            <TableCell sx={{ bgcolor: OVERLAY }}>Applies to</TableCell>
+            <TableCell sx={{ bgcolor: OVERLAY }}>Participates in</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -84,7 +84,7 @@ export default function EntityMaster() {
                   <TableCell sx={{ bgcolor: OVERLAY, fontWeight: 600 }}>{r.tp_function_label}{r.is_primary ? ' ·primary' : ''}</TableCell>
                   <TableCell sx={{ bgcolor: OVERLAY }}>{r.tested_party ? '✓' : '—'}</TableCell>
                   <TableCell sx={{ bgcolor: OVERLAY }}>{r.functional_currency ?? '—'}</TableCell>
-                  <TableCell sx={{ bgcolor: OVERLAY }}>{r.applies_to.map((a) => <Chip key={a} size="small" label={a} sx={{ mr: 0.5, height: 20 }} />)}</TableCell>
+                  <TableCell sx={{ bgcolor: OVERLAY }}>{i === 0 ? r.participates_in.map((a) => <Chip key={a} size="small" label={a} sx={{ mr: 0.5, mb: 0.5, height: 20 }} />) : ''}</TableCell>
                 </TableRow>
               )),
               <TableRow key={`${rbukrs}-add`}>

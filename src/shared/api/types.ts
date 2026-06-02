@@ -218,6 +218,7 @@ export interface MdEntityRow {
   is_primary: boolean;
   tested_party: boolean;
   applies_to: string[];
+  participates_in: string[];
 }
 
 export interface MdTransactionType {
