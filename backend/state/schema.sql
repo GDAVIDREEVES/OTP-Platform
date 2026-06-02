@@ -82,3 +82,51 @@ CREATE TABLE IF NOT EXISTS seed_versions (
   version   TEXT NOT NULL,
   loaded_at TEXT NOT NULL
 );
+
+-- ---- Master data: editable TP overlay + inbound mapping staging ----
+
+CREATE TABLE IF NOT EXISTS md_entity_function (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  rbukrs           TEXT NOT NULL,
+  tp_function_code TEXT NOT NULL,
+  is_primary       INTEGER NOT NULL DEFAULT 0,
+  tested_party     INTEGER NOT NULL DEFAULT 0,
+  applies_to       TEXT,                              -- JSON array of categories
+  status           TEXT NOT NULL DEFAULT 'active',    -- active|retired
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_md_ef_rbukrs ON md_entity_function (rbukrs);
+
+CREATE TABLE IF NOT EXISTS md_overlay (
+  ctx_id          TEXT PRIMARY KEY,
+  policy_ref      TEXT,
+  ica_ref         TEXT,
+  apa_ref         TEXT,
+  target_override REAL,
+  notes           TEXT,
+  updated_by      TEXT,
+  updated_at      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS md_staging (
+  id            TEXT PRIMARY KEY,
+  kind          TEXT NOT NULL,                        -- entity|account|transaction|field
+  raw_json      TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'unmapped',     -- unmapped|proposed|in_review|applied|rejected
+  proposed_json TEXT,
+  confidence    TEXT,
+  rationale     TEXT,
+  maker         TEXT,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT
+);
+
+CREATE TABLE IF NOT EXISTS md_mapping (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind           TEXT NOT NULL,
+  raw_key        TEXT NOT NULL,
+  canonical_json TEXT NOT NULL,
+  applied_by     TEXT,
+  applied_at     TEXT NOT NULL
+);
