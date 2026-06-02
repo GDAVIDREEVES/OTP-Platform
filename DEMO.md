@@ -56,6 +56,16 @@ key is missing.
 
 ## The walkthrough (operator → reviewer → director)
 
+0. **Master Data** (`/master-data`) — the front of the cycle. The **matrix** shows
+   every covered transaction with its method, PLI/range, country and policy / ICA /
+   APA references (grey = SAP, tinted = editable TP overlay; cells drill to source).
+   **Entities** are defined at entity × function grain (a multi-hat entity has a row
+   per function); **Transactions** define each type's method + benchmark. Under
+   **Inbound mapping**, a seeded SAP delta (new entity 3500, a GL account, a new
+   transaction) is characterised by the Research Brain → you review the proposal →
+   submit → switch role to approve (maker ≠ checker; AI is never the checker) → the
+   entity joins the master, all on the audit trail. **Simulate SAP delta** pushes
+   another item live.
 1. **Home** (`/home`) — role-aware operating-cadence home. Switch persona from
    the top-right avatar (Operator / Reviewer / Director).
 2. **Process library** (`/process`) — all 50 processes by lifecycle category A–G;

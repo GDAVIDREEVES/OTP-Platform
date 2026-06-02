@@ -23,8 +23,8 @@ import { statusColor, statusLabel } from '@/shared/utils/status';
 import { tokens } from '@/shared/theme';
 import type { Draft, ReviewItem } from '@/shared/api/types';
 
-const CYCLE = ['Set rates', 'Charge & invoice', 'Monitor margins', 'Adjust & true-up', 'Reserve & provision'];
-const CURRENT = 2; // demo period sits in monitoring / adjustment
+const CYCLE = ['Master data', 'Set rates', 'Charge & invoice', 'Monitor margins', 'Adjust & true-up', 'Reserve & provision'];
+const CURRENT = 3; // demo period sits in monitoring / adjustment
 
 function timeAgo(iso: string): string {
   try {
@@ -209,6 +209,7 @@ function DirectorHome() {
 
 export default function OperatingCadenceHome() {
   const user = useSessionUser();
+  const navigate = useNavigate();
   return (
     <AppShell pageTitle="Home">
       <Stack spacing={3}>
@@ -219,6 +220,9 @@ export default function OperatingCadenceHome() {
           </Typography>
         </Box>
         <LifecycleStepper />
+        <Button size="small" variant="outlined" onClick={() => navigate('/master-data')} sx={{ mt: 1 }}>
+          Open Master Data →
+        </Button>
         <CloseMeter />
         {user.role === 'operator' && <OperatorHome userId={user.id} />}
         {user.role === 'reviewer' && <ReviewerHome />}
