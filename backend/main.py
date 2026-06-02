@@ -29,6 +29,7 @@ from routers import (
     journal_entries,
     kpis,
     margins,
+    master_data,
     overrides,
     pnl,
     processes,
@@ -81,6 +82,7 @@ for r in (
     evidence.router,
     research_brain.router,
     reference.router,
+    master_data.router,
 ):
     app.include_router(r)
 

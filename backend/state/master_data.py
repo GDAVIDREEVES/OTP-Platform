@@ -13,6 +13,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from period_filter import PeriodFilter
+from services.entities import list_entities
+
 import state.audit as audit
 from state import seeds
 from state.engine import LOCK, get_conn
@@ -283,3 +286,105 @@ def seed_if_empty() -> None:
             for it in _doc("inbound/sap_delta.v1.json")["items"]:
                 _insert_staging(conn, it)
         conn.commit()
+
+
+# ---------- composition helpers ----------
+
+@lru_cache(maxsize=1)
+def _entity_dim() -> dict[str, dict[str, Any]]:
+    raw = json.loads((Path(__file__).parent.parent / "dim" / "entity_dim.json").read_text(encoding="utf-8"))
+    return {e["rbukrs"]: e for e in raw["entities"]}
+
+
+def _identity(rbukrs: str) -> dict[str, Any]:
+    dim = _entity_dim().get(rbukrs)
+    if dim:
+        return {"rbukrs": rbukrs, "display_name": dim["display_name"], "country": dim.get("country"),
+                "functional_currency": dim.get("functional_currency")}
+    for e in onboarded_entities():
+        if e["rbukrs"] == rbukrs:
+            return e
+    return {"rbukrs": rbukrs, "display_name": f"Entity {rbukrs}", "country": None, "functional_currency": None}
+
+
+def entity_master() -> list[dict[str, Any]]:
+    """entity × function grain: SAP identity (incl. onboarded) joined to functions."""
+    out = []
+    for ef in list_entity_functions():
+        ident = _identity(ef["rbukrs"])
+        out.append({
+            **ident,
+            "tp_function_code": ef["tp_function_code"],
+            "tp_function_label": function_label(ef["tp_function_code"]),
+            "is_primary": ef["is_primary"],
+            "tested_party": ef["tested_party"],
+            "applies_to": ef["applies_to"],
+        })
+    return out
+
+
+@lru_cache(maxsize=1)
+def _covered_seed() -> list[dict[str, Any]]:
+    return _doc("covered_transactions.v1.json")["covered_transactions"]
+
+
+def _entity_role(rbukrs: str) -> str:
+    fns = list_entity_functions(rbukrs)
+    primary = next((f for f in fns if f["is_primary"]), fns[0] if fns else None)
+    return function_label(primary["tp_function_code"]) if primary else "—"
+
+
+def _actual_margin(rbukrs: str) -> float | None:
+    ents = list_entities(PeriodFilter(), entity_id=rbukrs)
+    return ents[0]["actualMargin"] if ents else None
+
+
+def type_with_range(txn_type_id: str) -> dict[str, Any] | None:
+    """Exact transaction type merged with its benchmark range. The matrix uses
+    THIS (it knows the specific type) — not resolve(), which maps a
+    (function, category) to its DEFAULT type by first match (e.g. IPOWN+Royalties
+    -> ROY-API). Two royalty sub-types share that key, so resolve() must not be
+    used for the matrix range."""
+    bm_index = _benchmark_index()
+    for t in transaction_types():
+        if t["txn_type_id"] == txn_type_id:
+            bm = bm_index.get(t["benchmark_set_id"], {})
+            return {**t, "lower": bm.get("lower"), "median": bm.get("median"),
+                    "upper": bm.get("upper"), "unit": bm.get("unit")}
+    return None
+
+
+def matrix() -> list[dict[str, Any]]:
+    rows = []
+    tt_index = {t["txn_type_id"]: t for t in transaction_types()}
+    for c in _covered_seed():
+        tt = tt_index.get(c["txn_type_id"], {})
+        res = type_with_range(c["txn_type_id"]) or {}
+        ov = get_overlay(c["ctx_id"]) or {}
+        lower, upper = res.get("lower"), res.get("upper")
+        status = "na"
+        actual = None
+        if tt.get("method") == "TNMM":
+            actual = _actual_margin(c["tested_rbukrs"])
+            if actual is not None and lower is not None and upper is not None:
+                status = "in_range" if lower <= actual <= upper else "review"
+        rows.append({
+            "ctx_id": c["ctx_id"],
+            "txn_type_id": c["txn_type_id"],
+            "txn_label": tt.get("label"),
+            "category": tt.get("category"),
+            "method": tt.get("method"),
+            "pli": tt.get("pli"),
+            "lower": lower, "median": res.get("median"), "upper": upper, "unit": res.get("unit"),
+            "actual": actual,
+            "status": status,
+            "oecd_anchor": tt.get("oecd_anchor"),
+            "payer": {"rbukrs": c["payer_rbukrs"], "name": _identity(c["payer_rbukrs"])["display_name"], "role": _entity_role(c["payer_rbukrs"])},
+            "payee": {"rbukrs": c["payee_rbukrs"], "name": _identity(c["payee_rbukrs"])["display_name"], "role": _entity_role(c["payee_rbukrs"])},
+            "tested": {"rbukrs": c["tested_rbukrs"], "name": _identity(c["tested_rbukrs"])["display_name"], "role": _entity_role(c["tested_rbukrs"])},
+            "policy_ref": ov.get("policy_ref") or c.get("policy_ref"),
+            "ica_ref": ov.get("ica_ref") or c.get("ica_ref"),
+            "apa_ref": ov.get("apa_ref") or c.get("apa_ref"),
+            "benchmark_set_id": res.get("benchmark_set_id"),
+        })
+    return rows

@@ -40,3 +40,40 @@ def test_entity_function_seed_has_multi_hat_entity():
     assert by_rb["3000"] == 2  # Full-Risk Mfr + Service Provider
     lrds = [a for a in asn if a["tp_function_code"] == "LRD"]
     assert {a["rbukrs"] for a in lrds} == {"3200", "3300", "3800"}
+
+
+from fastapi.testclient import TestClient
+from main import app
+
+client = TestClient(app)
+
+
+def test_entities_endpoint_returns_entity_function_grain(state_db):
+    md.seed_if_empty()
+    rows = client.get("/api/master-data/entities").json()
+    by_rb = [r for r in rows if r["rbukrs"] == "1000"]
+    assert {r["tp_function_code"] for r in by_rb} == {"PRIN", "IPOWN"}
+    assert by_rb[0]["tp_function_label"]  # resolved label
+    assert by_rb[0]["functional_currency"] == "USD"
+
+
+def test_matrix_endpoint_composes_and_resolves(state_db):
+    md.seed_if_empty()
+    rows = client.get("/api/master-data/matrix").json()
+    fr = next(r for r in rows if r["ctx_id"] == "CTX-DIST-FR")
+    assert fr["method"] == "TNMM"
+    assert fr["lower"] == 2.0 and fr["upper"] == 4.0
+    assert fr["policy_ref"] == "POL-DIS-26"
+    assert fr["status"] in {"in_range", "review", "na"}
+    assert fr["payer"]["role"] and fr["tested"]["role"]  # roles from the master
+    # the trademark royalty must resolve to its OWN benchmark, not the API royalty's
+    tm = next(r for r in rows if r["ctx_id"] == "CTX-ROY-TM")
+    assert tm["benchmark_set_id"] == "BM-ROY-TM"
+    assert tm["upper"] == 4.0
+
+
+def test_transaction_types_and_functions_endpoints(state_db):
+    md.seed_if_empty()
+    assert client.get("/api/master-data/functions").status_code == 200
+    tt = client.get("/api/master-data/transaction-types").json()
+    assert any(t["txn_type_id"] == "DIST-LRD" for t in tt)
