@@ -225,25 +225,41 @@ def apply_mapping(item_id: str, *, applied_by: str) -> dict[str, Any]:
         item = get_staging(item_id)
         if item is None:
             raise ValueError(f"no staging item {item_id}")
+        kind = item["kind"]
+        raw = item["raw"]
         proposed = item.get("proposed") or {}
-        raw_key = json.dumps(item["raw"], sort_keys=True)
+        canonical: dict[str, Any] = dict(proposed)
+        if kind == "unplanned_transaction" and proposed.get("txn_type_id"):
+            canonical = {
+                "ctx_id": f"CTX-{item_id}", "txn_type_id": proposed["txn_type_id"],
+                "payer_rbukrs": raw.get("payer_rbukrs"), "payee_rbukrs": raw.get("counterparty_rbukrs"),
+                "tested_rbukrs": proposed.get("tested_rbukrs") or raw.get("payer_rbukrs"),
+                "policy_ref": proposed.get("policy_ref"), "ica_ref": proposed.get("ica_ref"),
+                "apa_ref": proposed.get("apa_ref"),
+            }
         conn.execute(
             "INSERT INTO md_mapping (kind, raw_key, canonical_json, applied_by, applied_at) VALUES (?, ?, ?, ?, ?)",
-            (item["kind"], raw_key, json.dumps(proposed), applied_by, _now()),
+            (kind, json.dumps(raw, sort_keys=True), json.dumps(canonical), applied_by, _now()),
         )
-        if item["kind"] == "entity" and proposed.get("tp_function_code"):
+        if kind == "entity" and proposed.get("tp_function_code"):
             conn.execute(
                 "INSERT INTO md_entity_function (rbukrs, tp_function_code, is_primary, tested_party, applies_to, status, created_at) "
                 "VALUES (?, ?, 1, ?, ?, 'active', ?)",
-                (item["raw"]["rbukrs"], proposed["tp_function_code"],
+                (raw["rbukrs"], proposed["tp_function_code"],
                  int(bool(proposed.get("tested_party"))),
                  json.dumps(proposed.get("applies_to") or []), _now()),
+            )
+        if kind == "unplanned_transaction" and canonical.get("ctx_id"):
+            conn.execute(
+                "INSERT OR IGNORE INTO md_overlay (ctx_id, policy_ref, ica_ref, apa_ref, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (canonical["ctx_id"], canonical.get("policy_ref"), canonical.get("ica_ref"),
+                 canonical.get("apa_ref"), _now()),
             )
         conn.execute("UPDATE md_staging SET status='applied', updated_at=? WHERE id=?", (_now(), item_id))
         conn.commit()
         audit.record(
             actor=applied_by, actor_kind="human", process_id="MASTER-DATA",
-            record_ref=f"mdmap:{item_id}", event_type="posted", after=proposed,
+            record_ref=f"mdmap:{item_id}", event_type="posted", after=canonical,
         )
     return {"id": item_id, "status": "applied"}
 

@@ -107,6 +107,17 @@ def propose_mapping(item: dict[str, Any]) -> dict[str, Any]:
             "rationale": f"'{raw.get('label')}' best matches transaction type {code}." if code
                          else f"Could not classify transaction '{raw.get('label')}'.",
         }
+    elif kind == "unplanned_transaction":
+        code = _match(str(raw.get("label", "")), _TXN_KEYWORDS)
+        out = {
+            "proposed": {"txn_type_id": code, "tested_rbukrs": raw.get("payer_rbukrs")} if code else {"txn_type_id": None},
+            "confidence": "Medium" if code else "Low",
+            "rationale": (
+                f"Unexpected IC flow {raw.get('payer_rbukrs')}→{raw.get('counterparty_rbukrs')} "
+                f"'{raw.get('label')}' best matches transaction type {code}; assign policy / ICA / APA on review."
+                if code else f"Could not classify the unexpected flow '{raw.get('label')}'; assign a transaction type."
+            ),
+        }
     else:
         out = {"proposed": {}, "confidence": "Low", "rationale": f"Unsupported kind '{kind}'."}
 

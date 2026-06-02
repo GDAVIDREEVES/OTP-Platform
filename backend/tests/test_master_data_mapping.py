@@ -47,3 +47,17 @@ def test_simulate_adds_a_new_unmapped_item(state_db):
     api.post("/api/master-data/staging/simulate")
     after = len(api.get("/api/master-data/staging").json())
     assert after == before + 1
+
+
+def test_unplanned_flow_maps_to_covered_transaction(state_db):
+    md.seed_if_empty()
+    assert any(r["staging_id"] == "UNPL-3300-3400" for r in md.matrix() if r["status"] == "unmapped")
+    p = api.post("/api/master-data/staging/UNPL-3300-3400/propose").json()
+    assert p["proposed"]["txn_type_id"] == "SVC"
+    api.post("/api/master-data/staging/UNPL-3300-3400/submit", json={"maker": "u_maria"})
+    api.post("/api/master-data/staging/UNPL-3300-3400/approve", json={"checker": "u_sam"})
+    rows = md.matrix()
+    assert not any(r["staging_id"] == "UNPL-3300-3400" for r in rows if r["status"] == "unmapped")
+    mapped = [r for r in rows if r["ctx_id"] == "CTX-UNPL-3300-3400"]
+    assert mapped and mapped[0]["txn_type_id"] == "SVC" and mapped[0]["method"] == "TNMM"
+    assert api.get("/api/audit/verify").json()["ok"] is True
