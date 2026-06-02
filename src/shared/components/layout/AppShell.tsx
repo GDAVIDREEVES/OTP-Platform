@@ -39,6 +39,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import RefreshIcon from '@mui/icons-material/RestartAlt';
 import ResearchBrainFab from '@/features/research-brain/ResearchBrainFab';
 import ResearchBrainPanel from '@/features/research-brain/ResearchBrainPanel';
@@ -58,6 +59,7 @@ import type { PeriodKey } from '@/shared/types/period';
 const DRAWER_WIDTH = 248;
 const navItems = [
   { label: 'Home', icon: <HomeIcon />, path: '/home' },
+  { label: 'Master Data', icon: <AccountTreeIcon />, path: '/master-data' },
   { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { label: 'Processes', icon: <GridViewIcon />, path: '/process' },
   { label: 'Review queue', icon: <FactCheckIcon />, path: '/review' },
