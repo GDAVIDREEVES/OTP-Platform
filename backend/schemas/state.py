@@ -64,3 +64,12 @@ class OverlayIn(BaseModel):
     target_override: float | None = None
     notes: str | None = None
     actor: str
+
+
+class MappingSubmitIn(BaseModel):
+    maker: str
+
+
+class MappingDecisionIn(BaseModel):
+    checker: str
+    comments: str | None = None

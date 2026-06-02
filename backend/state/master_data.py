@@ -354,6 +354,25 @@ def type_with_range(txn_type_id: str) -> dict[str, Any] | None:
     return None
 
 
+# A small pool of extra deltas the "Simulate SAP delta" button cycles through.
+# Deterministic (pick the next not-yet-present item) — no Math.random/Date needed.
+_SIM_POOL = [
+    {"id": "SAP-3600", "kind": "entity", "raw": {"rbukrs": "3600", "name": "Brazil Distribution Co.", "currency": "BRL", "country_hint": "Brazil"}},
+    {"id": "SAP-418000", "kind": "account", "raw": {"account": "418000", "text": "Interest expense - intercompany loan"}},
+    {"id": "SAP-MFG2", "kind": "transaction", "raw": {"label": "Contract manufacturing - sterile fill", "payer_rbukrs": "3100", "payee_rbukrs": "4100"}},
+]
+
+
+def simulate_delta() -> dict[str, Any]:
+    """Insert the next not-yet-present pool item (deterministic, replayable)."""
+    existing = {i["id"] for i in list_staging()}
+    for cand in _SIM_POOL:
+        if cand["id"] not in existing:
+            add_staging_batch([cand])
+            return cand
+    return {"id": None, "kind": None, "raw": {}}
+
+
 def matrix() -> list[dict[str, Any]]:
     rows = []
     tt_index = {t["txn_type_id"]: t for t in transaction_types()}
