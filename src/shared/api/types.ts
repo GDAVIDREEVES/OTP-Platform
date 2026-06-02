@@ -279,3 +279,20 @@ export interface MdProposal {
   citations: { source: string; note?: string }[];
   event_id: number;
 }
+
+export interface MdOverlayRow {
+  ctx_id: string;
+  policy_ref: string | null;
+  ica_ref: string | null;
+  apa_ref: string | null;
+  target_override: number | null;
+  notes: string | null;
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
+export interface MdSimulateResult {
+  id: string | null;
+  kind: string | null;
+  raw: Record<string, unknown>;
+}

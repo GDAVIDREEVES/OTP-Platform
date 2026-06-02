@@ -37,6 +37,8 @@ import type {
   MdMatrixRow,
   MdStagingItem,
   MdProposal,
+  MdOverlayRow,
+  MdSimulateResult,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -279,12 +281,12 @@ export const api = {
   mdPutOverlay: (
     ctxId: string,
     body: { policy_ref?: string; ica_ref?: string; apa_ref?: string; target_override?: number; notes?: string; actor: string },
-  ) => sendJSON<MdMatrixRow>('PUT', `/api/master-data/overlay/${encodeURIComponent(ctxId)}`, body),
+  ) => sendJSON<MdOverlayRow>('PUT', `/api/master-data/overlay/${encodeURIComponent(ctxId)}`, body),
   mdAddEntityFunction: (
     body: { rbukrs: string; tp_function_code: string; tested_party?: boolean; applies_to?: string[]; is_primary?: boolean; actor: string },
   ) => sendJSON<{ rbukrs: string; tp_function_code: string }>('POST', '/api/master-data/entity-function', body),
   mdStaging: () => getJSON<MdStagingItem[]>('/api/master-data/staging'),
-  mdSimulate: () => sendJSON<MdStagingItem>('POST', '/api/master-data/staging/simulate'),
+  mdSimulate: () => sendJSON<MdSimulateResult>('POST', '/api/master-data/staging/simulate'),
   mdPropose: (id: string) => sendJSON<MdProposal>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/propose`),
   mdSubmitMapping: (id: string, maker: string) =>
     sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/submit`, { maker }),
