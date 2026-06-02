@@ -13,6 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from db import q
 from period_filter import PeriodFilter
 from services.entities import list_entities
 
@@ -346,9 +347,7 @@ def entity_participation() -> dict[str, list[str]]:
 
 
 def _covered_for_participation() -> list[dict[str, Any]]:
-    """Covered transactions feeding participation. (A later task extends this to
-    include mapped-unplanned; for now it's the planned seed.)"""
-    return _covered_seed()
+    return _planned_covered()
 
 
 def _entity_role(rbukrs: str) -> str:
@@ -396,37 +395,122 @@ def simulate_delta() -> dict[str, Any]:
     return {"id": None, "kind": None, "raw": {}}
 
 
+def _party(rbukrs: str) -> dict[str, Any]:
+    return {"rbukrs": rbukrs, "name": _identity(rbukrs)["display_name"], "role": _entity_role(rbukrs)}
+
+
+def _pair(a: str, b: str) -> frozenset:
+    return frozenset((a, b))
+
+
+def _entity_set() -> set[str]:
+    s = set(_entity_dim().keys())
+    s |= {e["rbukrs"] for e in onboarded_entities() if e.get("rbukrs")}
+    return s
+
+
+def mapped_unplanned() -> list[dict[str, Any]]:
+    """Covered transactions created by mapping an unplanned flow (from md_mapping)."""
+    rows = get_conn().execute(
+        "SELECT canonical_json FROM md_mapping WHERE kind='unplanned_transaction'"
+    ).fetchall()
+    out = []
+    for r in rows:
+        c = json.loads(r["canonical_json"])
+        if c.get("ctx_id") and c.get("txn_type_id"):
+            out.append({**c, "planned": False})
+    return out
+
+
+def _planned_covered() -> list[dict[str, Any]]:
+    """Covered transactions that count as planned coverage: the curated seed plus
+    any unplanned flow already mapped into a covered transaction."""
+    return [{**c, "planned": True} for c in _covered_seed()] + mapped_unplanned()
+
+
+def _covered_row(c: dict[str, Any]) -> dict[str, Any]:
+    tt = type_with_range(c["txn_type_id"]) or {}
+    ov = get_overlay(c["ctx_id"]) or {}
+    lower, upper = tt.get("lower"), tt.get("upper")
+    status, actual = "na", None
+    if tt.get("method") == "TNMM":
+        actual = _actual_margin(c["tested_rbukrs"])
+        if actual is not None and lower is not None and upper is not None:
+            status = "in_range" if lower <= actual <= upper else "review"
+    return {
+        "ctx_id": c["ctx_id"], "txn_type_id": c["txn_type_id"], "txn_label": tt.get("label"),
+        "category": tt.get("category"), "method": tt.get("method"), "pli": tt.get("pli"),
+        "lower": lower, "median": tt.get("median"), "upper": upper, "unit": tt.get("unit"),
+        "actual": actual, "status": status, "planned": c.get("planned", True),
+        "actual_amount": None, "flow_id": None, "staging_id": None,
+        "oecd_anchor": tt.get("oecd_anchor"),
+        "payer": _party(c["payer_rbukrs"]), "payee": _party(c["payee_rbukrs"]), "tested": _party(c["tested_rbukrs"]),
+        "policy_ref": ov.get("policy_ref") or c.get("policy_ref"),
+        "ica_ref": ov.get("ica_ref") or c.get("ica_ref"),
+        "apa_ref": ov.get("apa_ref") or c.get("apa_ref"),
+        "benchmark_set_id": tt.get("benchmark_set_id"),
+    }
+
+
+def _unmapped_row(*, ctx_id: str, label: str, payer: str, counterparty: str,
+                  amount: float | None, flow_id: str | None, staging_id: str | None) -> dict[str, Any]:
+    return {
+        "ctx_id": ctx_id, "txn_type_id": None, "txn_label": label, "category": None,
+        "method": None, "pli": None, "lower": None, "median": None, "upper": None, "unit": None,
+        "actual": None, "status": "unmapped", "planned": False, "actual_amount": amount,
+        "flow_id": flow_id, "staging_id": staging_id, "oecd_anchor": None,
+        "payer": _party(payer), "payee": _party(counterparty), "tested": _party(payer),
+        "policy_ref": None, "ica_ref": None, "apa_ref": None, "benchmark_set_id": None,
+    }
+
+
+def _unplanned_pairs(actual_pairs: set[frozenset], planned_pairs: set[frozenset]) -> set[frozenset]:
+    return {p for p in actual_pairs if p not in planned_pairs}
+
+
+def unplanned_flows() -> list[dict[str, Any]]:
+    """Intercompany flows in the actuals (journal) with no planned/mapped coverage
+    and not already staged. Read-only. Empty if the sample journal has no IC postings."""
+    ents = _entity_set()
+    if not ents:
+        return []
+    ph = ",".join("?" for _ in ents)
+    try:
+        rows = q(
+            f"SELECT RBUKRS, RASSC, SUM(HSL) AS amount FROM journal "
+            f"WHERE RASSC IS NOT NULL AND RASSC <> RBUKRS AND RASSC IN ({ph}) AND RBUKRS IN ({ph}) "
+            f"GROUP BY RBUKRS, RASSC",
+            list(ents) + list(ents),
+        )
+    except Exception:
+        return []
+    planned = {_pair(c["payer_rbukrs"], c["payee_rbukrs"]) for c in _planned_covered()}
+    staged = {i["id"] for i in list_staging()}
+    actual = {_pair(str(r["RBUKRS"]), str(r["RASSC"])): r for r in rows}
+    out = []
+    for pair in _unplanned_pairs(set(actual.keys()), planned):
+        a, b = sorted(list(pair))
+        flow_id = f"UNPL-{a}-{b}"
+        if flow_id in staged:
+            continue
+        r = actual[pair]
+        out.append({"flow_id": flow_id, "payer_rbukrs": str(r["RBUKRS"]),
+                    "counterparty_rbukrs": str(r["RASSC"]), "amount": float(r["amount"] or 0)})
+    return out
+
+
 def matrix() -> list[dict[str, Any]]:
-    rows = []
-    tt_index = {t["txn_type_id"]: t for t in transaction_types()}
-    for c in _covered_seed():
-        tt = tt_index.get(c["txn_type_id"], {})
-        res = type_with_range(c["txn_type_id"]) or {}
-        ov = get_overlay(c["ctx_id"]) or {}
-        lower, upper = res.get("lower"), res.get("upper")
-        status = "na"
-        actual = None
-        if tt.get("method") == "TNMM":
-            actual = _actual_margin(c["tested_rbukrs"])
-            if actual is not None and lower is not None and upper is not None:
-                status = "in_range" if lower <= actual <= upper else "review"
-        rows.append({
-            "ctx_id": c["ctx_id"],
-            "txn_type_id": c["txn_type_id"],
-            "txn_label": tt.get("label"),
-            "category": tt.get("category"),
-            "method": tt.get("method"),
-            "pli": tt.get("pli"),
-            "lower": lower, "median": res.get("median"), "upper": upper, "unit": res.get("unit"),
-            "actual": actual,
-            "status": status,
-            "oecd_anchor": tt.get("oecd_anchor"),
-            "payer": {"rbukrs": c["payer_rbukrs"], "name": _identity(c["payer_rbukrs"])["display_name"], "role": _entity_role(c["payer_rbukrs"])},
-            "payee": {"rbukrs": c["payee_rbukrs"], "name": _identity(c["payee_rbukrs"])["display_name"], "role": _entity_role(c["payee_rbukrs"])},
-            "tested": {"rbukrs": c["tested_rbukrs"], "name": _identity(c["tested_rbukrs"])["display_name"], "role": _entity_role(c["tested_rbukrs"])},
-            "policy_ref": ov.get("policy_ref") or c.get("policy_ref"),
-            "ica_ref": ov.get("ica_ref") or c.get("ica_ref"),
-            "apa_ref": ov.get("apa_ref") or c.get("apa_ref"),
-            "benchmark_set_id": res.get("benchmark_set_id"),
-        })
+    rows = [_covered_row(c) for c in _planned_covered()]
+    for it in list_staging():
+        if it["kind"] == "unplanned_transaction" and it["status"] in ("unmapped", "proposed", "in_review"):
+            raw = it["raw"]
+            rows.append(_unmapped_row(
+                ctx_id=f"stg:{it['id']}", label=raw.get("label", "Unplanned transaction"),
+                payer=raw.get("payer_rbukrs"), counterparty=raw.get("counterparty_rbukrs"),
+                amount=raw.get("amount"), flow_id=None, staging_id=it["id"]))
+    for f in unplanned_flows():
+        rows.append(_unmapped_row(
+            ctx_id=f["flow_id"], label="Unplanned intercompany flow (from actuals)",
+            payer=f["payer_rbukrs"], counterparty=f["counterparty_rbukrs"],
+            amount=f["amount"], flow_id=f["flow_id"], staging_id=None))
     return rows

@@ -89,3 +89,19 @@ def test_entity_participation_derives_from_covered(state_db):
     rows = md.entity_master()
     de = [r for r in rows if r["rbukrs"] == "3000"][0]
     assert de["participates_in"] == part["3000"]
+
+
+def test_unplanned_pairs_excludes_planned():
+    planned = {frozenset(("3000", "3100")), frozenset(("3200", "3400"))}
+    actual = {frozenset(("3000", "3100")), frozenset(("3300", "3400"))}
+    assert md._unplanned_pairs(actual, planned) == {frozenset(("3300", "3400"))}
+
+
+def test_matrix_includes_seeded_unplanned_as_unmapped(state_db):
+    md.seed_if_empty()
+    rows = md.matrix()
+    unmapped = [r for r in rows if r["status"] == "unmapped"]
+    assert any(r["staging_id"] == "UNPL-3300-3400" for r in unmapped)
+    u = [r for r in unmapped if r["staging_id"] == "UNPL-3300-3400"][0]
+    assert u["planned"] is False and u["method"] is None and u["actual_amount"] == 1850000.0
+    assert any(r["ctx_id"] == "CTX-DIST-FR" and r["status"] != "unmapped" for r in rows)
