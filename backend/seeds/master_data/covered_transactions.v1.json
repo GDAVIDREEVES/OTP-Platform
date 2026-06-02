@@ -1,0 +1,13 @@
+{
+  "version": "1",
+  "covered_transactions": [
+    { "ctx_id": "CTX-ROY-API", "txn_type_id": "ROY-API",  "payer_rbukrs": "3000", "payee_rbukrs": "3100", "tested_rbukrs": "3100", "policy_ref": "POL-ROY-26",  "ica_ref": "ICA-26-014", "apa_ref": "APA-CHDE-19" },
+    { "ctx_id": "CTX-ROY-TM",  "txn_type_id": "ROY-TM",   "payer_rbukrs": "3200", "payee_rbukrs": "1000", "tested_rbukrs": "1000", "policy_ref": "POL-ROYTM-26","ica_ref": "ICA-26-009", "apa_ref": null },
+    { "ctx_id": "CTX-DIST-FR", "txn_type_id": "DIST-LRD", "payer_rbukrs": "3000", "payee_rbukrs": "3200", "tested_rbukrs": "3200", "policy_ref": "POL-DIS-26",  "ica_ref": "ICA-26-021", "apa_ref": null },
+    { "ctx_id": "CTX-DIST-UK", "txn_type_id": "DIST-LRD", "payer_rbukrs": "3000", "payee_rbukrs": "3300", "tested_rbukrs": "3300", "policy_ref": "POL-DIS-26",  "ica_ref": "ICA-26-022", "apa_ref": null },
+    { "ctx_id": "CTX-DIST-NL", "txn_type_id": "DIST-LRD", "payer_rbukrs": "3000", "payee_rbukrs": "3800", "tested_rbukrs": "3800", "policy_ref": "POL-DIS-26",  "ica_ref": "ICA-26-023", "apa_ref": null },
+    { "ctx_id": "CTX-MFG-IN",  "txn_type_id": "MFG-TOLL", "payer_rbukrs": "3100", "payee_rbukrs": "4100", "tested_rbukrs": "4100", "policy_ref": "POL-MFG-26",  "ica_ref": "ICA-26-031", "apa_ref": null },
+    { "ctx_id": "CTX-SVC-DE",  "txn_type_id": "SVC",      "payer_rbukrs": "1000", "payee_rbukrs": "3000", "tested_rbukrs": "3000", "policy_ref": "POL-SVC-26",  "ica_ref": "ICA-26-003", "apa_ref": null },
+    { "ctx_id": "CTX-FIN-IE",  "txn_type_id": "FIN",      "payer_rbukrs": "3200", "payee_rbukrs": "3400", "tested_rbukrs": "3400", "policy_ref": "POL-FIN-26",  "ica_ref": "ICA-26-040", "apa_ref": null }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "version": "1",
+  "year": 2026,
+  "rows": [
+    {
+      "rbukrs": "3100",
+      "jurisdiction": "Switzerland",
+      "globe_income": 47000000,
+      "covered_taxes": 4230000,
+      "etr": 9.0,
+      "sbie": 5000000,
+      "top_up_tax": 2520000
+    },
+    {
+      "rbukrs": "3400",
+      "jurisdiction": "Ireland",
+      "globe_income": 30000000,
+      "covered_taxes": 3750000,
+      "etr": 12.5,
+      "sbie": 3000000,
+      "top_up_tax": 675000
+    },
+    {
+      "rbukrs": "1000",
+      "jurisdiction": "United States",
+      "globe_income": 150000000,
+      "covered_taxes": 31500000,
+      "etr": 21.0,
+      "sbie": 30000000,
+      "top_up_tax": 0
+    },
+    {
+      "rbukrs": "3000",
+      "jurisdiction": "Germany",
+      "globe_income": 56000000,
+      "covered_taxes": 15680000,
+      "etr": 28.0,
+      "sbie": 15000000,
+      "top_up_tax": 0
+    },
+    {
+      "rbukrs": "3200",
+      "jurisdiction": "France",
+      "globe_income": 5000000,
+      "covered_taxes": 1290000,
+      "etr": 25.8,
+      "sbie": 2000000,
+      "top_up_tax": 0
+    },
+    {
+      "rbukrs": "3300",
+      "jurisdiction": "United Kingdom",
+      "globe_income": 4000000,
+      "covered_taxes": 1000000,
+      "etr": 25.0,
+      "sbie": 2000000,
+      "top_up_tax": 0
+    },
+    {
+      "rbukrs": "3800",
+      "jurisdiction": "Netherlands",
+      "globe_income": 5000000,
+      "covered_taxes": 1290000,
+      "etr": 25.8,
+      "sbie": 2000000,
+      "top_up_tax": 0
+    },
+    {
+      "rbukrs": "4100",
+      "jurisdiction": "India",
+      "globe_income": 9000000,
+      "covered_taxes": 2268000,
+      "etr": 25.2,
+      "sbie": 4000000,
+      "top_up_tax": 0
+    }
+  ]
+}

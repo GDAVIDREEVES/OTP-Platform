@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "items": [
+    { "id": "SAP-3500", "kind": "entity",      "raw": { "rbukrs": "3500", "name": "Spain Distribution Co.", "currency": "EUR", "country_hint": "Spain" } },
+    { "id": "SAP-417000", "kind": "account",   "raw": { "account": "417000", "text": "Royalty expense - trademark" } },
+    { "id": "SAP-CRD", "kind": "transaction",  "raw": { "label": "Contract R&D services", "payer_rbukrs": "3000", "payee_rbukrs": "4100" } },
+    { "id": "UNPL-3300-3400", "kind": "unplanned_transaction", "raw": { "payer_rbukrs": "3300", "counterparty_rbukrs": "3400", "label": "Intra-group services - shared service charge", "amount": 1850000.0 } }
+  ]
+}

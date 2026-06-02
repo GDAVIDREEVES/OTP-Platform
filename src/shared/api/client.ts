@@ -15,6 +15,7 @@ import type {
   MonthlyMarginRow,
 } from '@/shared/types/transaction';
 import type { PeriodParams } from '@/shared/types/period';
+import type { ProcessCatalog } from '@/kernel/registry/types';
 import type {
   KpiSummary,
   EntityFlow,
@@ -25,6 +26,19 @@ import type {
   SubmittedAdjustment,
   PolicyOverride,
   AppSettings,
+  AuditEvent,
+  ChainVerify,
+  Draft,
+  ReviewItem,
+  EvidencePacket,
+  TpFunction,
+  MdEntityRow,
+  MdTransactionType,
+  MdMatrixRow,
+  MdStagingItem,
+  MdProposal,
+  MdOverlayRow,
+  MdSimulateResult,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -82,6 +96,9 @@ export const api = {
 
   /** Distinct fiscal years present in the data, newest first. */
   years: () => getJSON<number[]>('/api/years'),
+
+  /** The OTP-1…50 process catalog + pharmaceutical overlay. */
+  processes: () => getJSON<ProcessCatalog>('/api/processes'),
 
   kpis: (period: PeriodParams = {}) =>
     getJSON<KpiSummary>('/api/kpis', period as Record<string, unknown>),
@@ -181,4 +198,102 @@ export const api = {
   settings: () => getJSON<AppSettings>('/api/settings'),
 
   saveSettings: (body: AppSettings) => sendJSON<AppSettings>('PUT', '/api/settings', body),
+
+  // ------------ Phase 2: audit / drafts / review / evidence ------------
+
+  audit: (params: { record_ref?: string; process_id?: string } = {}) =>
+    getJSON<AuditEvent[]>('/api/audit', params),
+
+  auditVerify: () => getJSON<ChainVerify>('/api/audit/verify'),
+
+  drafts: (userId: string) => getJSON<Draft[]>('/api/drafts', { user_id: userId }),
+
+  draft: (processId: string, recordRef: string, userId: string) =>
+    getJSON<Draft>(
+      `/api/drafts/${encodeURIComponent(processId)}/${encodeURIComponent(recordRef)}`,
+      { user_id: userId }
+    ),
+
+  putDraft: (body: {
+    user_id: string;
+    process_id: string;
+    record_ref: string;
+    step: string;
+    step_index?: number;
+    payload?: Record<string, unknown>;
+    status?: string;
+  }) => sendJSON<Draft>('PUT', '/api/drafts', body),
+
+  deleteDraft: (id: number) => sendJSON<{ deleted: boolean }>('DELETE', `/api/drafts/${id}`),
+
+  reviewQueue: (status: string = 'pending') =>
+    getJSON<ReviewItem[]>('/api/review-queue', { status }),
+
+  enqueueReview: (body: { process_id: string; record_ref: string; maker: string }) =>
+    sendJSON<ReviewItem>('POST', '/api/review-queue', body),
+
+  approveReview: (id: number, body: { checker: string; comments?: string }) =>
+    sendJSON<ReviewItem>('POST', `/api/review/${id}/approve`, body),
+
+  rejectReview: (id: number, body: { checker: string; comments: string }) =>
+    sendJSON<ReviewItem>('POST', `/api/review/${id}/reject`, body),
+
+  evidence: (recordRef: string) =>
+    getJSON<EvidencePacket>(`/api/evidence/${encodeURIComponent(recordRef)}`),
+
+  /** Read-only reference seed set (benchmarks, intangibles, dempe, cbcr, pillar_two, utp_reserve). */
+  reference: <T = unknown>(name: string) => getJSON<T>(`/api/reference/${name}`),
+
+  /** Research Brain agentic "prepare steps" hand-off (logs an assisted event). */
+  researchBrainPrepare: (body: {
+    process_id: string;
+    record_ref: string;
+    entity_id?: string;
+    gap_pp?: number;
+    postings?: number;
+    summary?: string;
+  }) =>
+    sendJSON<{
+      summary: string;
+      draftPatch: { mode: string; amount: number; gapPp: number; postings: number } | null;
+      actor: string;
+      event_id: number;
+    }>('POST', '/api/research-brain/prepare', body),
+
+  /** Process-aware TP knowledge Q&A (researchbrain retrieval, with fallback). */
+  researchBrainAsk: (body: {
+    question: string;
+    process_id?: string;
+    jurisdiction?: string;
+    tp_method?: string;
+  }) =>
+    sendJSON<{
+      answer: string;
+      citations: { source: string; ref: string; snippet: string }[];
+      live: boolean;
+    }>('POST', '/api/research-brain/ask', body),
+
+  // ---- Master Data ----
+  mdFunctions: () => getJSON<TpFunction[]>('/api/master-data/functions'),
+  mdEntities: () => getJSON<MdEntityRow[]>('/api/master-data/entities'),
+  mdTransactionTypes: () => getJSON<MdTransactionType[]>('/api/master-data/transaction-types'),
+  mdMatrix: () => getJSON<MdMatrixRow[]>('/api/master-data/matrix'),
+  mdPutOverlay: (
+    ctxId: string,
+    body: { policy_ref?: string; ica_ref?: string; apa_ref?: string; target_override?: number; notes?: string; actor: string },
+  ) => sendJSON<MdOverlayRow>('PUT', `/api/master-data/overlay/${encodeURIComponent(ctxId)}`, body),
+  mdAddEntityFunction: (
+    body: { rbukrs: string; tp_function_code: string; tested_party?: boolean; applies_to?: string[]; is_primary?: boolean; actor: string },
+  ) => sendJSON<{ rbukrs: string; tp_function_code: string }>('POST', '/api/master-data/entity-function', body),
+  mdStaging: () => getJSON<MdStagingItem[]>('/api/master-data/staging'),
+  mdSimulate: () => sendJSON<MdSimulateResult>('POST', '/api/master-data/staging/simulate'),
+  mdPromoteFlow: (body: { flow_id: string; payer_rbukrs: string; counterparty_rbukrs: string; label?: string; amount?: number }) =>
+    sendJSON<{ id: string; status: string }>('POST', '/api/master-data/staging/promote', body),
+  mdPropose: (id: string) => sendJSON<MdProposal>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/propose`),
+  mdSubmitMapping: (id: string, maker: string) =>
+    sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/submit`, { maker }),
+  mdApproveMapping: (id: string, checker: string, comments?: string) =>
+    sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/approve`, { checker, comments }),
+  mdRejectMapping: (id: string, checker: string, comments: string) =>
+    sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/reject`, { checker, comments }),
 };

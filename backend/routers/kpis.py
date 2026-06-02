@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from config import SUPPLY_CHAIN
 from db import q
 from period_filter import PeriodFilter
 from services.entities import list_entities
@@ -31,7 +30,7 @@ def kpis(
     apa_chains = q(
         f"""
         SELECT COUNT(DISTINCT CHAIN_ID) AS n
-        FROM read_parquet('{SUPPLY_CHAIN}')
+        FROM supply_chain
         WHERE APA_FLAG = TRUE {pf_clause}
         """,
         pf_params,
@@ -39,7 +38,7 @@ def kpis(
     challenged_chains = q(
         f"""
         SELECT COUNT(DISTINCT CHAIN_ID) AS n
-        FROM read_parquet('{SUPPLY_CHAIN}')
+        FROM supply_chain
         WHERE CHALLENGED_FLAG = TRUE {pf_clause}
         """,
         pf_params,

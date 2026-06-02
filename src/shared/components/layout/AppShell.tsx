@@ -15,6 +15,7 @@ import {
   Avatar,
   Select,
   MenuItem,
+  Menu,
   FormControl,
   Chip,
   Stack,
@@ -24,6 +25,9 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import DashboardIcon from '@mui/icons-material/SpaceDashboard';
+import GridViewIcon from '@mui/icons-material/GridView';
+import FactCheckIcon from '@mui/icons-material/FactCheck';
+import HomeIcon from '@mui/icons-material/Home';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import PolicyIcon from '@mui/icons-material/Policy';
 import PieChartIcon from '@mui/icons-material/PieChart';
@@ -35,6 +39,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import RefreshIcon from '@mui/icons-material/RestartAlt';
 import ResearchBrainFab from '@/features/research-brain/ResearchBrainFab';
 import ResearchBrainPanel from '@/features/research-brain/ResearchBrainPanel';
@@ -48,11 +53,16 @@ import {
   useAvailableYears,
 } from '@/shared/providers/DataProvider';
 import { periodLabel } from '@/shared/utils/period';
+import { useSession } from '@/shared/providers/SessionProvider';
 import type { PeriodKey } from '@/shared/types/period';
 
 const DRAWER_WIDTH = 248;
 const navItems = [
+  { label: 'Home', icon: <HomeIcon />, path: '/home' },
+  { label: 'Master Data', icon: <AccountTreeIcon />, path: '/master-data' },
   { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+  { label: 'Processes', icon: <GridViewIcon />, path: '/process' },
+  { label: 'Review queue', icon: <FactCheckIcon />, path: '/review' },
   { label: 'Price Setting', icon: <CalculateIcon />, path: '/price-setting' },
   { label: 'Policy', icon: <PolicyIcon />, path: '/policy' },
   { label: 'Segmented P&L', icon: <PieChartIcon />, path: '/segmented-pnl' },
@@ -86,6 +96,8 @@ export default function AppShell({ pageTitle, children }: Props) {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, role, setRole, users } = useSession();
+  const [roleAnchor, setRoleAnchor] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const lastFetchedAt = useLastFetchedAt();
   const refetch = useRefetch();
@@ -214,17 +226,17 @@ export default function AppShell({ pageTitle, children }: Props) {
             fontSize: 14,
           }}
         >
-          MC
+          {user.initials}
         </Avatar>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography
             variant="body2"
             sx={{ color: 'white', fontWeight: 600, lineHeight: 1.2 }}
           >
-            Maria Chen
+            {user.name}
           </Typography>
           <Typography variant="caption" sx={{ color: '#94A3B8' }}>
-            Group TP Manager
+            {user.title}
           </Typography>
         </Box>
         <IconButton
@@ -423,16 +435,28 @@ export default function AppShell({ pageTitle, children }: Props) {
                 </IconButton>
               </Tooltip>
 
-              <Avatar
-                sx={{
-                  bgcolor: '#2563EB',
-                  width: 36,
-                  height: 36,
-                  fontSize: 14,
-                }}
-              >
-                MC
-              </Avatar>
+              <Tooltip title={`${user.name} — switch role`} arrow>
+                <IconButton onClick={(e) => setRoleAnchor(e.currentTarget)} sx={{ p: 0.5 }} aria-label="Switch role">
+                  <Avatar sx={{ bgcolor: '#2563EB', width: 36, height: 36, fontSize: 14 }}>{user.initials}</Avatar>
+                </IconButton>
+              </Tooltip>
+              <Menu anchorEl={roleAnchor} open={!!roleAnchor} onClose={() => setRoleAnchor(null)}>
+                {users.map((u) => (
+                  <MenuItem
+                    key={u.id}
+                    selected={u.role === role}
+                    onClick={() => {
+                      setRole(u.role);
+                      setRoleAnchor(null);
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{u.name}</Typography>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>{u.title}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Menu>
             </Stack>
           </Toolbar>
         </AppBar>

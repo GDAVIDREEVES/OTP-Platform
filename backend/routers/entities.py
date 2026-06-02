@@ -6,7 +6,6 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from config import SUPPLY_CHAIN
 from constants import MATERIAL_LABELS
 from db import q
 from period_filter import PeriodFilter
@@ -63,7 +62,7 @@ def entity_flows(
           APA_FLAG,
           CHALLENGED_FLAG,
           CHAIN_ID
-        FROM read_parquet('{SUPPLY_CHAIN}')
+        FROM supply_chain
         WHERE (SELLING_COMPANY = ? OR BUYING_COMPANY = ?) {pf_clause}
       )
       SELECT

@@ -16,17 +16,26 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import CORS_ORIGINS, DATA_DIR, HOST, PORT
 from db import close_db, db
+from state import migrate
 from routers import (
     adjustments,
+    audit,
     berry,
+    drafts,
     entities,
+    evidence,
     health,
     invoices,
     journal_entries,
     kpis,
     margins,
+    master_data,
     overrides,
     pnl,
+    processes,
+    reference,
+    research_brain,
+    review,
     settings,
     transactions,
     years,
@@ -38,6 +47,7 @@ async def lifespan(_app: FastAPI):
     db().execute("SELECT 1").fetchone()
     if not (DATA_DIR / "entity_roles").is_dir():
         raise RuntimeError(f"DATA_DIR not found or missing entity_roles/: {DATA_DIR}")
+    migrate.run()  # apply SQLite schema + import any legacy JSON store
     yield
     close_db()
 
@@ -59,12 +69,20 @@ for r in (
     transactions.router,
     invoices.router,
     pnl.router,
+    processes.router,
     adjustments.router,
     overrides.router,
     settings.router,
     berry.router,
     journal_entries.router,
     years.router,
+    audit.router,
+    drafts.router,
+    review.router,
+    evidence.router,
+    research_brain.router,
+    reference.router,
+    master_data.router,
 ):
     app.include_router(r)
 

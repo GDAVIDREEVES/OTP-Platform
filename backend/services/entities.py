@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from config import ENTITY_ROLES, JOURNAL, SEGMENT_PL, SUPPLY_CHAIN
 from constants import ENTITY_CCY, ENTITY_DIM, ROLE_FUNCTION
 from db import q
 from period_filter import PeriodFilter
@@ -30,23 +29,23 @@ def list_entities(
              CASE WHEN SUM(revenue) <> 0
                   THEN SUM(operating_profit) / SUM(revenue)
                   ELSE NULL END   AS ytd_margin
-      FROM read_parquet('{SEGMENT_PL}')
+      FROM segment_pl
       WHERE 1=1 {pf_clause}
       GROUP BY 1
     ),
     latest_p AS (
       SELECT MAX(POPER) AS p, MAX(GJAHR) AS y
-      FROM read_parquet('{SEGMENT_PL}')
+      FROM segment_pl
       WHERE 1=1 {pf_clause}
     ),
     current AS (
       SELECT s.RBUKRS, s.operating_margin AS current_margin
-      FROM read_parquet('{SEGMENT_PL}') s, latest_p
+      FROM segment_pl s, latest_p
       WHERE s.POPER = latest_p.p AND s.GJAHR = latest_p.y
     ),
     last_post AS (
       SELECT RBUKRS, MAX(BUDAT) AS last_posted
-      FROM read_parquet('{JOURNAL}')
+      FROM journal
       GROUP BY 1
     ),
     method AS (
@@ -54,7 +53,7 @@ def list_entities(
              ARG_MAX(TP_METHOD, n) AS tp_method
       FROM (
         SELECT BUYING_COMPANY, TP_METHOD, COUNT(*) AS n
-        FROM read_parquet('{SUPPLY_CHAIN}')
+        FROM supply_chain
         GROUP BY 1, 2
       )
       GROUP BY 1
@@ -64,7 +63,7 @@ def list_entities(
              ARG_MAX(TP_METHOD, n) AS tp_method
       FROM (
         SELECT SELLING_COMPANY, TP_METHOD, COUNT(*) AS n
-        FROM read_parquet('{SUPPLY_CHAIN}')
+        FROM supply_chain
         GROUP BY 1, 2
       )
       GROUP BY 1
@@ -75,7 +74,7 @@ def list_entities(
            c.current_margin,
            lp.last_posted,
            COALESCE(m.tp_method, sm.tp_method) AS tp_method
-    FROM read_parquet('{ENTITY_ROLES}') r
+    FROM entity_roles r
     LEFT JOIN ytd        y  USING (RBUKRS)
     LEFT JOIN current    c  USING (RBUKRS)
     LEFT JOIN last_post  lp USING (RBUKRS)

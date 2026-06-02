@@ -6,7 +6,6 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
-from config import SEGMENT_PL
 from db import q
 
 router = APIRouter()
@@ -34,7 +33,7 @@ def segment_pl(
              opex_production, opex_rd, opex_sm, opex_ga, opex_dist,
              ic_charges, depreciation,
              operating_profit, operating_margin
-      FROM read_parquet('{SEGMENT_PL}')
+      FROM segment_pl
       {where}
       ORDER BY RBUKRS, GJAHR, POPER
     """

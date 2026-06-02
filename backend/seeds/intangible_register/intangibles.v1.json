@@ -1,0 +1,42 @@
+{
+  "version": "1",
+  "intangibles": [
+    {
+      "intangible_id": "IP-API-001",
+      "name": "API-001 compound patent family",
+      "type": "patent",
+      "legal_owner_rbukrs": "1000",
+      "chain_ids": [
+        "CHAIN-007",
+        "CHAIN-018"
+      ]
+    },
+    {
+      "intangible_id": "IP-DPR-001",
+      "name": "DPR-001 formulation know-how",
+      "type": "know-how",
+      "legal_owner_rbukrs": "3100",
+      "chain_ids": [
+        "CHAIN-024"
+      ]
+    },
+    {
+      "intangible_id": "IP-TM-GLOBE",
+      "name": "Global product trademark",
+      "type": "trademark",
+      "legal_owner_rbukrs": "1000",
+      "chain_ids": [
+        "CHAIN-039"
+      ]
+    },
+    {
+      "intangible_id": "IP-PLATFORM",
+      "name": "Manufacturing process platform",
+      "type": "know-how",
+      "legal_owner_rbukrs": "3000",
+      "chain_ids": [
+        "CHAIN-049"
+      ]
+    }
+  ]
+}

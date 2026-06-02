@@ -133,3 +133,171 @@ export interface AppSettings {
   defaultReviewer: string;
   notifyOnDeviation: boolean;
 }
+
+// ----------------- Phase 2: state layer (audit / drafts / review) -----------------
+
+export interface AuditEvent {
+  id: number;
+  ts: string;
+  actor: string;
+  actor_kind: 'human' | 'assistant';
+  process_id: string | null;
+  record_ref: string;
+  event_type: string;
+  before: unknown;
+  after: unknown;
+  rationale: string | null;
+  prev_hash: string;
+  hash: string;
+}
+
+export interface Draft {
+  id: number;
+  user_id: string;
+  process_id: string;
+  record_ref: string;
+  step: string;
+  step_index: number;
+  payload: Record<string, unknown>;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReviewItem {
+  id: number;
+  process_id: string;
+  record_ref: string;
+  maker: string;
+  checker: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  comments: string | null;
+  created_at: string;
+  decided_at: string | null;
+}
+
+export interface ChainVerify {
+  ok: boolean;
+  broken_at: number | null;
+}
+
+export interface EvidenceDiff {
+  event_id: number;
+  event_type: string;
+  ts: string;
+  actor: string;
+  changes: { field: string; from: unknown; to: unknown }[];
+}
+
+export interface EvidencePacket {
+  record_ref: string;
+  subject: string | null;
+  events: AuditEvent[];
+  diffs: EvidenceDiff[];
+  postings: JournalEntryRow[];
+  verify: ChainVerify;
+}
+
+// ----------------- Master Data -----------------
+
+export interface TpFunction {
+  code: string;
+  label: string;
+  default_method: string;
+  default_pli: string;
+  typically_tested: boolean;
+}
+
+export interface MdEntityRow {
+  rbukrs: string;
+  display_name: string;
+  country: string | null;
+  functional_currency: string | null;
+  tp_function_code: string;
+  tp_function_label: string;
+  is_primary: boolean;
+  tested_party: boolean;
+  applies_to: string[];
+  participates_in: string[];
+}
+
+export interface MdTransactionType {
+  txn_type_id: string;
+  label: string;
+  category: string;
+  method: string;
+  pli: string;
+  benchmark_set_id: string;
+  oecd_anchor: string;
+  characterising_function: string;
+}
+
+export interface MdMatrixParty {
+  rbukrs: string;
+  name: string;
+  role: string;
+}
+
+export interface MdMatrixRow {
+  ctx_id: string;
+  txn_type_id: string | null;
+  txn_label: string | null;
+  category: string | null;
+  method: string | null;
+  pli: string | null;
+  lower: number | null;
+  median: number | null;
+  upper: number | null;
+  unit: string | null;
+  actual: number | null;
+  status: 'in_range' | 'review' | 'na' | 'unmapped';
+  planned: boolean;
+  actual_amount: number | null;
+  flow_id: string | null;
+  staging_id: string | null;
+  oecd_anchor: string | null;
+  payer: MdMatrixParty;
+  payee: MdMatrixParty;
+  tested: MdMatrixParty;
+  policy_ref: string | null;
+  ica_ref: string | null;
+  apa_ref: string | null;
+  benchmark_set_id: string | null;
+}
+
+export interface MdStagingItem {
+  id: string;
+  kind: 'entity' | 'account' | 'transaction' | 'field' | 'unplanned_transaction';
+  raw: Record<string, unknown>;
+  status: 'unmapped' | 'proposed' | 'in_review' | 'applied' | 'rejected';
+  proposed: Record<string, unknown> | null;
+  confidence: string | null;
+  rationale: string | null;
+  maker: string | null;
+}
+
+export interface MdProposal {
+  proposed: Record<string, unknown>;
+  confidence: string;
+  rationale: string;
+  live: boolean;
+  citations: { source: string; note?: string }[];
+  event_id: number;
+}
+
+export interface MdOverlayRow {
+  ctx_id: string;
+  policy_ref: string | null;
+  ica_ref: string | null;
+  apa_ref: string | null;
+  target_override: number | null;
+  notes: string | null;
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
+export interface MdSimulateResult {
+  id: string | null;
+  kind: string | null;
+  raw: Record<string, unknown>;
+}

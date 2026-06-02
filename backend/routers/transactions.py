@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from config import SUPPLY_CHAIN
 from constants import MATERIAL_LABELS
 from db import q
 from period_filter import PeriodFilter
@@ -39,7 +38,7 @@ def list_flows(
              BOOL_OR(CHALLENGED_FLAG)    AS any_challenged,
              LIST(DISTINCT SELLING_COMPANY) AS sellers,
              LIST(DISTINCT BUYING_COMPANY)  AS buyers
-      FROM read_parquet('{SUPPLY_CHAIN}')
+      FROM supply_chain
       WHERE 1=1 {pf_clause}
       GROUP BY 1,2,3,4
       ORDER BY ytd_volume DESC
@@ -87,7 +86,7 @@ def list_royalties(
              SUM(TOTAL_LEGAL_PRICE) AS ytd_fees,
              BOOL_OR(APA_FLAG) AS any_apa,
              BOOL_OR(CHALLENGED_FLAG) AS any_challenged
-      FROM read_parquet('{SUPPLY_CHAIN}')
+      FROM supply_chain
       WHERE MATERIAL_TYPE = 'ROYALTY' {pf_clause}
       GROUP BY 1,2,3,4,5
       ORDER BY ytd_fees DESC

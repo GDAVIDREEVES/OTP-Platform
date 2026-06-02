@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from config import DATA_DIR, ENTITY_ROLES
+from config import DATA_DIR
 from db import q
 
 router = APIRouter()
@@ -8,7 +8,7 @@ router = APIRouter()
 
 @router.get("/api/health")
 def health():
-    rows = q(f"SELECT COUNT(*) AS n FROM read_parquet('{ENTITY_ROLES}')")
+    rows = q(f"SELECT COUNT(*) AS n FROM entity_roles")
     return {
         "ok": True,
         "data_dir": str(DATA_DIR),
