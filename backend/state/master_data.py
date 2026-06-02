@@ -511,8 +511,13 @@ def unplanned_flows() -> list[dict[str, Any]]:
             continue
         r = actual[pair]
         out.append({"flow_id": flow_id, "payer_rbukrs": str(r["RBUKRS"]),
-                    "counterparty_rbukrs": str(r["RASSC"]), "amount": float(r["amount"] or 0)})
-    return out
+                    "counterparty_rbukrs": str(r["RASSC"]), "amount": abs(float(r["amount"] or 0))})
+    # Surface only the most material unplanned flows so the matrix reads as a focused
+    # exception list, not every intercompany pair in the ledger. (Amount is shown as a
+    # magnitude — the coarse entity-pair grain nets both legs; the mapping step assigns
+    # the precise transaction + direction.)
+    out.sort(key=lambda f: f["amount"], reverse=True)
+    return out[:5]
 
 
 def matrix() -> list[dict[str, Any]]:

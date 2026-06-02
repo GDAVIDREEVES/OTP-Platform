@@ -105,3 +105,10 @@ def test_matrix_includes_seeded_unplanned_as_unmapped(state_db):
     u = [r for r in unmapped if r["staging_id"] == "UNPL-3300-3400"][0]
     assert u["planned"] is False and u["method"] is None and u["actual_amount"] == 1850000.0
     assert any(r["ctx_id"] == "CTX-DIST-FR" and r["status"] != "unmapped" for r in rows)
+
+
+def test_unplanned_flows_capped_and_positive(state_db):
+    md.seed_if_empty()
+    flows = md.unplanned_flows()
+    assert len(flows) <= 5  # focused exception list, not every IC pair
+    assert all(f["amount"] >= 0 for f in flows)  # magnitude, never negative
