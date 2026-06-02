@@ -26,3 +26,17 @@ def test_resolve_toll_manufacturing_to_benchmark():
 
 def test_resolve_unknown_pair_returns_none():
     assert md.resolve("LRD", "Manufacturing") is None
+
+
+def test_entity_function_seed_has_multi_hat_entity():
+    import json
+    from pathlib import Path
+    p = Path("seeds/master_data/entity_functions.v1.json")
+    asn = json.loads(p.read_text())["assignments"]
+    by_rb: dict[str, int] = {}
+    for a in asn:
+        by_rb[a["rbukrs"]] = by_rb.get(a["rbukrs"], 0) + 1
+    assert by_rb["1000"] == 2  # Principal + IP Owner
+    assert by_rb["3000"] == 2  # Full-Risk Mfr + Service Provider
+    lrds = [a for a in asn if a["tp_function_code"] == "LRD"]
+    assert {a["rbukrs"] for a in lrds} == {"3200", "3300", "3800"}

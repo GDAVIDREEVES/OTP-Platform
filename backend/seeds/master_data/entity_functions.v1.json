@@ -1,0 +1,16 @@
+{
+  "version": "1",
+  "assignments": [
+    { "rbukrs": "1000", "tp_function_code": "PRIN",  "is_primary": true,  "tested_party": false, "applies_to": ["Royalties"] },
+    { "rbukrs": "1000", "tp_function_code": "IPOWN", "is_primary": false, "tested_party": false, "applies_to": ["Royalties"] },
+    { "rbukrs": "3100", "tp_function_code": "PRIN",  "is_primary": true,  "tested_party": false, "applies_to": ["Royalties"] },
+    { "rbukrs": "3100", "tp_function_code": "IPOWN", "is_primary": false, "tested_party": false, "applies_to": ["Royalties"] },
+    { "rbukrs": "3000", "tp_function_code": "FRMFG", "is_primary": true,  "tested_party": true,  "applies_to": ["Manufacturing"] },
+    { "rbukrs": "3000", "tp_function_code": "SVC",   "is_primary": false, "tested_party": true,  "applies_to": ["Services"] },
+    { "rbukrs": "3200", "tp_function_code": "LRD",   "is_primary": true,  "tested_party": true,  "applies_to": ["Distribution"] },
+    { "rbukrs": "3300", "tp_function_code": "LRD",   "is_primary": true,  "tested_party": true,  "applies_to": ["Distribution"] },
+    { "rbukrs": "3800", "tp_function_code": "LRD",   "is_primary": true,  "tested_party": true,  "applies_to": ["Distribution"] },
+    { "rbukrs": "3400", "tp_function_code": "TREAS", "is_primary": true,  "tested_party": false, "applies_to": ["Financing"] },
+    { "rbukrs": "4100", "tp_function_code": "TOLL",  "is_primary": true,  "tested_party": true,  "applies_to": ["Manufacturing"] }
+  ]
+}

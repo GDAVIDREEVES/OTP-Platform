@@ -1,0 +1,8 @@
+{
+  "version": "1",
+  "items": [
+    { "id": "SAP-3500", "kind": "entity",      "raw": { "rbukrs": "3500", "name": "Spain Distribution Co.", "currency": "EUR", "country_hint": "Spain" } },
+    { "id": "SAP-417000", "kind": "account",   "raw": { "account": "417000", "text": "Royalty expense - trademark" } },
+    { "id": "SAP-CRD", "kind": "transaction",  "raw": { "label": "Contract R&D services", "payer_rbukrs": "3000", "payee_rbukrs": "4100" } }
+  ]
+}

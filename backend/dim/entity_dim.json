@@ -6,6 +6,7 @@
       "country": "United States",
       "country_code": "US",
       "function": "Principal",
+      "functional_currency": "USD",
       "lat": 39.74,
       "lng": -75.55
     },
@@ -15,6 +16,7 @@
       "country": "Germany",
       "country_code": "DE",
       "function": "Manufacturer",
+      "functional_currency": "EUR",
       "lat": 50.11,
       "lng": 8.68
     },
@@ -24,6 +26,7 @@
       "country": "Switzerland",
       "country_code": "CH",
       "function": "IP Holding / Principal",
+      "functional_currency": "CHF",
       "lat": 47.37,
       "lng": 8.54
     },
@@ -33,6 +36,7 @@
       "country": "France",
       "country_code": "FR",
       "function": "Distributor",
+      "functional_currency": "EUR",
       "lat": 48.86,
       "lng": 2.35
     },
@@ -42,6 +46,7 @@
       "country": "United Kingdom",
       "country_code": "GB",
       "function": "Distributor",
+      "functional_currency": "GBP",
       "lat": 51.51,
       "lng": -0.13
     },
@@ -51,6 +56,7 @@
       "country": "Ireland",
       "country_code": "IE",
       "function": "Treasury / Finance",
+      "functional_currency": "EUR",
       "lat": 53.35,
       "lng": -6.26
     },
@@ -60,6 +66,7 @@
       "country": "Netherlands",
       "country_code": "NL",
       "function": "Distributor",
+      "functional_currency": "EUR",
       "lat": 52.37,
       "lng": 4.90
     },
@@ -69,6 +76,7 @@
       "country": "India",
       "country_code": "IN",
       "function": "Manufacturer",
+      "functional_currency": "INR",
       "lat": 19.08,
       "lng": 72.88
     }
