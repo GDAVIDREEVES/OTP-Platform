@@ -38,3 +38,4 @@ backend/state/*.db-shm
 *.njsproj
 *.sln
 *.sw?
+.superpowers/
