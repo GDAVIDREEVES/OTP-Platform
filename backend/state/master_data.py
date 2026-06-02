@@ -101,7 +101,7 @@ def add_entity_function(
         conn.commit()
         audit.record(
             actor=actor, actor_kind="human", process_id="MASTER-DATA",
-            record_ref=f"mdent:{rbukrs}", event_type="edited",
+            record_ref=f"mdent:{rbukrs}", event_type="created",
             after={"rbukrs": rbukrs, "tp_function_code": tp_function_code},
         )
     return {"rbukrs": rbukrs, "tp_function_code": tp_function_code}
@@ -166,8 +166,14 @@ def list_staging(status: str | None = None) -> list[dict[str, Any]]:
 
 
 def get_staging(item_id: str) -> dict[str, Any] | None:
-    rows = [i for i in list_staging() if i["id"] == item_id]
-    return rows[0] if rows else None
+    r = get_conn().execute("SELECT * FROM md_staging WHERE id = ?", (item_id,)).fetchone()
+    if r is None:
+        return None
+    d = {k: r[k] for k in r.keys()}
+    d["raw"] = json.loads(d.pop("raw_json"))
+    d["proposed"] = json.loads(d["proposed_json"]) if d["proposed_json"] else None
+    d.pop("proposed_json", None)
+    return d
 
 
 def _insert_staging(conn: Any, item: dict[str, Any]) -> None:
@@ -187,12 +193,13 @@ def add_staging_batch(items: list[dict[str, Any]]) -> int:
 
 
 def set_proposal(item_id: str, proposal: dict[str, Any]) -> None:
+    proposed = proposal.get("proposed")
     with LOCK:
         conn = get_conn()
         conn.execute(
             "UPDATE md_staging SET proposed_json=?, confidence=?, rationale=?, status='proposed', updated_at=? WHERE id=?",
-            (json.dumps(proposal.get("proposed")), proposal.get("confidence"),
-             proposal.get("rationale"), _now(), item_id),
+            (json.dumps(proposed) if proposed is not None else None,
+             proposal.get("confidence"), proposal.get("rationale"), _now(), item_id),
         )
         conn.commit()
 
@@ -209,12 +216,12 @@ def mark_status(item_id: str, status: str, maker: str | None = None) -> None:
 
 def apply_mapping(item_id: str, *, applied_by: str) -> dict[str, Any]:
     """Persist the approved mapping to the master and the mapping ledger; audit it."""
-    item = get_staging(item_id)
-    if item is None:
-        raise ValueError(f"no staging item {item_id}")
-    proposed = item.get("proposed") or {}
     with LOCK:
         conn = get_conn()
+        item = get_staging(item_id)
+        if item is None:
+            raise ValueError(f"no staging item {item_id}")
+        proposed = item.get("proposed") or {}
         raw_key = json.dumps(item["raw"], sort_keys=True)
         conn.execute(
             "INSERT INTO md_mapping (kind, raw_key, canonical_json, applied_by, applied_at) VALUES (?, ?, ?, ?, ?)",
