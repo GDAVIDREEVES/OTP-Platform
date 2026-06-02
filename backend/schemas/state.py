@@ -46,3 +46,21 @@ class AskIn(BaseModel):
     process_id: str | None = None
     jurisdiction: str | None = None
     tp_method: str | None = None
+
+
+class EntityFunctionIn(BaseModel):
+    rbukrs: str
+    tp_function_code: str
+    tested_party: bool = False
+    applies_to: list[str] = Field(default_factory=list)
+    is_primary: bool = False
+    actor: str
+
+
+class OverlayIn(BaseModel):
+    policy_ref: str | None = None
+    ica_ref: str | None = None
+    apa_ref: str | None = None
+    target_override: float | None = None
+    notes: str | None = None
+    actor: str

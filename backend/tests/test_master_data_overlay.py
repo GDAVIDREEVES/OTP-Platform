@@ -47,3 +47,29 @@ def test_staging_seeded_with_inbound_batch(state_db):
     ids = {i["id"] for i in items}
     assert {"SAP-3500", "SAP-417000", "SAP-CRD"} <= ids
     assert all(i["status"] == "unmapped" for i in items)
+
+
+from fastapi.testclient import TestClient
+from main import app
+
+api = TestClient(app)
+
+
+def test_overlay_put_endpoint_edits_and_audits(state_db):
+    md.seed_if_empty()
+    r = api.put("/api/master-data/overlay/CTX-DIST-FR", json={"policy_ref": "POL-DIS-26c", "actor": "u_maria"})
+    assert r.status_code == 200
+    assert r.json()["policy_ref"] == "POL-DIS-26c"
+    events = api.get("/api/audit", params={"record_ref": "mdctx:CTX-DIST-FR"}).json()
+    assert any(e["event_type"] == "edited" and e["actor"] == "u_maria" for e in events)
+
+
+def test_entity_function_post_adds_row(state_db):
+    md.seed_if_empty()
+    r = api.post("/api/master-data/entity-function", json={
+        "rbukrs": "3200", "tp_function_code": "SVC", "tested_party": True,
+        "applies_to": ["Services"], "actor": "u_maria"})
+    assert r.status_code == 200
+    rows = api.get("/api/master-data/entities").json()
+    fr = [x for x in rows if x["rbukrs"] == "3200"]
+    assert {x["tp_function_code"] for x in fr} == {"LRD", "SVC"}
