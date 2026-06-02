@@ -16,6 +16,8 @@ from state import engine
 def run() -> None:
     engine.init_db()
     overrides.import_legacy_json()
+    from state import master_data
+    master_data.seed_if_empty()
 
 
 def reset() -> None:
