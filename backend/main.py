@@ -24,6 +24,7 @@ from routers import (
     drafts,
     entities,
     evidence,
+    flows,
     health,
     invoices,
     journal_entries,
@@ -64,6 +65,7 @@ app.add_middleware(
 for r in (
     health.router,
     entities.router,
+    flows.router,
     kpis.router,
     margins.router,
     transactions.router,
