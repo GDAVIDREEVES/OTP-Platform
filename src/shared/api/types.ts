@@ -301,3 +301,9 @@ export interface MdSimulateResult {
   kind: string | null;
   raw: Record<string, unknown>;
 }
+
+export interface IntercompanyFlow {
+  from_rbukrs: string;
+  to_rbukrs: string;
+  amount: number;
+}
