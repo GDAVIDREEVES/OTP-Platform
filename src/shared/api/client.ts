@@ -31,6 +31,12 @@ import type {
   Draft,
   ReviewItem,
   EvidencePacket,
+  TpFunction,
+  MdEntityRow,
+  MdTransactionType,
+  MdMatrixRow,
+  MdStagingItem,
+  MdProposal,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -264,4 +270,26 @@ export const api = {
       citations: { source: string; ref: string; snippet: string }[];
       live: boolean;
     }>('POST', '/api/research-brain/ask', body),
+
+  // ---- Master Data ----
+  mdFunctions: () => getJSON<TpFunction[]>('/api/master-data/functions'),
+  mdEntities: () => getJSON<MdEntityRow[]>('/api/master-data/entities'),
+  mdTransactionTypes: () => getJSON<MdTransactionType[]>('/api/master-data/transaction-types'),
+  mdMatrix: () => getJSON<MdMatrixRow[]>('/api/master-data/matrix'),
+  mdPutOverlay: (
+    ctxId: string,
+    body: { policy_ref?: string; ica_ref?: string; apa_ref?: string; target_override?: number; notes?: string; actor: string },
+  ) => sendJSON<MdMatrixRow>('PUT', `/api/master-data/overlay/${encodeURIComponent(ctxId)}`, body),
+  mdAddEntityFunction: (
+    body: { rbukrs: string; tp_function_code: string; tested_party?: boolean; applies_to?: string[]; is_primary?: boolean; actor: string },
+  ) => sendJSON<{ rbukrs: string; tp_function_code: string }>('POST', '/api/master-data/entity-function', body),
+  mdStaging: () => getJSON<MdStagingItem[]>('/api/master-data/staging'),
+  mdSimulate: () => sendJSON<MdStagingItem>('POST', '/api/master-data/staging/simulate'),
+  mdPropose: (id: string) => sendJSON<MdProposal>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/propose`),
+  mdSubmitMapping: (id: string, maker: string) =>
+    sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/submit`, { maker }),
+  mdApproveMapping: (id: string, checker: string, comments?: string) =>
+    sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/approve`, { checker, comments }),
+  mdRejectMapping: (id: string, checker: string, comments: string) =>
+    sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/reject`, { checker, comments }),
 };

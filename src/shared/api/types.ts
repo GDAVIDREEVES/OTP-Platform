@@ -197,3 +197,85 @@ export interface EvidencePacket {
   postings: JournalEntryRow[];
   verify: ChainVerify;
 }
+
+// ----------------- Master Data -----------------
+
+export interface TpFunction {
+  code: string;
+  label: string;
+  default_method: string;
+  default_pli: string;
+  typically_tested: boolean;
+}
+
+export interface MdEntityRow {
+  rbukrs: string;
+  display_name: string;
+  country: string | null;
+  functional_currency: string | null;
+  tp_function_code: string;
+  tp_function_label: string;
+  is_primary: boolean;
+  tested_party: boolean;
+  applies_to: string[];
+}
+
+export interface MdTransactionType {
+  txn_type_id: string;
+  label: string;
+  category: string;
+  method: string;
+  pli: string;
+  benchmark_set_id: string;
+  oecd_anchor: string;
+  characterising_function: string;
+}
+
+export interface MdMatrixParty {
+  rbukrs: string;
+  name: string;
+  role: string;
+}
+
+export interface MdMatrixRow {
+  ctx_id: string;
+  txn_type_id: string;
+  txn_label: string;
+  category: string;
+  method: string;
+  pli: string;
+  lower: number | null;
+  median: number | null;
+  upper: number | null;
+  unit: string | null;
+  actual: number | null;
+  status: 'in_range' | 'review' | 'na';
+  oecd_anchor: string;
+  payer: MdMatrixParty;
+  payee: MdMatrixParty;
+  tested: MdMatrixParty;
+  policy_ref: string | null;
+  ica_ref: string | null;
+  apa_ref: string | null;
+  benchmark_set_id: string | null;
+}
+
+export interface MdStagingItem {
+  id: string;
+  kind: 'entity' | 'account' | 'transaction' | 'field';
+  raw: Record<string, unknown>;
+  status: 'unmapped' | 'proposed' | 'in_review' | 'applied' | 'rejected';
+  proposed: Record<string, unknown> | null;
+  confidence: string | null;
+  rationale: string | null;
+  maker: string | null;
+}
+
+export interface MdProposal {
+  proposed: Record<string, unknown>;
+  confidence: string;
+  rationale: string;
+  live: boolean;
+  citations: { source: string; note?: string }[];
+  event_id: number;
+}
