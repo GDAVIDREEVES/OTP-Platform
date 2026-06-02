@@ -964,6 +964,10 @@ def test_matrix_endpoint_composes_and_resolves(state_db):
     assert fr["policy_ref"] == "POL-DIS-26"
     assert fr["status"] in {"in_range", "review", "na"}
     assert fr["payer"]["role"] and fr["tested"]["role"]  # roles from the master
+    # the trademark royalty must resolve to its OWN benchmark, not the API royalty's
+    tm = next(r for r in rows if r["ctx_id"] == "CTX-ROY-TM")
+    assert tm["benchmark_set_id"] == "BM-ROY-TM"
+    assert tm["upper"] == 4.0
 
 
 def test_transaction_types_and_functions_endpoints(state_db):
@@ -1035,12 +1039,27 @@ def _actual_margin(rbukrs: str) -> float | None:
     return ents[0]["actualMargin"] if ents else None
 
 
+def type_with_range(txn_type_id: str) -> dict[str, Any] | None:
+    """Exact transaction type merged with its benchmark range. The matrix uses
+    THIS (it knows the specific type) — not resolve(), which maps a
+    (function, category) to its DEFAULT type by first match (e.g. IPOWN+Royalties
+    -> ROY-API). Two royalty sub-types share that key, so resolve() must not be
+    used for the matrix range."""
+    bm_index = _benchmark_index()
+    for t in transaction_types():
+        if t["txn_type_id"] == txn_type_id:
+            bm = bm_index.get(t["benchmark_set_id"], {})
+            return {**t, "lower": bm.get("lower"), "median": bm.get("median"),
+                    "upper": bm.get("upper"), "unit": bm.get("unit")}
+    return None
+
+
 def matrix() -> list[dict[str, Any]]:
     rows = []
     tt_index = {t["txn_type_id"]: t for t in transaction_types()}
     for c in _covered_seed():
         tt = tt_index.get(c["txn_type_id"], {})
-        res = resolve(tt.get("characterising_function", ""), tt.get("category", "")) or {}
+        res = type_with_range(c["txn_type_id"]) or {}
         ov = get_overlay(c["ctx_id"]) or {}
         lower, upper = res.get("lower"), res.get("upper")
         status = "na"
