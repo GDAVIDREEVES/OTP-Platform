@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Alert, Box, Button, Chip, CircularProgress, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography,
 } from '@mui/material';
@@ -16,6 +17,8 @@ export default function InboundMapping({ onChange }: { onChange?: () => void }) 
   const refresh = () => api.mdStaging().then(setItems).catch(() => setItems([]));
   useEffect(() => { refresh(); }, []);
   const wf = useMappingWorkflow(() => { refresh(); onChange?.(); });
+  const [params] = useSearchParams();
+  const focus = params.get('focus');
 
   const simulate = async () => { await api.mdSimulate(); refresh(); };
 
@@ -39,7 +42,7 @@ export default function InboundMapping({ onChange }: { onChange?: () => void }) 
         const p = wf.proposal[it.id];
         const proposed = p?.proposed ?? it.proposed;
         return (
-          <Paper key={it.id} variant="outlined" sx={{ p: 2 }}>
+          <Paper key={it.id} variant="outlined" sx={{ p: 2, borderColor: it.id === focus ? '#7C3AED' : undefined, borderWidth: it.id === focus ? 2 : 1 }}>
             <Stack direction="row" alignItems="center" spacing={1}>
               <Chip size="small" label={it.kind} />
               <Typography variant="body2" sx={{ fontWeight: 600, flex: 1 }}>{JSON.stringify(it.raw)}</Typography>
