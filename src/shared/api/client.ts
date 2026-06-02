@@ -39,6 +39,7 @@ import type {
   MdProposal,
   MdOverlayRow,
   MdSimulateResult,
+  IntercompanyFlow,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -123,6 +124,8 @@ export const api = {
 
   flows: (period: PeriodParams = {}) =>
     getJSON<TransactionFlow[]>('/api/transactions/flows', period as Record<string, unknown>),
+
+  flowsIntercompany: () => getJSON<IntercompanyFlow[]>('/api/flows/intercompany'),
 
   royalties: (period: PeriodParams = {}) =>
     getJSON<Royalty[]>('/api/transactions/royalties', period as Record<string, unknown>),
