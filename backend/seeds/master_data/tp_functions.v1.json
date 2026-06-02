@@ -1,0 +1,12 @@
+{
+  "version": "1",
+  "functions": [
+    { "code": "PRIN",  "label": "Principal / Entrepreneur",     "default_method": "Residual", "default_pli": "operating_margin", "typically_tested": false },
+    { "code": "IPOWN", "label": "IP Owner / Licensor",          "default_method": "CUP",      "default_pli": "royalty_rate",     "typically_tested": false },
+    { "code": "FRMFG", "label": "Full-Risk Manufacturer",       "default_method": "TNMM",     "default_pli": "operating_margin", "typically_tested": true  },
+    { "code": "TOLL",  "label": "Toll / Contract Manufacturer", "default_method": "TNMM",     "default_pli": "net_cost_plus",    "typically_tested": true  },
+    { "code": "LRD",   "label": "Limited-Risk Distributor",     "default_method": "TNMM",     "default_pli": "operating_margin", "typically_tested": true  },
+    { "code": "SVC",   "label": "Intra-Group Service Provider", "default_method": "TNMM",     "default_pli": "net_cost_plus",    "typically_tested": true  },
+    { "code": "TREAS", "label": "Treasury / Finance",           "default_method": "CUP",      "default_pli": "interest_rate",    "typically_tested": false }
+  ]
+}

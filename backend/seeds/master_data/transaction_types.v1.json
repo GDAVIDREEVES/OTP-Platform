@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "transaction_types": [
+    { "txn_type_id": "ROY-API",  "label": "Royalty — patented API",  "category": "Royalties",     "method": "CUP",  "pli": "royalty_rate",     "benchmark_set_id": "BM-ROY-API", "oecd_anchor": "OECD TPG Ch. VI",  "characterising_function": "IPOWN" },
+    { "txn_type_id": "ROY-TM",   "label": "Royalty — trademark",     "category": "Royalties",     "method": "CUP",  "pli": "royalty_rate",     "benchmark_set_id": "BM-ROY-TM",  "oecd_anchor": "OECD TPG Ch. VI",  "characterising_function": "IPOWN" },
+    { "txn_type_id": "DIST-LRD", "label": "Distribution (LRD)",      "category": "Distribution",  "method": "TNMM", "pli": "operating_margin", "benchmark_set_id": "BM-LRD",     "oecd_anchor": "OECD TPG Ch. II",  "characterising_function": "LRD" },
+    { "txn_type_id": "MFG-TOLL", "label": "Toll / contract mfg",     "category": "Manufacturing", "method": "TNMM", "pli": "net_cost_plus",    "benchmark_set_id": "BM-TOLL",    "oecd_anchor": "OECD TPG Ch. II",  "characterising_function": "TOLL" },
+    { "txn_type_id": "SVC",      "label": "Intra-group services",    "category": "Services",      "method": "TNMM", "pli": "net_cost_plus",    "benchmark_set_id": "BM-SVC",     "oecd_anchor": "OECD TPG Ch. VII", "characterising_function": "SVC" },
+    { "txn_type_id": "FIN",      "label": "Intercompany financing",  "category": "Financing",     "method": "CUP",  "pli": "interest_rate",    "benchmark_set_id": "BM-FIN",     "oecd_anchor": "OECD TPG Ch. X",   "characterising_function": "TREAS" }
+  ]
+}
