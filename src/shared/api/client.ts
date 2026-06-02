@@ -287,6 +287,8 @@ export const api = {
   ) => sendJSON<{ rbukrs: string; tp_function_code: string }>('POST', '/api/master-data/entity-function', body),
   mdStaging: () => getJSON<MdStagingItem[]>('/api/master-data/staging'),
   mdSimulate: () => sendJSON<MdSimulateResult>('POST', '/api/master-data/staging/simulate'),
+  mdPromoteFlow: (body: { flow_id: string; payer_rbukrs: string; counterparty_rbukrs: string; label?: string; amount?: number }) =>
+    sendJSON<{ id: string; status: string }>('POST', '/api/master-data/staging/promote', body),
   mdPropose: (id: string) => sendJSON<MdProposal>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/propose`),
   mdSubmitMapping: (id: string, maker: string) =>
     sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/submit`, { maker }),

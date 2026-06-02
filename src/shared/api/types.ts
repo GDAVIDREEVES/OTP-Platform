@@ -240,18 +240,22 @@ export interface MdMatrixParty {
 
 export interface MdMatrixRow {
   ctx_id: string;
-  txn_type_id: string;
-  txn_label: string;
-  category: string;
-  method: string;
-  pli: string;
+  txn_type_id: string | null;
+  txn_label: string | null;
+  category: string | null;
+  method: string | null;
+  pli: string | null;
   lower: number | null;
   median: number | null;
   upper: number | null;
   unit: string | null;
   actual: number | null;
-  status: 'in_range' | 'review' | 'na';
-  oecd_anchor: string;
+  status: 'in_range' | 'review' | 'na' | 'unmapped';
+  planned: boolean;
+  actual_amount: number | null;
+  flow_id: string | null;
+  staging_id: string | null;
+  oecd_anchor: string | null;
   payer: MdMatrixParty;
   payee: MdMatrixParty;
   tested: MdMatrixParty;
@@ -263,7 +267,7 @@ export interface MdMatrixRow {
 
 export interface MdStagingItem {
   id: string;
-  kind: 'entity' | 'account' | 'transaction' | 'field';
+  kind: 'entity' | 'account' | 'transaction' | 'field' | 'unplanned_transaction';
   raw: Record<string, unknown>;
   status: 'unmapped' | 'proposed' | 'in_review' | 'applied' | 'rejected';
   proposed: Record<string, unknown> | null;
