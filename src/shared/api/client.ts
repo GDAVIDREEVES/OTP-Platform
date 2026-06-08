@@ -43,6 +43,8 @@ import type {
   Case,
   CaseStep,
   CsaModel,
+  ProfitSplitModel,
+  ProfitSplitKey,
   ForecastModel,
   PricingRow,
   Reconciliation,
@@ -157,6 +159,11 @@ export const api = {
 
   /** CSA model (cost pool, RAB shares, PCT buy-ins, true-ups) — computed live from segment_pl. */
   csa: (year?: number) => getJSON<CsaModel>('/api/csa', year ? { year } : {}),
+
+  /** Residual profit-split across the non-routine parties (OTP-44 design / OTP-12
+   *  calc) — combined operating profit allocated by a selectable key, live from segment_pl. */
+  profitSplit: (params: { year?: number; key?: ProfitSplitKey } = {}) =>
+    getJSON<ProfitSplitModel>('/api/profit-split', params),
 
   /** ERP↔TP reconciliation — planned IC price book (supply_chain by AWREF) vs
    *  posted ACDOCA value (journal HSL). Source for OTP-43 recon + OTP-42 billing. */

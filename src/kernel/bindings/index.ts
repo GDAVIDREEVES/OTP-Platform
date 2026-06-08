@@ -16,6 +16,8 @@ import { otp25 } from './marquee/otp25';
 import { otp29 } from './marquee/otp29';
 import { otp34 } from './marquee/otp34';
 import { otp35 } from './marquee/otp35';
+import { otp44 } from './marquee/otp44';
+import { otp12 } from './marquee/otp12';
 import { otp45 } from './marquee/otp45';
 import { otp27 } from './marquee/otp27';
 import { otp41 } from './marquee/otp41';
@@ -58,6 +60,9 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-29': otp29, // DEMPE functional analysis
   'OTP-34': otp34, // CbCR data extraction & validation (BEPS-13 Table 1)
   'OTP-35': otp35, // Pillar Two / GloBE
+  // Profit split — residual allocated across the non-routine parties over segment_pl
+  'OTP-44': otp44, // profit-split design / allocation keys (calc workpaper + R&D/SG&A key toggle)
+  'OTP-12': otp12, // PSM calc & invoicing (allocated vs actual → gated balancing-invoice true-up)
   'OTP-45': otp45, // UTP reserve
   'OTP-48': otp45, // provision interaction (same reserve data, provision framing)
   // US documentation & return-input workpapers — one /api/documentation rollup

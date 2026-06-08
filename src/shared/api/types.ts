@@ -414,6 +414,43 @@ export interface CsaModel {
   participants: CsaParticipant[];
 }
 
+// ----------------- Profit split (OTP-44 design / OTP-12 calc & invoicing) -----------------
+
+/** Allocation key for the residual profit-split: R&D value-driver or SG&A. */
+export type ProfitSplitKey = 'opex_rd' | 'sga';
+
+export interface ProfitSplitParticipant {
+  rbukrs: string;
+  name: string;
+  /** The party's own operating profit (segment_pl). */
+  operating_profit: number;
+  opex_rd: number;
+  /** opex_sm + opex_ga. */
+  sga: number;
+  /** The selected allocation-key value for this party. */
+  key_value: number;
+  /** key_value / Σ key_value — full precision. */
+  residual_share: number;
+  /** residual_share * combined_profit. */
+  allocated_profit: number;
+  /** allocated_profit − operating_profit (positive = receives, negative = owes). */
+  true_up: number;
+}
+
+/** Residual profit-split across the non-routine parties, computed live from
+ *  segment_pl. Combined profit = Σ participant operating_profit; the residual is
+ *  allocated by the selectable `key`. */
+export interface ProfitSplitModel {
+  year: number;
+  key: ProfitSplitKey;
+  default_key: ProfitSplitKey;
+  keys: ProfitSplitKey[];
+  combined_profit: number;
+  key_total: number;
+  totals: { operating_profit: number; allocated_profit: number; true_up: number };
+  participants: ProfitSplitParticipant[];
+}
+
 // ----------------- Forecast (Latest-Estimate workpaper — OTP-24) -----------------
 
 /** Per-tested-party full-year Latest Estimate derived from segment_pl actuals
