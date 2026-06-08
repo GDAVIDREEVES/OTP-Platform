@@ -5,6 +5,8 @@ import { otp20 } from './marquee/otp20';
 import { otp16 } from './marquee/otp16';
 import { otp9 } from './marquee/otp9';
 import { otp3 } from './marquee/otp3';
+import { otp5 } from './marquee/otp5';
+import { otp11 } from './marquee/otp11';
 import { otp21 } from './marquee/otp21';
 import { otp25 } from './marquee/otp25';
 import { otp29 } from './marquee/otp29';
@@ -16,7 +18,9 @@ import { caseWorkspace } from './marquee/caseWorkspace';
  *  here in Phase 2; everything else falls back to the informative binding. */
 const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-3': otp3, // royalty rate setting
+  'OTP-5': otp5, // CSA RAB share + PCT setting (wizard)
   'OTP-9': otp9, // royalty charge & invoice batch
+  'OTP-11': otp11, // CSA in-period true-up (batch)
   'OTP-16': otp16, // in-period adjustment (guided)
   'OTP-17': otp16, // FYE adjustment shares the in-period flow
   'OTP-20': otp20, // operating-margin monitoring

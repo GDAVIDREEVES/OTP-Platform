@@ -42,6 +42,7 @@ import type {
   IntercompanyFlow,
   Case,
   CaseStep,
+  CsaModel,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -145,6 +146,9 @@ export const api = {
 
   segmentPnl: (params: { entity?: string; period?: string; year?: number } = {}) =>
     getJSON<SegmentPnlRow[]>('/api/segments/pl', params),
+
+  /** CSA model (cost pool, RAB shares, PCT buy-ins, true-ups) — computed live from segment_pl. */
+  csa: (year?: number) => getJSON<CsaModel>('/api/csa', year ? { year } : {}),
 
   journalEntries: (
     params: { entity?: string; period?: string; year?: number; limit?: number } = {}

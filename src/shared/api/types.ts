@@ -308,6 +308,30 @@ export interface IntercompanyFlow {
   amount: number;
 }
 
+// ----------------- CSA (Cost Sharing Arrangement — OTP-5 / OTP-11) -----------------
+
+export interface CsaParticipant {
+  rbukrs: string;
+  name: string;
+  revenue: number;
+  projected_sales: number;
+  rab_share: number;
+  opex_rd: number;
+  target_contribution: number;
+  true_up: number;
+  pct_buyin: number;
+}
+
+export interface CsaModel {
+  year: number;
+  pool: number;
+  platform_value: number;
+  growth: number;
+  pct_mult: number;
+  totals: { revenue: number; opex_rd: number; true_up: number };
+  participants: CsaParticipant[];
+}
+
 // ----------------- Cases (Case Workspace — OTP-30/31/40/50) -----------------
 
 export interface CaseStep {
