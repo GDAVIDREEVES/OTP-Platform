@@ -20,6 +20,7 @@ from state import migrate
 from routers import (
     adjustments,
     audit,
+    beat,
     berry,
     cases,
     csa,
@@ -99,6 +100,7 @@ for r in (
     documentation.router,
     treasury.router,
     wht.router,
+    beat.router,
 ):
     app.include_router(r)
 

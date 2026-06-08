@@ -43,6 +43,7 @@ import type {
   Case,
   CaseStep,
   CsaModel,
+  BeatModel,
   ProfitSplitModel,
   ProfitSplitKey,
   ForecastModel,
@@ -161,6 +162,11 @@ export const api = {
 
   /** CSA model (cost pool, RAB shares, PCT buy-ins, true-ups) — computed live from segment_pl. */
   csa: (year?: number) => getJSON<CsaModel>('/api/csa', year ? { year } : {}),
+
+  /** BEAT base-erosion computation (OTP-36) + per-CFC Schedule M rollup (OTP-38).
+   *  The US related-party deductible base is live from journal RASSC lines; the
+   *  RACCT→payment-type classification is the assumed/fabricated input. */
+  beat: (year?: number) => getJSON<BeatModel>('/api/beat', year ? { year } : {}),
 
   /** Residual profit-split across the non-routine parties (OTP-44 design / OTP-12
    *  calc) — combined operating profit allocated by a selectable key, live from segment_pl. */

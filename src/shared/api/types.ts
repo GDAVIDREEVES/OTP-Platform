@@ -451,6 +451,63 @@ export interface ProfitSplitModel {
   participants: ProfitSplitParticipant[];
 }
 
+// ----------------- BEAT base-erosion prep (OTP-36 / OTP-38) -----------------
+
+/** One §59A payment type, with its classified related-party amount. COGS is the
+ *  excepted (non base-eroding) type. */
+export interface BeatPaymentType {
+  type: 'royalties' | 'services' | 'interest' | 'cogs' | 'other';
+  label: string;
+  amount: number;
+  base_eroding: boolean;
+}
+
+/** Per-G/L-account (RACCT) breakdown of the US related-party deductible base. */
+export interface BeatAccountRow {
+  racct: string;
+  payment_type: BeatPaymentType['type'];
+  base_eroding: boolean;
+  amount: number;
+  postings: number;
+}
+
+/** Per-CFC (RASSC counterparty) Form 5471 Schedule M rollup — amounts the US
+ *  payer paid to / received from the affiliate, plus its foreign segment_pl P&L. */
+export interface BeatScheduleMRow {
+  rbukrs: string;
+  name: string;
+  paid_to: number;
+  received_from: number;
+  postings: number;
+  foreign_revenue: number;
+  foreign_operating_profit: number;
+}
+
+/** BEAT base-erosion computation (OTP-36) + per-CFC Schedule M rollup (OTP-38).
+ *  The related-party deductible base is REAL (journal RASSC lines); the
+ *  RACCT→payment-type classification driving the base-erosion split is the
+ *  assumed/fabricated input. */
+export interface BeatModel {
+  year: number;
+  us_payer: string;
+  us_payer_name: string;
+  threshold_pct: number;
+  beat_rate_pct: number;
+  gross_receipts: number;
+  total_deductions: number;
+  related_party_deductions: number;
+  cogs_excluded: number;
+  base_eroding_payments: number;
+  base_erosion_pct: number;
+  threshold_met: boolean;
+  regular_taxable_income: number;
+  modified_taxable_income: number;
+  beat_base_tax: number;
+  payment_types: BeatPaymentType[];
+  by_account: BeatAccountRow[];
+  schedule_m: BeatScheduleMRow[];
+}
+
 // ----------------- Forecast (Latest-Estimate workpaper — OTP-24) -----------------
 
 /** Per-tested-party full-year Latest Estimate derived from segment_pl actuals

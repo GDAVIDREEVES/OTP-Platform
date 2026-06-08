@@ -19,6 +19,8 @@ import { otp25 } from './marquee/otp25';
 import { otp29 } from './marquee/otp29';
 import { otp34 } from './marquee/otp34';
 import { otp35 } from './marquee/otp35';
+import { otp36 } from './marquee/otp36';
+import { otp38 } from './marquee/otp38';
 import { otp44 } from './marquee/otp44';
 import { otp12 } from './marquee/otp12';
 import { otp45 } from './marquee/otp45';
@@ -67,6 +69,8 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-29': otp29, // DEMPE functional analysis
   'OTP-34': otp34, // CbCR data extraction & validation (BEPS-13 Table 1)
   'OTP-35': otp35, // Pillar Two / GloBE
+  'OTP-36': otp36, // BEAT computation — base-erosion % vs 3% threshold, MTI build-up (/api/beat)
+  'OTP-38': otp38, // Form 5471/8858/8975 inputs — per-CFC Schedule M + CbCR (Form 8975)
   // Profit split — residual allocated across the non-routine parties over segment_pl
   'OTP-44': otp44, // profit-split design / allocation keys (calc workpaper + R&D/SG&A key toggle)
   'OTP-12': otp12, // PSM calc & invoicing (allocated vs actual → gated balancing-invoice true-up)
