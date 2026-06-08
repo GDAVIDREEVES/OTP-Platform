@@ -21,6 +21,7 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-20': otp20, // operating-margin monitoring
   'OTP-21': otp21, // segmented financials — throughout FY
   'OTP-22': otp21, // segmented financials — FYE (same grid)
+  'OTP-23': otp21, // segmented financials — statutory YE (same grid)
   'OTP-25': otp25, // benchmarking studies
   'OTP-29': otp29, // DEMPE functional analysis
   'OTP-35': otp35, // Pillar Two / GloBE
