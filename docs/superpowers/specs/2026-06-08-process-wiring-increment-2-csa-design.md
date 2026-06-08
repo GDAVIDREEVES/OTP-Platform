@@ -67,3 +67,34 @@ The five decisions above shape fabricated financial figures that a TP audience w
 scrutinise. A short confirmation is worth more than an unreviewed guess. Everything else
 (the pattern to mirror, the file plan, the verification) is settled — implementation can
 proceed immediately once the data model is agreed.
+
+---
+
+## RESOLVED (2026-06-08) — decisions locked + reconciled data model
+
+**Decisions:** (1) RAB = **projected sales**; (2) participants **1000** US IP Principal,
+**3100** Swiss IP Principal, **3800** NL Distribution; (3) **figures derived from
+`segment_pl`** (see the $120M flag below); (4) OTP-5 = full guided wizard (≈ `otp3`);
+(5) true-up actuals **live from `segment_pl`**.
+
+**Reconciliation by construction.** Every CSA dollar is computed at runtime from the same
+`GET /api/segments/pl?year=2026` warehouse data that OTP-20/21/dashboard read, so the
+figures cannot drift between processes:
+
+- `projected_sales_i = revenue_i × (1 + g)`, `g = 0.08`
+- `rab_share_i = projected_sales_i / Σ projected_sales` (= revenue share; g cancels). Σ = 1.
+- `pool = Σ opex_rd_i` (the shared development cost being cost-shared)
+- `actual_contribution_i = opex_rd_i`
+- `target_i = rab_share_i × pool`; `true_up_i = target_i − actual_i` (Σ true_up = 0)
+- `platform_value = PCT_MULT × pool` (config, e.g. 3); `pct_buyin_i = rab_share_i × platform_value`
+
+Real figures (FY2026): participants 1000/3100/3800 → revenue $169.6M / $77.4M / $53.8M;
+`opex_rd` $3.2M / $3.8M / $3.8M; **pool ≈ $10.8M**; RAB shares 56.4% / 25.7% / 17.9%;
+true-ups +$2.9M / −$1.0M / −$1.9M (Σ ≈ 0).
+
+**⚠️ $120M flag (for review).** You confirmed "~$120M pool," but the warehouse's actual
+R&D for these three entities is only **~$10.8M**. Honoring the overriding reconciliation
+requirement, the pool is built from real data (~$10.8M) so OTP-5/11 reconcile with
+OTP-21/dashboard. A $120M-scale CSA would require scaling up `segment_pl` R&D
+group-wide — a larger, cross-process data change I won't make unattended. Say the word
+and I'll do it. Blueprint: `docs/superpowers/plans/2026-06-08-process-wiring-increment-2-csa.md`.
