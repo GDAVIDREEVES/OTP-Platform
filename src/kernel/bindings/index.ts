@@ -10,6 +10,7 @@ import { otp25 } from './marquee/otp25';
 import { otp29 } from './marquee/otp29';
 import { otp35 } from './marquee/otp35';
 import { otp45 } from './marquee/otp45';
+import { caseWorkspace } from './marquee/caseWorkspace';
 
 /** Rich per-process bindings, keyed by OTP id. Marquee processes are registered
  *  here in Phase 2; everything else falls back to the informative binding. */
@@ -22,6 +23,11 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-21': otp21, // segmented financials — throughout FY
   'OTP-22': otp21, // segmented financials — FYE (same grid)
   'OTP-23': otp21, // segmented financials — statutory YE (same grid)
+  // Case Workspace — one shared governance-case tracker (status/checklist/audit)
+  'OTP-30': caseWorkspace, // restructuring / exit charges
+  'OTP-31': caseWorkspace, // M&A IC-flow integration
+  'OTP-40': caseWorkspace, // TP audit defense & IDR
+  'OTP-50': caseWorkspace, // MAP filing & negotiation
   'OTP-25': otp25, // benchmarking studies
   'OTP-29': otp29, // DEMPE functional analysis
   'OTP-35': otp35, // Pillar Two / GloBE

@@ -307,3 +307,27 @@ export interface IntercompanyFlow {
   to_rbukrs: string;
   amount: number;
 }
+
+// ----------------- Cases (Case Workspace — OTP-30/31/40/50) -----------------
+
+export interface CaseStep {
+  key: string;
+  label: string;
+  done: boolean;
+}
+
+export interface Case {
+  id: string;
+  process_id: string;
+  kind: string;
+  title: string;
+  status: 'open' | 'in_progress' | 'submitted' | 'closed';
+  owner: string;
+  counterparty: string | null;
+  jurisdiction: string | null;
+  exposure: number | null;
+  opened_at: string;
+  due_at: string | null;
+  checklist: CaseStep[];
+  notes: string | null;
+}

@@ -40,6 +40,8 @@ import type {
   MdOverlayRow,
   MdSimulateResult,
   IntercompanyFlow,
+  Case,
+  CaseStep,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -299,4 +301,14 @@ export const api = {
     sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/approve`, { checker, comments }),
   mdRejectMapping: (id: string, checker: string, comments: string) =>
     sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/reject`, { checker, comments }),
+
+  // ---- Cases (Case Workspace — OTP-30/31/40/50) ----
+  /** Governance cases for a process (optionally filtered by status). */
+  cases: (params: { process_id?: string; status?: string } = {}) =>
+    getJSON<Case[]>('/api/cases', params),
+  case: (id: string) => getJSON<Case>(`/api/cases/${encodeURIComponent(id)}`),
+  setCaseStatus: (id: string, body: { status: string; actor: string }) =>
+    sendJSON<Case>('PATCH', `/api/cases/${encodeURIComponent(id)}/status`, body),
+  setCaseStep: (id: string, body: { step_key: CaseStep['key']; done: CaseStep['done']; actor: string }) =>
+    sendJSON<Case>('PATCH', `/api/cases/${encodeURIComponent(id)}/checklist`, body),
 };
