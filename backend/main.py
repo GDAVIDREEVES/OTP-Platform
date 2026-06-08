@@ -44,6 +44,7 @@ from routers import (
     review,
     settings,
     transactions,
+    treasury,
     wht,
     years,
 )
@@ -96,6 +97,7 @@ for r in (
     reference.router,
     master_data.router,
     documentation.router,
+    treasury.router,
     wht.router,
 ):
     app.include_router(r)

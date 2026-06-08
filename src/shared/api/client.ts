@@ -50,6 +50,7 @@ import type {
   Reconciliation,
   DocumentationRollup,
   WhtModel,
+  TreasuryModel,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -287,6 +288,12 @@ export const api = {
    *  derived from supply_chain; the bilateral treaty-rate matrix is a seed. */
   wht: (period: PeriodParams = {}) =>
     getJSON<WhtModel>('/api/wht', period as Record<string, unknown>),
+
+  /** IC loan register + cash-pool positions with computed annual interest
+   *  (OTP-6 rate setting / OTP-13 loan accrual / OTP-14 pool settlement). The
+   *  register + pool positions are FABRICATED (no warehouse source); interest
+   *  is computed as principal x all_in_rate and balance x spread. */
+  treasury: () => getJSON<TreasuryModel>('/api/treasury'),
 
   /** Research Brain agentic "prepare steps" hand-off (logs an assisted event). */
   researchBrainPrepare: (body: {

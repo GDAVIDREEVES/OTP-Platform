@@ -18,6 +18,7 @@ _FILES = {
     "pillar_two": "compliance/pillar_two.v1.json",
     "utp_reserve": "compliance/utp_reserve.v1.json",
     "wht_treaty": "compliance/wht_treaty.v1.json",
+    "treasury": "finance/treasury.v1.json",
 }
 
 

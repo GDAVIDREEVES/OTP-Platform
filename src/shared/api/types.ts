@@ -582,3 +582,69 @@ export interface WhtModel {
   rows: WhtRow[];
   totals: WhtTotals;
 }
+
+// ----------------- Treasury (IC loans / cash pool — OTP-6 / OTP-13 / OTP-14) -----------------
+
+/** A single intercompany loan from the lender (3400) to an operating entity.
+ *  FABRICATED register — no loan source exists in the warehouse. */
+export interface TreasuryLoan {
+  loan_id: string;
+  borrower: string;
+  borrower_name: string;
+  principal: number;
+  currency: string;
+  tenor_years: number;
+  credit_rating: string;
+  base_rate: number;
+  credit_spread: number;
+  all_in_rate: number;
+  /** Computed: principal x all_in_rate. */
+  annual_interest: number;
+  /** all_in_rate inside the BM-FIN band. */
+  within_benchmark: boolean;
+}
+
+export interface TreasuryPoolSeat {
+  rbukrs: string;
+  name: string;
+  /** Positive = surplus deposited; negative = drawn from the pool. */
+  balance: number;
+  position: 'deposit' | 'borrow';
+  spread: number;
+  /** Computed: balance x spread. */
+  annual_interest: number;
+}
+
+export interface TreasuryCashPool {
+  pool_id: string;
+  header: string;
+  header_name: string;
+  currency: string;
+  deposit_spread: number;
+  borrow_spread: number;
+  /** Σ balances — nets to ~0 by construction. */
+  net_position: number;
+  participants: TreasuryPoolSeat[];
+}
+
+export interface TreasuryTotals {
+  loans: number;
+  loan_principal: number;
+  loan_interest: number;
+  loans_within_benchmark: number;
+  pool_participants: number;
+  pool_net_position: number;
+  pool_interest: number;
+}
+
+export interface TreasuryModel {
+  /** Always true — the register/pool are fabricated, flagged for the user. */
+  fabricated: boolean;
+  lender: string;
+  lender_name: string;
+  benchmark_id: string;
+  benchmark: { lower: number; median: number; upper: number };
+  loans: TreasuryLoan[];
+  cash_pool: TreasuryCashPool;
+  totals: TreasuryTotals;
+}

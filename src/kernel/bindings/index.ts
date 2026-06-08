@@ -9,7 +9,10 @@ import { otp9 } from './marquee/otp9';
 import { otp10 } from './marquee/otp10';
 import { otp3 } from './marquee/otp3';
 import { otp5 } from './marquee/otp5';
+import { otp6 } from './marquee/otp6';
 import { otp11 } from './marquee/otp11';
+import { otp13 } from './marquee/otp13';
+import { otp14 } from './marquee/otp14';
 import { otp21 } from './marquee/otp21';
 import { otp24 } from './marquee/otp24';
 import { otp25 } from './marquee/otp25';
@@ -37,9 +40,12 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-4': otp4, // service cost-plus markup setting (vs BM-SVC)
   'OTP-3': otp3, // royalty rate setting
   'OTP-5': otp5, // CSA RAB share + PCT setting (wizard)
+  'OTP-6': otp6, // IC loan / cash-pool rate setting (rating-adjusted spread vs BM-FIN)
   'OTP-9': otp9, // royalty charge & invoice batch
   'OTP-10': otp10, // service cost-allocation charge & invoice batch
   'OTP-11': otp11, // CSA in-period true-up (batch)
+  'OTP-13': otp13, // IC loan interest accrual & invoicing (otp9-style batch, gated post)
+  'OTP-14': otp14, // cash-pool interest accrual & net settlement (otp11-style)
   'OTP-16': otp16, // in-period adjustment (guided)
   'OTP-17': otp16, // FYE adjustment shares the in-period flow
   'OTP-20': otp20, // operating-margin monitoring
