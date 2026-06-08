@@ -364,6 +364,39 @@ export interface CsaModel {
   participants: CsaParticipant[];
 }
 
+// ----------------- Forecast (Latest-Estimate workpaper — OTP-24) -----------------
+
+/** Per-tested-party full-year Latest Estimate derived from segment_pl actuals
+ *  by run-rate (NOT a seeded budget). LE = actuals-to-date + forecast remainder. */
+export interface ForecastParty {
+  rbukrs: string;
+  name: string;
+  country: string;
+  function: string;
+  roleCode: string;
+  tpRole: string;
+  monthsPosted: number;
+  monthsRemaining: number;
+  actuals: { revenue: number; operating_profit: number; margin: number | null };
+  forecastRemainder: { revenue: number; operating_profit: number };
+  latestEstimate: { revenue: number; operating_profit: number };
+  /** Full-year LE operating margin, percent. */
+  fullYearMargin: number | null;
+  targetMarginLow: number;
+  targetMarginHigh: number;
+  targetMarginLabel: string;
+  variance: number | null;
+  status: 'in-range' | 'watch' | 'out-of-range' | 'no-data';
+}
+
+export interface ForecastModel {
+  year: number;
+  fullYearMonths: number;
+  /** Projection basis — 'run-rate' (run-rate / simple seasonality on actuals-to-date). */
+  basis: string;
+  parties: ForecastParty[];
+}
+
 // ----------------- Cases (Case Workspace — OTP-30/31/40/50) -----------------
 
 export interface CaseStep {

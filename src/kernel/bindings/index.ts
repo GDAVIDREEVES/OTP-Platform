@@ -11,6 +11,7 @@ import { otp3 } from './marquee/otp3';
 import { otp5 } from './marquee/otp5';
 import { otp11 } from './marquee/otp11';
 import { otp21 } from './marquee/otp21';
+import { otp24 } from './marquee/otp24';
 import { otp25 } from './marquee/otp25';
 import { otp29 } from './marquee/otp29';
 import { otp34 } from './marquee/otp34';
@@ -37,6 +38,7 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-21': otp21, // segmented financials — throughout FY
   'OTP-22': otp21, // segmented financials — FYE (same grid)
   'OTP-23': otp21, // segmented financials — statutory YE (same grid)
+  'OTP-24': otp24, // forecast preparation — Latest-Estimate workpaper (run-rate over segment_pl)
   // Case Workspace — one shared governance-case tracker (status/checklist/audit)
   'OTP-30': caseWorkspace, // restructuring / exit charges
   'OTP-31': caseWorkspace, // M&A IC-flow integration

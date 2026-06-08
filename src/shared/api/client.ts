@@ -43,6 +43,7 @@ import type {
   Case,
   CaseStep,
   CsaModel,
+  ForecastModel,
   PricingRow,
 } from './types';
 
@@ -154,6 +155,9 @@ export const api = {
 
   /** CSA model (cost pool, RAB shares, PCT buy-ins, true-ups) — computed live from segment_pl. */
   csa: (year?: number) => getJSON<CsaModel>('/api/csa', year ? { year } : {}),
+
+  /** Latest-Estimate forecast per tested party (OTP-24) — derived from segment_pl actuals by run-rate. */
+  forecast: (year?: number) => getJSON<ForecastModel>('/api/forecast', year ? { year } : {}),
 
   journalEntries: (
     params: { entity?: string; period?: string; year?: number; limit?: number } = {}
