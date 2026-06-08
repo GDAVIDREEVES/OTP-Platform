@@ -24,6 +24,14 @@ PARTICIPANTS = ["1000", "3100", "3800"]  # 1000 US, 3100 CH, 3800 NL
 GROWTH = 0.08  # RAB benefit projection: projected_sales = revenue * (1 + g)
 PCT_MULT = 3  # platform_value = PCT_MULT * pool
 
+# --- Profit-split (OTP-44 design / OTP-12 calc & invoicing) -------------------
+# The three non-routine parties that share residual profit under the PSM:
+# 1000 US IP, 3100 CH IP, 3000 DE Manufacturer. Both the participant set and the
+# allocation key are configurable (see DATA DECISION in the plan doc).
+PS_PARTICIPANTS = ["1000", "3100", "3000"]  # US IP / CH IP / DE Manufacturer
+PS_DEFAULT_KEY = "opex_rd"  # R&D value-driver; alt 'sga' = opex_sm + opex_ga
+PS_KEYS = ("opex_rd", "sga")
+
 _DIM = Path(__file__).parent.parent / "dim" / "entity_dim.json"
 
 
@@ -124,6 +132,94 @@ def csa(year: int = 2026) -> dict[str, Any]:
         "totals": {
             "revenue": round(sum(p["revenue"] for p in parts), 2),
             "opex_rd": round(pool, 2),
+            "true_up": round(sum(pp["true_up"] for pp in participants), 2),
+        },
+        "participants": participants,
+    }
+
+
+@router.get("/api/profit-split")
+def profit_split(year: int = 2026, key: str = PS_DEFAULT_KEY) -> dict[str, Any]:
+    """Residual profit-split across the non-routine parties for ``year``.
+
+    Combined profit = Σ ``segment_pl`` operating_profit of ``PS_PARTICIPANTS``.
+    The residual is allocated by a selectable value-driver ``key``:
+
+    * ``opex_rd`` (default) — R&D spend.
+    * ``sga``               — selling + admin (opex_sm + opex_ga).
+
+    ``share_i = key_i / Σ key`` and ``allocated_i = share_i * combined_profit``.
+    Per participant we return its own operating_profit, the key value, the
+    residual share, the allocated profit and the ``true_up`` (allocated − own).
+    Every figure aggregates the same ``segment_pl`` source as ``/api/csa`` and
+    ``/api/segments/pl`` — reconciliation by construction. Returns a graceful
+    zero model when the year/key has no spend.
+    """
+    if key not in PS_KEYS:
+        key = PS_DEFAULT_KEY
+    names = _names()
+    ph = ",".join("?" for _ in PS_PARTICIPANTS)
+    rows = q(
+        f"SELECT RBUKRS, "
+        f"SUM(operating_profit) AS operating_profit, "
+        f"SUM(opex_rd) AS opex_rd, SUM(opex_sm) AS opex_sm, SUM(opex_ga) AS opex_ga "
+        f"FROM segment_pl WHERE GJAHR = ? AND RBUKRS IN ({ph}) "
+        f"GROUP BY RBUKRS",
+        [year, *PS_PARTICIPANTS],
+    )
+    by_id = {str(r["RBUKRS"]): r for r in rows}
+
+    def _f(r: Any, col: str) -> float:
+        return float(r[col]) if r and r[col] is not None else 0.0
+
+    parts = []
+    for rbukrs in PS_PARTICIPANTS:
+        r = by_id.get(rbukrs)
+        operating_profit = _f(r, "operating_profit")
+        opex_rd = _f(r, "opex_rd")
+        sga = _f(r, "opex_sm") + _f(r, "opex_ga")
+        parts.append(
+            {
+                "rbukrs": rbukrs,
+                "name": names.get(rbukrs, rbukrs),
+                "operating_profit": operating_profit,
+                "opex_rd": opex_rd,
+                "sga": sga,
+                "key_value": opex_rd if key == "opex_rd" else sga,
+            }
+        )
+
+    combined_profit = sum(p["operating_profit"] for p in parts)
+    key_total = sum(p["key_value"] for p in parts)
+
+    participants = []
+    for p in parts:
+        share = (p["key_value"] / key_total) if key_total else 0.0  # full precision
+        allocated = share * combined_profit
+        participants.append(
+            {
+                "rbukrs": p["rbukrs"],
+                "name": p["name"],
+                "operating_profit": round(p["operating_profit"], 2),
+                "opex_rd": round(p["opex_rd"], 2),
+                "sga": round(p["sga"], 2),
+                "key_value": round(p["key_value"], 2),
+                "residual_share": share,
+                "allocated_profit": round(allocated, 2),
+                "true_up": round(allocated - p["operating_profit"], 2),
+            }
+        )
+
+    return {
+        "year": year,
+        "key": key,
+        "default_key": PS_DEFAULT_KEY,
+        "keys": list(PS_KEYS),
+        "combined_profit": round(combined_profit, 2),
+        "key_total": round(key_total, 2),
+        "totals": {
+            "operating_profit": round(combined_profit, 2),
+            "allocated_profit": round(sum(pp["allocated_profit"] for pp in participants), 2),
             "true_up": round(sum(pp["true_up"] for pp in participants), 2),
         },
         "participants": participants,
