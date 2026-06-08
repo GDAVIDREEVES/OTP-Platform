@@ -43,6 +43,7 @@ import type {
   Case,
   CaseStep,
   CsaModel,
+  PricingRow,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -132,6 +133,10 @@ export const api = {
 
   royalties: (period: PeriodParams = {}) =>
     getJSON<Royalty[]>('/api/transactions/royalties', period as Record<string, unknown>),
+
+  /** Settable per-material price rows for the goods & services price-setting wizards (OTP-4/1/2). */
+  pricing: (period: PeriodParams = {}) =>
+    getJSON<PricingRow[]>('/api/transactions/pricing', period as Record<string, unknown>),
 
   invoices: (period: PeriodParams = {}) =>
     getJSON<Invoice[]>('/api/invoices', period as Record<string, unknown>),

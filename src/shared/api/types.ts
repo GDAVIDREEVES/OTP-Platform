@@ -308,6 +308,38 @@ export interface IntercompanyFlow {
   amount: number;
 }
 
+// ----------------- Pricing (goods & services price-setting — OTP-4 / OTP-1 / OTP-2) -----------------
+
+/** A settable per-material price row: one chain+material, with the cost-plus
+ *  inputs, resulting legal price, TP method, and the benchmarking band. */
+export interface PricingRow {
+  id: string;
+  chainId: string;
+  materialType: 'SERVICE' | 'FG' | 'SEMI' | 'RAW';
+  category: string;
+  transactionType: 'service' | 'goods';
+  matnr: string | null;
+  sellerRole: string;
+  buyerRole: string;
+  seller: string;
+  buyer: string;
+  sellerCode: string;
+  buyerCode: string;
+  standardCost: number;
+  markupRate: number; // percent
+  totalLegalPrice: number;
+  tpMethod: string;
+  pli: string;
+  steps: number;
+  benchmarkId: string;
+  benchmarkLabel: string;
+  benchmarkRange: string;
+  benchmarkMedian: number;
+  withinBenchmark: boolean;
+  apa: boolean;
+  challenged: boolean;
+}
+
 // ----------------- CSA (Cost Sharing Arrangement — OTP-5 / OTP-11) -----------------
 
 export interface CsaParticipant {
