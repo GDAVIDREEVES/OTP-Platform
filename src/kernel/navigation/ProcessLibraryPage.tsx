@@ -14,6 +14,7 @@ import AppShell from '@/shared/components/layout/AppShell';
 import { useProcesses } from '../registry/useProcesses';
 import { CATEGORY_ORDER, type ProcessDef } from '../registry/types';
 import CategoryRail, { type CategoryFilter } from './CategoryRail';
+import { isMarquee } from '../bindings';
 
 function ProcessCard({ def, onOpen }: { def: ProcessDef; onOpen: () => void }) {
   return (
@@ -44,6 +45,16 @@ function ProcessCard({ def, onOpen }: { def: ProcessDef; onOpen: () => void }) {
           <StarIcon sx={{ fontSize: 16, color: '#D97706' }} role="img" aria-label="Top 15 pharmaceutical risk" />
         )}
         {def.pharmaApplicability === 'M' && <Chip label="Med" size="small" variant="outlined" />}
+        {isMarquee(def.id) ? (
+          <Chip label="Live" size="small" color="success" sx={{ ml: 'auto', height: 20, fontWeight: 700 }} />
+        ) : (
+          <Chip
+            label="Reference"
+            size="small"
+            variant="outlined"
+            sx={{ ml: 'auto', height: 20, color: 'text.secondary', borderColor: 'divider' }}
+          />
+        )}
       </Stack>
       <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.25 }}>
         {def.name}

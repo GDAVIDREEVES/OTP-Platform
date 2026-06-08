@@ -1,0 +1,127 @@
+{
+  "version": "1",
+  "cases": [
+    {
+      "id": "CASE-1",
+      "process_id": "OTP-40",
+      "kind": "audit_defense",
+      "title": "German FY2023 field audit — royalty rate challenge (HoldCo IP licence)",
+      "status": "in_progress",
+      "owner": "Sam Rodriguez",
+      "counterparty": "Bundeszentralamt für Steuern (German Federal Central Tax Office)",
+      "jurisdiction": "Germany",
+      "exposure": 4250000,
+      "opened_at": "2025-11-12",
+      "due_at": "2026-07-15",
+      "checklist": [
+        { "key": "idr_log", "label": "Log and triage outstanding IDRs (information document requests)", "done": true },
+        { "key": "benchmark", "label": "Refresh royalty benchmarking study for the audit year", "done": true },
+        { "key": "dempe", "label": "Assemble DEMPE functional evidence for the licensed IP", "done": false },
+        { "key": "rebuttal", "label": "Draft rebuttal memo on the proposed royalty rate adjustment", "done": false },
+        { "key": "exec_brief", "label": "Brief tax leadership on settlement vs. litigation posture", "done": false }
+      ],
+      "notes": "Examiner is challenging the 6% intra-group royalty as exceeding the arm's-length range; primary issue is comparability of the licensor's DEMPE functions."
+    },
+    {
+      "id": "CASE-2",
+      "process_id": "OTP-40",
+      "kind": "audit_defense",
+      "title": "India TP assessment — marketing intangibles / AMP (bright-line)",
+      "status": "open",
+      "owner": "Priya Natarajan",
+      "counterparty": "Income Tax Department — Transfer Pricing Officer (Mumbai)",
+      "jurisdiction": "India",
+      "exposure": 1875000,
+      "opened_at": "2026-02-03",
+      "due_at": "2026-09-30",
+      "checklist": [
+        { "key": "amp_quant", "label": "Quantify AMP (advertising/marketing/promotion) spend vs. comparables", "done": false },
+        { "key": "bright_line", "label": "Analyse bright-line test and economic ownership of marketing intangibles", "done": false },
+        { "key": "comparables", "label": "Identify domestic comparables rejecting the TPO's set", "done": false },
+        { "key": "submission", "label": "Prepare written submission ahead of the hearing", "done": false }
+      ],
+      "notes": "TPO alleges the Indian distributor created marketing intangibles for the brand owner and seeks an AMP adjustment plus mark-up; defence rests on the Sony Ericsson / bright-line line of reasoning."
+    },
+    {
+      "id": "CASE-3",
+      "process_id": "OTP-50",
+      "kind": "map",
+      "title": "US–DE MAP — IP migration double taxation (competent authority)",
+      "status": "submitted",
+      "owner": "Daniel Okafor",
+      "counterparty": "IRS APMA ↔ German Federal Central Tax Office",
+      "jurisdiction": "United States / Germany",
+      "exposure": 9600000,
+      "opened_at": "2025-09-22",
+      "due_at": "2026-11-20",
+      "checklist": [
+        { "key": "map_request", "label": "File MAP request with both competent authorities", "done": true },
+        { "key": "position_paper", "label": "Submit position paper on the IP migration valuation", "done": true },
+        { "key": "facts_align", "label": "Reconcile statements of facts across both jurisdictions", "done": true },
+        { "key": "negotiation", "label": "Support competent-authority negotiation rounds", "done": false }
+      ],
+      "notes": "Germany asserted an exit-charge valuation on migrated IP that the US has already taxed; relief sought via the US–Germany treaty MAP article to eliminate double taxation."
+    },
+    {
+      "id": "CASE-4",
+      "process_id": "OTP-50",
+      "kind": "map",
+      "title": "Canada–US MAP — intercompany services cost allocation",
+      "status": "closed",
+      "owner": "Sam Rodriguez",
+      "counterparty": "CRA Competent Authority ↔ IRS APMA",
+      "jurisdiction": "Canada / United States",
+      "exposure": 2150000,
+      "opened_at": "2025-01-15",
+      "due_at": "2026-03-31",
+      "checklist": [
+        { "key": "cost_base", "label": "Agree the services cost base and allocation keys", "done": true },
+        { "key": "markup", "label": "Settle the arm's-length mark-up on the services", "done": true },
+        { "key": "relief_calc", "label": "Compute correlative relief and interest", "done": true },
+        { "key": "closing_letter", "label": "Execute the competent-authority closing agreement", "done": true }
+      ],
+      "notes": "Resolved: both authorities accepted a 5% cost-plus on the shared-services charge; correlative adjustment booked and the file is closed."
+    },
+    {
+      "id": "CASE-5",
+      "process_id": "OTP-30",
+      "kind": "restructuring",
+      "title": "EU principal restructuring — exit charge quantification (DE → IE)",
+      "status": "in_progress",
+      "owner": "Priya Natarajan",
+      "counterparty": "Internal — Group Tax & Treasury",
+      "jurisdiction": "Germany / Ireland",
+      "exposure": 7300000,
+      "opened_at": "2025-12-08",
+      "due_at": "2026-08-28",
+      "checklist": [
+        { "key": "func_analysis", "label": "Document pre/post functional and risk profile of the principal", "done": true },
+        { "key": "transferred_value", "label": "Identify transferred profit potential and ongoing concern", "done": true },
+        { "key": "exit_charge", "label": "Quantify the exit charge under OECD Chapter IX", "done": false },
+        { "key": "options", "label": "Assess realistically available options for the German LRD", "done": false },
+        { "key": "policy_update", "label": "Update intercompany agreements and TP policy post-conversion", "done": false }
+      ],
+      "notes": "Conversion of the German principal to a limited-risk distributor with the entrepreneurial role moving to Ireland; the exit-charge magnitude is the gating issue for sign-off."
+    },
+    {
+      "id": "CASE-6",
+      "process_id": "OTP-31",
+      "kind": "mna_integration",
+      "title": "Acquisition \"NovaTher\" — intercompany flow integration & policy harmonisation",
+      "status": "open",
+      "owner": "Daniel Okafor",
+      "counterparty": "NovaTher Therapeutics (acquired group)",
+      "jurisdiction": "United States / Switzerland",
+      "exposure": null,
+      "opened_at": "2026-03-18",
+      "due_at": "2026-12-15",
+      "checklist": [
+        { "key": "flow_map", "label": "Map acquired intercompany flows and existing TP policies", "done": false },
+        { "key": "gaps", "label": "Identify policy gaps and conflicting methods vs. acquirer", "done": false },
+        { "key": "harmonise", "label": "Harmonise TP methods and draft transitional intercompany agreements", "done": false },
+        { "key": "ppa_link", "label": "Reconcile purchase price allocation with go-forward IP ownership", "done": false }
+      ],
+      "notes": "Post-close integration of NovaTher's intercompany arrangements; exposure not yet quantified pending the flow mapping and PPA reconciliation."
+    }
+  ]
+}

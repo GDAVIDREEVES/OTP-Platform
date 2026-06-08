@@ -130,3 +130,24 @@ CREATE TABLE IF NOT EXISTS md_mapping (
   applied_by     TEXT,
   applied_at     TEXT NOT NULL
 );
+
+-- Governance cases (Case Workspace — OTP-30/31/40/50): controversy, restructuring,
+-- and integration matters with status, owner, due date, checklist + audit trail.
+CREATE TABLE IF NOT EXISTS cases (
+  id             TEXT PRIMARY KEY,
+  process_id     TEXT NOT NULL,
+  kind           TEXT NOT NULL,
+  title          TEXT NOT NULL,
+  status         TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','in_progress','submitted','closed')),
+  owner          TEXT NOT NULL,
+  counterparty   TEXT,
+  jurisdiction   TEXT,
+  exposure       REAL,
+  opened_at      TEXT NOT NULL,
+  due_at         TEXT,
+  checklist_json TEXT NOT NULL DEFAULT '[]',
+  notes          TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_cases_process ON cases (process_id);

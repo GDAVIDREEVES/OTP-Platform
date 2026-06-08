@@ -18,6 +18,8 @@ def run() -> None:
     overrides.import_legacy_json()
     from state import master_data
     master_data.seed_if_empty()
+    from state import cases
+    cases.seed_if_empty()
 
 
 def reset() -> None:

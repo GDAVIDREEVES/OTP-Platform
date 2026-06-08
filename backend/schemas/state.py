@@ -81,3 +81,27 @@ class PromoteFlowIn(BaseModel):
     counterparty_rbukrs: str
     label: str | None = None
     amount: float | None = None
+
+
+class CaseIn(BaseModel):
+    process_id: str
+    kind: str
+    title: str
+    owner: str
+    counterparty: str | None = None
+    jurisdiction: str | None = None
+    exposure: float | None = None
+    due_at: str | None = None
+    checklist: list[dict] = Field(default_factory=list)
+    actor: str
+
+
+class CaseStatusIn(BaseModel):
+    status: str
+    actor: str
+
+
+class CaseStepIn(BaseModel):
+    step_key: str
+    done: bool
+    actor: str
