@@ -1,0 +1,80 @@
+{
+  "version": "1",
+  "note": "FABRICATED treasury register — no loan/cash-pool source exists in the warehouse. Magnitudes (~$150M IC loan principal, ~$50M cash pool) are chosen as credible for a ~$300-590M-revenue group and every all_in_rate sits inside the BM-FIN 3.5-5.5% CUP band. Confirm scale before relying on these figures (cf. the CSA $120M call). Interest is COMPUTED at runtime as principal x all_in_rate (loans) and balance x spread (pool) in routers/treasury.py.",
+  "benchmark_id": "BM-FIN",
+  "lender": "3400",
+  "lender_name": "Ireland Financing Co.",
+  "loans": [
+    {
+      "loan_id": "ICL-1000",
+      "borrower": "1000",
+      "borrower_name": "US IP Principal Co.",
+      "principal": 80000000,
+      "currency": "USD",
+      "tenor_years": 5,
+      "credit_rating": "A",
+      "base_rate": 3.0,
+      "credit_spread": 1.2,
+      "all_in_rate": 4.2
+    },
+    {
+      "loan_id": "ICL-3000",
+      "borrower": "3000",
+      "borrower_name": "Germany Manufacturing Co.",
+      "principal": 40000000,
+      "currency": "EUR",
+      "tenor_years": 5,
+      "credit_rating": "BBB",
+      "base_rate": 2.5,
+      "credit_spread": 2.0,
+      "all_in_rate": 4.5
+    },
+    {
+      "loan_id": "ICL-3200",
+      "borrower": "3200",
+      "borrower_name": "France Distribution Co.",
+      "principal": 30000000,
+      "currency": "EUR",
+      "tenor_years": 3,
+      "credit_rating": "BBB",
+      "base_rate": 2.5,
+      "credit_spread": 2.3,
+      "all_in_rate": 4.8
+    }
+  ],
+  "cash_pool": {
+    "pool_id": "POOL-3400",
+    "header": "3400",
+    "header_name": "Ireland Financing Co.",
+    "currency": "EUR",
+    "deposit_spread": 0.5,
+    "borrow_spread": 1.5,
+    "participants": [
+      {
+        "rbukrs": "1000",
+        "name": "US IP Principal Co.",
+        "balance": 22000000
+      },
+      {
+        "rbukrs": "3100",
+        "name": "Switzerland IP Principal",
+        "balance": 14000000
+      },
+      {
+        "rbukrs": "3800",
+        "name": "Netherlands Distribution Co.",
+        "balance": 6000000
+      },
+      {
+        "rbukrs": "3000",
+        "name": "Germany Manufacturing Co.",
+        "balance": -18000000
+      },
+      {
+        "rbukrs": "3200",
+        "name": "France Distribution Co.",
+        "balance": -24000000
+      }
+    ]
+  }
+}

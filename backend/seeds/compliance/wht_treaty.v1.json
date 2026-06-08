@@ -1,0 +1,39 @@
+{
+  "version": "1",
+  "note": "Illustrative, OECD-model-aligned bilateral withholding-tax matrix for intercompany royalty and intra-group service payments. Treaty rates are the REDUCED rate that applies where a tax treaty / EU directive is in force between the source (payer) and residence (payee) country; statutory is the source country's domestic fallback where no treaty relief is available. Rates are percentages. Seeded reference data, not legal advice — the withholdable base it is applied to is real (from supply_chain royalty + service legs).",
+  "default": { "statutory": 20.0, "treaty": 10.0 },
+  "corridors": [
+    {
+      "source": "FR", "source_country": "France", "residence": "CH", "residence_country": "Switzerland",
+      "statutory": 26.5, "treaty": 0.0, "basis": "France–Switzerland DTT (royalties art. 12) — 0% at source"
+    },
+    {
+      "source": "GB", "source_country": "United Kingdom", "residence": "CH", "residence_country": "Switzerland",
+      "statutory": 20.0, "treaty": 0.0, "basis": "UK–Switzerland DTT — royalties taxable only in residence (0% at source)"
+    },
+    {
+      "source": "DE", "source_country": "Germany", "residence": "US", "residence_country": "United States",
+      "statutory": 15.825, "treaty": 0.0, "basis": "Germany–US DTT (royalties art. 12) — 0% at source"
+    },
+    {
+      "source": "NL", "source_country": "Netherlands", "residence": "CH", "residence_country": "Switzerland",
+      "statutory": 21.7, "treaty": 0.0, "basis": "Netherlands–Switzerland DTT — 0% at source"
+    },
+    {
+      "source": "IE", "source_country": "Ireland", "residence": "*", "residence_country": "treaty partner",
+      "statutory": 20.0, "treaty": 0.0, "basis": "Irish domestic royalty exemption / EU interest-royalty directive — 0%"
+    },
+    {
+      "source": "US", "source_country": "United States", "residence": "*", "residence_country": "treaty partner",
+      "statutory": 30.0, "treaty": 0.0, "basis": "US model treaty royalties art. 12 — 0% at source for treaty residents"
+    },
+    {
+      "source": "CH", "source_country": "Switzerland", "residence": "*", "residence_country": "treaty partner",
+      "statutory": 0.0, "treaty": 0.0, "basis": "Switzerland levies no domestic WHT on royalties"
+    },
+    {
+      "source": "IN", "source_country": "India", "residence": "*", "residence_country": "treaty partner",
+      "statutory": 20.0, "treaty": 10.0, "basis": "India royalties — 10% reduced treaty rate (OECD-model partners)"
+    }
+  ]
+}

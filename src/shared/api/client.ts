@@ -40,6 +40,19 @@ import type {
   MdOverlayRow,
   MdSimulateResult,
   IntercompanyFlow,
+  Case,
+  CaseStep,
+  CsaModel,
+  BeatModel,
+  ProfitSplitModel,
+  ProfitSplitKey,
+  ForecastModel,
+  PricingRow,
+  Reconciliation,
+  DocumentationRollup,
+  WhtModel,
+  TreasuryModel,
+  StewardshipModel,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -130,6 +143,10 @@ export const api = {
   royalties: (period: PeriodParams = {}) =>
     getJSON<Royalty[]>('/api/transactions/royalties', period as Record<string, unknown>),
 
+  /** Settable per-material price rows for the goods & services price-setting wizards (OTP-4/1/2). */
+  pricing: (period: PeriodParams = {}) =>
+    getJSON<PricingRow[]>('/api/transactions/pricing', period as Record<string, unknown>),
+
   invoices: (period: PeriodParams = {}) =>
     getJSON<Invoice[]>('/api/invoices', period as Record<string, unknown>),
 
@@ -144,8 +161,34 @@ export const api = {
   segmentPnl: (params: { entity?: string; period?: string; year?: number } = {}) =>
     getJSON<SegmentPnlRow[]>('/api/segments/pl', params),
 
+  /** CSA model (cost pool, RAB shares, PCT buy-ins, true-ups) — computed live from segment_pl. */
+  csa: (year?: number) => getJSON<CsaModel>('/api/csa', year ? { year } : {}),
+
+  /** BEAT base-erosion computation (OTP-36) + per-CFC Schedule M rollup (OTP-38).
+   *  The US related-party deductible base is live from journal RASSC lines; the
+   *  RACCT→payment-type classification is the assumed/fabricated input. */
+  beat: (year?: number) => getJSON<BeatModel>('/api/beat', year ? { year } : {}),
+
+  /** Residual profit-split across the non-routine parties (OTP-44 design / OTP-12
+   *  calc) — combined operating profit allocated by a selectable key, live from segment_pl. */
+  profitSplit: (params: { year?: number; key?: ProfitSplitKey } = {}) =>
+    getJSON<ProfitSplitModel>('/api/profit-split', params),
+
+  /** Stewardship cost review (OTP-15) — parent G&A cost base (live from segment_pl)
+   *  minus the fabricated shareholder/stewardship candidate lines that are excluded. */
+  stewardship: (params: { year?: number } = {}) =>
+    getJSON<StewardshipModel>('/api/stewardship', params),
+
+  /** ERP↔TP reconciliation — planned IC price book (supply_chain by AWREF) vs
+   *  posted ACDOCA value (journal HSL). Source for OTP-43 recon + OTP-42 billing. */
+  reconciliation: (period: PeriodParams = {}) =>
+    getJSON<Reconciliation>('/api/reconciliation', period as Record<string, unknown>),
+
+  /** Latest-Estimate forecast per tested party (OTP-24) — derived from segment_pl actuals by run-rate. */
+  forecast: (year?: number) => getJSON<ForecastModel>('/api/forecast', year ? { year } : {}),
+
   journalEntries: (
-    params: { entity?: string; period?: string; year?: number; limit?: number } = {}
+    params: { entity?: string; period?: string; year?: number; awref?: string; limit?: number } = {}
   ) => getJSON<JournalEntryRow[]>('/api/journal-entries', params),
 
   // ------------ write endpoints ------------
@@ -247,6 +290,23 @@ export const api = {
   /** Read-only reference seed set (benchmarks, intangibles, dempe, cbcr, pillar_two, utp_reserve). */
   reference: <T = unknown>(name: string) => getJSON<T>(`/api/reference/${name}`),
 
+  /** Per-entity covered-transaction rollup for the documentation workpapers
+   *  (OTP-37 §6662 / OTP-32 Local File / OTP-33 Master File). Derived from the
+   *  master-data composition over segment_pl / journal — no hardcoded figures. */
+  documentation: () => getJSON<DocumentationRollup>('/api/documentation'),
+
+  /** Withholding tax on IC royalty + service payments (OTP-46) — per-corridor
+   *  treaty WHT due and treaty-vs-statutory saving. The withholdable base is
+   *  derived from supply_chain; the bilateral treaty-rate matrix is a seed. */
+  wht: (period: PeriodParams = {}) =>
+    getJSON<WhtModel>('/api/wht', period as Record<string, unknown>),
+
+  /** IC loan register + cash-pool positions with computed annual interest
+   *  (OTP-6 rate setting / OTP-13 loan accrual / OTP-14 pool settlement). The
+   *  register + pool positions are FABRICATED (no warehouse source); interest
+   *  is computed as principal x all_in_rate and balance x spread. */
+  treasury: () => getJSON<TreasuryModel>('/api/treasury'),
+
   /** Research Brain agentic "prepare steps" hand-off (logs an assisted event). */
   researchBrainPrepare: (body: {
     process_id: string;
@@ -299,4 +359,14 @@ export const api = {
     sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/approve`, { checker, comments }),
   mdRejectMapping: (id: string, checker: string, comments: string) =>
     sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/reject`, { checker, comments }),
+
+  // ---- Cases (Case Workspace — OTP-30/31/40/50) ----
+  /** Governance cases for a process (optionally filtered by status). */
+  cases: (params: { process_id?: string; status?: string } = {}) =>
+    getJSON<Case[]>('/api/cases', params),
+  case: (id: string) => getJSON<Case>(`/api/cases/${encodeURIComponent(id)}`),
+  setCaseStatus: (id: string, body: { status: string; actor: string }) =>
+    sendJSON<Case>('PATCH', `/api/cases/${encodeURIComponent(id)}/status`, body),
+  setCaseStep: (id: string, body: { step_key: CaseStep['key']; done: CaseStep['done']; actor: string }) =>
+    sendJSON<Case>('PATCH', `/api/cases/${encodeURIComponent(id)}/checklist`, body),
 };

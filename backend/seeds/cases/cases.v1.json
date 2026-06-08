@@ -1,0 +1,250 @@
+{
+  "version": "1",
+  "cases": [
+    {
+      "id": "CASE-1",
+      "process_id": "OTP-40",
+      "kind": "audit_defense",
+      "title": "German FY2023 field audit — royalty rate challenge (HoldCo IP licence)",
+      "status": "in_progress",
+      "owner": "Sam Rodriguez",
+      "counterparty": "Bundeszentralamt für Steuern (German Federal Central Tax Office)",
+      "jurisdiction": "Germany",
+      "exposure": 4250000,
+      "opened_at": "2025-11-12",
+      "due_at": "2026-07-15",
+      "checklist": [
+        { "key": "idr_log", "label": "Log and triage outstanding IDRs (information document requests)", "done": true },
+        { "key": "benchmark", "label": "Refresh royalty benchmarking study for the audit year", "done": true },
+        { "key": "dempe", "label": "Assemble DEMPE functional evidence for the licensed IP", "done": false },
+        { "key": "rebuttal", "label": "Draft rebuttal memo on the proposed royalty rate adjustment", "done": false },
+        { "key": "exec_brief", "label": "Brief tax leadership on settlement vs. litigation posture", "done": false }
+      ],
+      "notes": "Examiner is challenging the 6% intra-group royalty as exceeding the arm's-length range; primary issue is comparability of the licensor's DEMPE functions."
+    },
+    {
+      "id": "CASE-2",
+      "process_id": "OTP-40",
+      "kind": "audit_defense",
+      "title": "India TP assessment — marketing intangibles / AMP (bright-line)",
+      "status": "open",
+      "owner": "Priya Natarajan",
+      "counterparty": "Income Tax Department — Transfer Pricing Officer (Mumbai)",
+      "jurisdiction": "India",
+      "exposure": 1875000,
+      "opened_at": "2026-02-03",
+      "due_at": "2026-09-30",
+      "checklist": [
+        { "key": "amp_quant", "label": "Quantify AMP (advertising/marketing/promotion) spend vs. comparables", "done": false },
+        { "key": "bright_line", "label": "Analyse bright-line test and economic ownership of marketing intangibles", "done": false },
+        { "key": "comparables", "label": "Identify domestic comparables rejecting the TPO's set", "done": false },
+        { "key": "submission", "label": "Prepare written submission ahead of the hearing", "done": false }
+      ],
+      "notes": "TPO alleges the Indian distributor created marketing intangibles for the brand owner and seeks an AMP adjustment plus mark-up; defence rests on the Sony Ericsson / bright-line line of reasoning."
+    },
+    {
+      "id": "CASE-3",
+      "process_id": "OTP-50",
+      "kind": "map",
+      "title": "US–DE MAP — IP migration double taxation (competent authority)",
+      "status": "submitted",
+      "owner": "Daniel Okafor",
+      "counterparty": "IRS APMA ↔ German Federal Central Tax Office",
+      "jurisdiction": "United States / Germany",
+      "exposure": 9600000,
+      "opened_at": "2025-09-22",
+      "due_at": "2026-11-20",
+      "checklist": [
+        { "key": "map_request", "label": "File MAP request with both competent authorities", "done": true },
+        { "key": "position_paper", "label": "Submit position paper on the IP migration valuation", "done": true },
+        { "key": "facts_align", "label": "Reconcile statements of facts across both jurisdictions", "done": true },
+        { "key": "negotiation", "label": "Support competent-authority negotiation rounds", "done": false }
+      ],
+      "notes": "Germany asserted an exit-charge valuation on migrated IP that the US has already taxed; relief sought via the US–Germany treaty MAP article to eliminate double taxation."
+    },
+    {
+      "id": "CASE-4",
+      "process_id": "OTP-50",
+      "kind": "map",
+      "title": "Canada–US MAP — intercompany services cost allocation",
+      "status": "closed",
+      "owner": "Sam Rodriguez",
+      "counterparty": "CRA Competent Authority ↔ IRS APMA",
+      "jurisdiction": "Canada / United States",
+      "exposure": 2150000,
+      "opened_at": "2025-01-15",
+      "due_at": "2026-03-31",
+      "checklist": [
+        { "key": "cost_base", "label": "Agree the services cost base and allocation keys", "done": true },
+        { "key": "markup", "label": "Settle the arm's-length mark-up on the services", "done": true },
+        { "key": "relief_calc", "label": "Compute correlative relief and interest", "done": true },
+        { "key": "closing_letter", "label": "Execute the competent-authority closing agreement", "done": true }
+      ],
+      "notes": "Resolved: both authorities accepted a 5% cost-plus on the shared-services charge; correlative adjustment booked and the file is closed."
+    },
+    {
+      "id": "CASE-5",
+      "process_id": "OTP-30",
+      "kind": "restructuring",
+      "title": "EU principal restructuring — exit charge quantification (DE → IE)",
+      "status": "in_progress",
+      "owner": "Priya Natarajan",
+      "counterparty": "Internal — Group Tax & Treasury",
+      "jurisdiction": "Germany / Ireland",
+      "exposure": 7300000,
+      "opened_at": "2025-12-08",
+      "due_at": "2026-08-28",
+      "checklist": [
+        { "key": "func_analysis", "label": "Document pre/post functional and risk profile of the principal", "done": true },
+        { "key": "transferred_value", "label": "Identify transferred profit potential and ongoing concern", "done": true },
+        { "key": "exit_charge", "label": "Quantify the exit charge under OECD Chapter IX", "done": false },
+        { "key": "options", "label": "Assess realistically available options for the German LRD", "done": false },
+        { "key": "policy_update", "label": "Update intercompany agreements and TP policy post-conversion", "done": false }
+      ],
+      "notes": "Conversion of the German principal to a limited-risk distributor with the entrepreneurial role moving to Ireland; the exit-charge magnitude is the gating issue for sign-off."
+    },
+    {
+      "id": "CASE-6",
+      "process_id": "OTP-31",
+      "kind": "mna_integration",
+      "title": "Acquisition \"NovaTher\" — intercompany flow integration & policy harmonisation",
+      "status": "open",
+      "owner": "Daniel Okafor",
+      "counterparty": "NovaTher Therapeutics (acquired group)",
+      "jurisdiction": "United States / Switzerland",
+      "exposure": null,
+      "opened_at": "2026-03-18",
+      "due_at": "2026-12-15",
+      "checklist": [
+        { "key": "flow_map", "label": "Map acquired intercompany flows and existing TP policies", "done": false },
+        { "key": "gaps", "label": "Identify policy gaps and conflicting methods vs. acquirer", "done": false },
+        { "key": "harmonise", "label": "Harmonise TP methods and draft transitional intercompany agreements", "done": false },
+        { "key": "ppa_link", "label": "Reconcile purchase price allocation with go-forward IP ownership", "done": false }
+      ],
+      "notes": "Post-close integration of NovaTher's intercompany arrangements; exposure not yet quantified pending the flow mapping and PPA reconciliation."
+    },
+    {
+      "id": "CASE-7",
+      "process_id": "OTP-39",
+      "kind": "apa",
+      "title": "US–DE bilateral APA — royalty rate on the HoldCo IP licence",
+      "status": "in_progress",
+      "owner": "Daniel Okafor",
+      "counterparty": "IRS APMA / German Competent Authority (BZSt)",
+      "jurisdiction": "United States / Germany",
+      "exposure": 6200000,
+      "opened_at": "2025-10-06",
+      "due_at": "2026-10-30",
+      "checklist": [
+        { "key": "pre_filing", "label": "Pre-filing memorandum and APMA pre-filing conference", "done": true },
+        { "key": "application", "label": "File formal bilateral APA application with both authorities", "done": true },
+        { "key": "econ_analysis", "label": "Economic analysis supporting the arm's-length royalty range", "done": false },
+        { "key": "ca_negotiation", "label": "Competent-authority negotiation rounds (US ↔ DE)", "done": false },
+        { "key": "executed_report", "label": "Execute APA and file first annual compliance report", "done": false }
+      ],
+      "notes": "Five-year bilateral APA to lock the intra-group royalty rate on the HoldCo-owned IP and pre-empt the recurring German field-audit challenge; economic analysis is the current gating step."
+    },
+    {
+      "id": "CASE-8",
+      "process_id": "OTP-39",
+      "kind": "apa",
+      "title": "US unilateral APA — services markup on shared-services charge",
+      "status": "submitted",
+      "owner": "Sam Rodriguez",
+      "counterparty": "IRS APMA (Advance Pricing and Mutual Agreement)",
+      "jurisdiction": "United States",
+      "exposure": 2750000,
+      "opened_at": "2025-08-14",
+      "due_at": "2026-09-15",
+      "checklist": [
+        { "key": "pre_filing", "label": "Pre-filing memorandum on the covered services transactions", "done": true },
+        { "key": "application", "label": "File formal unilateral APA application", "done": true },
+        { "key": "econ_analysis", "label": "Economic analysis of the cost-plus markup vs. comparables", "done": true },
+        { "key": "ca_negotiation", "label": "Respond to APMA information requests and case-plan review", "done": false },
+        { "key": "executed_report", "label": "Execute APA and file first annual compliance report", "done": false }
+      ],
+      "notes": "Unilateral APA to fix the arm's-length markup on the US-to-affiliate shared-services charge; application accepted and under APMA review, awaiting the team's case plan."
+    },
+    {
+      "id": "CASE-9",
+      "process_id": "OTP-39",
+      "kind": "apa",
+      "title": "US–JP bilateral APA renewal — distribution margin",
+      "status": "open",
+      "owner": "Priya Natarajan",
+      "counterparty": "IRS APMA / Japan NTA (National Tax Agency)",
+      "jurisdiction": "United States / Japan",
+      "exposure": 4100000,
+      "opened_at": "2026-04-02",
+      "due_at": "2026-12-18",
+      "checklist": [
+        { "key": "pre_filing", "label": "Pre-filing memorandum scoping the renewal terms", "done": false },
+        { "key": "application", "label": "File bilateral APA renewal application (US ↔ JP)", "done": false },
+        { "key": "econ_analysis", "label": "Refresh the distributor margin benchmarking study", "done": false },
+        { "key": "ca_negotiation", "label": "Competent-authority negotiation on the renewal term", "done": false },
+        { "key": "executed_report", "label": "Execute renewed APA and file annual report", "done": false }
+      ],
+      "notes": "Renewal of the expiring US–Japan bilateral APA covering the operating margin of the Japanese distributor; refreshed benchmarking is the first substantive deliverable."
+    },
+    {
+      "id": "CASE-10",
+      "process_id": "OTP-28",
+      "kind": "policy_waiver",
+      "title": "Waiver — Brazil distributor resale markup 4.0% below policy band (8–12%)",
+      "status": "in_progress",
+      "owner": "Priya Natarajan",
+      "counterparty": "Internal — Group Tax (policy exception committee)",
+      "jurisdiction": "Brazil",
+      "exposure": 620000,
+      "opened_at": "2026-02-10",
+      "due_at": "2026-12-31",
+      "checklist": [
+        { "key": "request", "label": "Log the waiver request and the policy clause being departed from", "done": true },
+        { "key": "impact", "label": "Impact assessment — arm's-length support for the off-band markup", "done": true },
+        { "key": "approval", "label": "Obtain policy-exception committee approval", "done": false },
+        { "key": "expiry", "label": "Expiry review — re-test or revert to the policy band at expiry", "done": false }
+      ],
+      "notes": "Local price controls and competitive pressure forced the Brazilian distributor's resale markup to 4.0%, below the 8–12% policy band. Time-limited waiver granted pending the FY-end benchmarking refresh; expires 31 Dec 2026."
+    },
+    {
+      "id": "CASE-11",
+      "process_id": "OTP-28",
+      "kind": "policy_waiver",
+      "title": "Waiver — IC loan spread 350bps above the BM-FIN policy ceiling",
+      "status": "submitted",
+      "owner": "Daniel Okafor",
+      "counterparty": "Internal — Group Treasury & Tax",
+      "jurisdiction": "United States / Singapore",
+      "exposure": 410000,
+      "opened_at": "2026-01-22",
+      "due_at": "2026-09-30",
+      "checklist": [
+        { "key": "request", "label": "Log the waiver request and the policy clause being departed from", "done": true },
+        { "key": "impact", "label": "Impact assessment — credit-rating and comparable-spread support", "done": true },
+        { "key": "approval", "label": "Obtain policy-exception committee approval", "done": false },
+        { "key": "expiry", "label": "Expiry review — re-test or revert to the policy ceiling at expiry", "done": false }
+      ],
+      "notes": "The new intercompany term loan priced 350bps over the BM-FIN benchmark ceiling to reflect the borrower's standalone credit profile in a tighter rate environment. Exception submitted for sign-off; valid until the next financing review, 30 Sep 2026."
+    },
+    {
+      "id": "CASE-12",
+      "process_id": "OTP-28",
+      "kind": "policy_waiver",
+      "title": "Waiver — services cost-plus markup held at 3% (policy 5%) for transition",
+      "status": "open",
+      "owner": "Sam Rodriguez",
+      "counterparty": "Internal — Group Tax (policy exception committee)",
+      "jurisdiction": "Ireland",
+      "exposure": 280000,
+      "opened_at": "2026-04-05",
+      "due_at": "2026-06-30",
+      "checklist": [
+        { "key": "request", "label": "Log the waiver request and the policy clause being departed from", "done": true },
+        { "key": "impact", "label": "Impact assessment — benchmark support for the reduced markup", "done": false },
+        { "key": "approval", "label": "Obtain policy-exception committee approval", "done": false },
+        { "key": "expiry", "label": "Expiry review — restore the 5% markup at expiry", "done": false }
+      ],
+      "notes": "Shared-services markup to the newly-converted Irish entity held at 3% (vs the 5% policy) during the post-restructuring transition window. Short-dated waiver expiring 30 Jun 2026; approval still outstanding."
+    }
+  ]
+}
