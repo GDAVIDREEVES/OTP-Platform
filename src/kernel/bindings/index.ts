@@ -32,6 +32,7 @@ import { otp43 } from './marquee/otp43';
 import { otp32 } from './marquee/otp32';
 import { otp33 } from './marquee/otp33';
 import { otp37 } from './marquee/otp37';
+import { otp15 } from './marquee/otp15';
 import { caseWorkspace } from './marquee/caseWorkspace';
 
 /** Rich per-process bindings, keyed by OTP id. Marquee processes are registered
@@ -61,6 +62,7 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-39': caseWorkspace, // APA filing support & annual reporting (lifecycle tracker)
   'OTP-40': caseWorkspace, // TP audit defense & IDR
   'OTP-50': caseWorkspace, // MAP filing & negotiation
+  'OTP-28': caseWorkspace, // TP policy exception / waiver tracking (policy_waiver cases)
   'OTP-27': otp27, // new IC flow onboarding (guided wizard over unplanned-flow detection)
   'OTP-41': otp41, // ERP master-data maintenance (guided wizard over the inbound SAP delta)
   'OTP-42': otp42, // IC billing automation & controls (billed/due-to-bill/blocked over /api/reconciliation)
@@ -81,6 +83,7 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-37': otp37, // IRC §6662 documentation prep (best-method + benchmark + §6662 evidence packet)
   'OTP-32': otp32, // Local File data preparation (same rollup as OECD Ch. V controlled-transaction blocks)
   'OTP-33': otp33, // Master File data preparation (entity master + DEMPE + CbCR as OECD Master File blocks)
+  'OTP-15': otp15, // stewardship cost identification & exclusion (parent G&A base vs shareholder costs)
 };
 
 export function getBinding(def: ProcessDef): ProcessBinding {

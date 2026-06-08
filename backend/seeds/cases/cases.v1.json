@@ -185,6 +185,66 @@
         { "key": "executed_report", "label": "Execute renewed APA and file annual report", "done": false }
       ],
       "notes": "Renewal of the expiring US–Japan bilateral APA covering the operating margin of the Japanese distributor; refreshed benchmarking is the first substantive deliverable."
+    },
+    {
+      "id": "CASE-10",
+      "process_id": "OTP-28",
+      "kind": "policy_waiver",
+      "title": "Waiver — Brazil distributor resale markup 4.0% below policy band (8–12%)",
+      "status": "in_progress",
+      "owner": "Priya Natarajan",
+      "counterparty": "Internal — Group Tax (policy exception committee)",
+      "jurisdiction": "Brazil",
+      "exposure": 620000,
+      "opened_at": "2026-02-10",
+      "due_at": "2026-12-31",
+      "checklist": [
+        { "key": "request", "label": "Log the waiver request and the policy clause being departed from", "done": true },
+        { "key": "impact", "label": "Impact assessment — arm's-length support for the off-band markup", "done": true },
+        { "key": "approval", "label": "Obtain policy-exception committee approval", "done": false },
+        { "key": "expiry", "label": "Expiry review — re-test or revert to the policy band at expiry", "done": false }
+      ],
+      "notes": "Local price controls and competitive pressure forced the Brazilian distributor's resale markup to 4.0%, below the 8–12% policy band. Time-limited waiver granted pending the FY-end benchmarking refresh; expires 31 Dec 2026."
+    },
+    {
+      "id": "CASE-11",
+      "process_id": "OTP-28",
+      "kind": "policy_waiver",
+      "title": "Waiver — IC loan spread 350bps above the BM-FIN policy ceiling",
+      "status": "submitted",
+      "owner": "Daniel Okafor",
+      "counterparty": "Internal — Group Treasury & Tax",
+      "jurisdiction": "United States / Singapore",
+      "exposure": 410000,
+      "opened_at": "2026-01-22",
+      "due_at": "2026-09-30",
+      "checklist": [
+        { "key": "request", "label": "Log the waiver request and the policy clause being departed from", "done": true },
+        { "key": "impact", "label": "Impact assessment — credit-rating and comparable-spread support", "done": true },
+        { "key": "approval", "label": "Obtain policy-exception committee approval", "done": false },
+        { "key": "expiry", "label": "Expiry review — re-test or revert to the policy ceiling at expiry", "done": false }
+      ],
+      "notes": "The new intercompany term loan priced 350bps over the BM-FIN benchmark ceiling to reflect the borrower's standalone credit profile in a tighter rate environment. Exception submitted for sign-off; valid until the next financing review, 30 Sep 2026."
+    },
+    {
+      "id": "CASE-12",
+      "process_id": "OTP-28",
+      "kind": "policy_waiver",
+      "title": "Waiver — services cost-plus markup held at 3% (policy 5%) for transition",
+      "status": "open",
+      "owner": "Sam Rodriguez",
+      "counterparty": "Internal — Group Tax (policy exception committee)",
+      "jurisdiction": "Ireland",
+      "exposure": 280000,
+      "opened_at": "2026-04-05",
+      "due_at": "2026-06-30",
+      "checklist": [
+        { "key": "request", "label": "Log the waiver request and the policy clause being departed from", "done": true },
+        { "key": "impact", "label": "Impact assessment — benchmark support for the reduced markup", "done": false },
+        { "key": "approval", "label": "Obtain policy-exception committee approval", "done": false },
+        { "key": "expiry", "label": "Expiry review — restore the 5% markup at expiry", "done": false }
+      ],
+      "notes": "Shared-services markup to the newly-converted Irish entity held at 3% (vs the 5% policy) during the post-restructuring transition window. Short-dated waiver expiring 30 Jun 2026; approval still outstanding."
     }
   ]
 }

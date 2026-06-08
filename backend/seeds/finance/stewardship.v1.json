@@ -1,0 +1,68 @@
+{
+  "version": "1",
+  "note": "FABRICATED governance register: candidate parent (1000/3100) cost lines screened for shareholder/stewardship character per OECD TPG 7.9-7.10. No warehouse source. Amounts are illustrative and sit inside the real parent opex_ga base (see /api/stewardship, which derives that base from segment_pl).",
+  "cost_base_accounts": ["opex_ga"],
+  "parents": ["1000", "3100"],
+  "lines": [
+    {
+      "id": "STW-1",
+      "rbukrs": "1000",
+      "category": "Board & corporate governance",
+      "description": "Board of directors fees, AGM, and corporate governance costs",
+      "amount": 1850000,
+      "currency": "USD",
+      "stewardship": true,
+      "rationale": "Costs of the parent acting as shareholder/owner; no benefit to affiliates (OECD TPG 7.10(a) - costs relating to the juridical structure of the parent)."
+    },
+    {
+      "id": "STW-2",
+      "rbukrs": "1000",
+      "category": "Investor relations",
+      "description": "Investor relations, SEC reporting & shareholder communications",
+      "amount": 1420000,
+      "currency": "USD",
+      "stewardship": true,
+      "rationale": "Costs of reporting to the parent's own shareholders/markets; a shareholder activity (OECD TPG 7.10(b) - reporting requirements of the parent)."
+    },
+    {
+      "id": "STW-3",
+      "rbukrs": "3100",
+      "category": "Group audit",
+      "description": "Group consolidated audit fees (parent-level statutory consolidation)",
+      "amount": 1160000,
+      "currency": "USD",
+      "stewardship": true,
+      "rationale": "Cost of the consolidated group audit driven by the parent's reporting obligations, not a service to subsidiaries (OECD TPG 7.10(b))."
+    },
+    {
+      "id": "STW-4",
+      "rbukrs": "1000",
+      "category": "Parent legal",
+      "description": "Parent legal & compliance - listing, securities & shareholder matters",
+      "amount": 980000,
+      "currency": "USD",
+      "stewardship": true,
+      "rationale": "Legal costs of the parent's listing/securities and shareholder relationships; shareholder activity (OECD TPG 7.10)."
+    },
+    {
+      "id": "STW-5",
+      "rbukrs": "3100",
+      "category": "M&A / strategic",
+      "description": "M&A and corporate development advisory (acquisitions for the group)",
+      "amount": 1540000,
+      "currency": "USD",
+      "stewardship": true,
+      "rationale": "Cost of acquiring participations for the parent's own portfolio; a shareholder activity unless a specific affiliate benefits (OECD TPG 7.10(c))."
+    },
+    {
+      "id": "STW-6",
+      "rbukrs": "3100",
+      "category": "Group strategy",
+      "description": "Group strategic management & portfolio oversight",
+      "amount": 1310000,
+      "currency": "USD",
+      "stewardship": false,
+      "rationale": "Candidate for review: mixed activity - some passes the benefit test as a chargeable group service. Default EXCLUDED-from-exclusion (i.e. kept in the cost base) pending the benefit-test review; toggle to reclassify."
+    }
+  ]
+}

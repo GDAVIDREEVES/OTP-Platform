@@ -451,6 +451,37 @@ export interface ProfitSplitModel {
   participants: ProfitSplitParticipant[];
 }
 
+// ----------------- Stewardship cost identification (OTP-15) -----------------
+
+/** One candidate parent cost line screened for shareholder/stewardship character.
+ *  FABRICATED governance record; `stewardship` true ⇒ excluded from the cost base. */
+export interface StewardshipLine {
+  id: string;
+  rbukrs: string;
+  name: string;
+  category: string;
+  description: string;
+  amount: number;
+  currency: string;
+  /** Server default classification; the frontend lets the user re-toggle this. */
+  stewardship: boolean;
+  rationale: string;
+}
+
+/** Stewardship cost review for the parents. The `cost_base` is REAL (Σ parent
+ *  `opex_ga` from segment_pl); the candidate `lines` are fabricated. `excluded`
+ *  is the sum of stewardship-flagged lines; `adjusted_cost_base = cost_base − excluded`. */
+export interface StewardshipModel {
+  year: number;
+  base_col: string;
+  parents: { rbukrs: string; name: string; cost_base: number }[];
+  cost_base: number;
+  candidate_total: number;
+  excluded: number;
+  adjusted_cost_base: number;
+  lines: StewardshipLine[];
+}
+
 // ----------------- BEAT base-erosion prep (OTP-36 / OTP-38) -----------------
 
 /** One §59A payment type, with its classified related-party amount. COGS is the

@@ -44,6 +44,7 @@ from routers import (
     research_brain,
     review,
     settings,
+    stewardship,
     transactions,
     treasury,
     wht,
@@ -101,6 +102,7 @@ for r in (
     treasury.router,
     wht.router,
     beat.router,
+    stewardship.router,
 ):
     app.include_router(r)
 

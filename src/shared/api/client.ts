@@ -52,6 +52,7 @@ import type {
   DocumentationRollup,
   WhtModel,
   TreasuryModel,
+  StewardshipModel,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -172,6 +173,11 @@ export const api = {
    *  calc) — combined operating profit allocated by a selectable key, live from segment_pl. */
   profitSplit: (params: { year?: number; key?: ProfitSplitKey } = {}) =>
     getJSON<ProfitSplitModel>('/api/profit-split', params),
+
+  /** Stewardship cost review (OTP-15) — parent G&A cost base (live from segment_pl)
+   *  minus the fabricated shareholder/stewardship candidate lines that are excluded. */
+  stewardship: (params: { year?: number } = {}) =>
+    getJSON<StewardshipModel>('/api/stewardship', params),
 
   /** ERP↔TP reconciliation — planned IC price book (supply_chain by AWREF) vs
    *  posted ACDOCA value (journal HSL). Source for OTP-43 recon + OTP-42 billing. */
