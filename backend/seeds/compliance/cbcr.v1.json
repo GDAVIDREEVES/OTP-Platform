@@ -19,10 +19,10 @@
       "revenue_related": 95000000,
       "revenue_unrelated": 5000000,
       "profit_before_tax": 47000000,
-      "tax_paid": 4200000.0,
+      "tax_paid": 1900000.0,
       "tax_accrued": 4200000.0,
-      "employees": 160,
-      "tangible_assets": 35000000
+      "employees": 9,
+      "tangible_assets": 1500000
     },
     {
       "rbukrs": "3000",

@@ -37,6 +37,7 @@ const STATUS: Record<Case['status'], { color: string; label: string }> = {
 
 /** Worklist header copy, keyed by the wired process. */
 const HEADER: Record<string, string> = {
+  'OTP-39': 'APA lifecycle',
   'OTP-40': 'Audit defense / IDR',
   'OTP-50': 'MAP filings',
   'OTP-30': 'Restructuring / exit charges',

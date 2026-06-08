@@ -10,6 +10,7 @@ import { otp11 } from './marquee/otp11';
 import { otp21 } from './marquee/otp21';
 import { otp25 } from './marquee/otp25';
 import { otp29 } from './marquee/otp29';
+import { otp34 } from './marquee/otp34';
 import { otp35 } from './marquee/otp35';
 import { otp45 } from './marquee/otp45';
 import { caseWorkspace } from './marquee/caseWorkspace';
@@ -30,10 +31,12 @@ const MARQUEE: Record<string, ProcessBinding> = {
   // Case Workspace — one shared governance-case tracker (status/checklist/audit)
   'OTP-30': caseWorkspace, // restructuring / exit charges
   'OTP-31': caseWorkspace, // M&A IC-flow integration
+  'OTP-39': caseWorkspace, // APA filing support & annual reporting (lifecycle tracker)
   'OTP-40': caseWorkspace, // TP audit defense & IDR
   'OTP-50': caseWorkspace, // MAP filing & negotiation
   'OTP-25': otp25, // benchmarking studies
   'OTP-29': otp29, // DEMPE functional analysis
+  'OTP-34': otp34, // CbCR data extraction & validation (BEPS-13 Table 1)
   'OTP-35': otp35, // Pillar Two / GloBE
   'OTP-45': otp45, // UTP reserve
   'OTP-48': otp45, // provision interaction (same reserve data, provision framing)

@@ -122,6 +122,69 @@
         { "key": "ppa_link", "label": "Reconcile purchase price allocation with go-forward IP ownership", "done": false }
       ],
       "notes": "Post-close integration of NovaTher's intercompany arrangements; exposure not yet quantified pending the flow mapping and PPA reconciliation."
+    },
+    {
+      "id": "CASE-7",
+      "process_id": "OTP-39",
+      "kind": "apa",
+      "title": "US–DE bilateral APA — royalty rate on the HoldCo IP licence",
+      "status": "in_progress",
+      "owner": "Daniel Okafor",
+      "counterparty": "IRS APMA / German Competent Authority (BZSt)",
+      "jurisdiction": "United States / Germany",
+      "exposure": 6200000,
+      "opened_at": "2025-10-06",
+      "due_at": "2026-10-30",
+      "checklist": [
+        { "key": "pre_filing", "label": "Pre-filing memorandum and APMA pre-filing conference", "done": true },
+        { "key": "application", "label": "File formal bilateral APA application with both authorities", "done": true },
+        { "key": "econ_analysis", "label": "Economic analysis supporting the arm's-length royalty range", "done": false },
+        { "key": "ca_negotiation", "label": "Competent-authority negotiation rounds (US ↔ DE)", "done": false },
+        { "key": "executed_report", "label": "Execute APA and file first annual compliance report", "done": false }
+      ],
+      "notes": "Five-year bilateral APA to lock the intra-group royalty rate on the HoldCo-owned IP and pre-empt the recurring German field-audit challenge; economic analysis is the current gating step."
+    },
+    {
+      "id": "CASE-8",
+      "process_id": "OTP-39",
+      "kind": "apa",
+      "title": "US unilateral APA — services markup on shared-services charge",
+      "status": "submitted",
+      "owner": "Sam Rodriguez",
+      "counterparty": "IRS APMA (Advance Pricing and Mutual Agreement)",
+      "jurisdiction": "United States",
+      "exposure": 2750000,
+      "opened_at": "2025-08-14",
+      "due_at": "2026-09-15",
+      "checklist": [
+        { "key": "pre_filing", "label": "Pre-filing memorandum on the covered services transactions", "done": true },
+        { "key": "application", "label": "File formal unilateral APA application", "done": true },
+        { "key": "econ_analysis", "label": "Economic analysis of the cost-plus markup vs. comparables", "done": true },
+        { "key": "ca_negotiation", "label": "Respond to APMA information requests and case-plan review", "done": false },
+        { "key": "executed_report", "label": "Execute APA and file first annual compliance report", "done": false }
+      ],
+      "notes": "Unilateral APA to fix the arm's-length markup on the US-to-affiliate shared-services charge; application accepted and under APMA review, awaiting the team's case plan."
+    },
+    {
+      "id": "CASE-9",
+      "process_id": "OTP-39",
+      "kind": "apa",
+      "title": "US–JP bilateral APA renewal — distribution margin",
+      "status": "open",
+      "owner": "Priya Natarajan",
+      "counterparty": "IRS APMA / Japan NTA (National Tax Agency)",
+      "jurisdiction": "United States / Japan",
+      "exposure": 4100000,
+      "opened_at": "2026-04-02",
+      "due_at": "2026-12-18",
+      "checklist": [
+        { "key": "pre_filing", "label": "Pre-filing memorandum scoping the renewal terms", "done": false },
+        { "key": "application", "label": "File bilateral APA renewal application (US ↔ JP)", "done": false },
+        { "key": "econ_analysis", "label": "Refresh the distributor margin benchmarking study", "done": false },
+        { "key": "ca_negotiation", "label": "Competent-authority negotiation on the renewal term", "done": false },
+        { "key": "executed_report", "label": "Execute renewed APA and file annual report", "done": false }
+      ],
+      "notes": "Renewal of the expiring US–Japan bilateral APA covering the operating margin of the Japanese distributor; refreshed benchmarking is the first substantive deliverable."
     }
   ]
 }
