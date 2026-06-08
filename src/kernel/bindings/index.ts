@@ -19,6 +19,7 @@ import { otp35 } from './marquee/otp35';
 import { otp44 } from './marquee/otp44';
 import { otp12 } from './marquee/otp12';
 import { otp45 } from './marquee/otp45';
+import { otp46 } from './marquee/otp46';
 import { otp27 } from './marquee/otp27';
 import { otp41 } from './marquee/otp41';
 import { otp42 } from './marquee/otp42';
@@ -65,6 +66,7 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-12': otp12, // PSM calc & invoicing (allocated vs actual → gated balancing-invoice true-up)
   'OTP-45': otp45, // UTP reserve
   'OTP-48': otp45, // provision interaction (same reserve data, provision framing)
+  'OTP-46': otp46, // withholding tax on IC payments (treaty-vs-statutory WHT over supply_chain royalty + service legs)
   // US documentation & return-input workpapers — one /api/documentation rollup
   'OTP-37': otp37, // IRC §6662 documentation prep (best-method + benchmark + §6662 evidence packet)
   'OTP-32': otp32, // Local File data preparation (same rollup as OECD Ch. V controlled-transaction blocks)

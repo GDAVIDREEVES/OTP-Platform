@@ -549,3 +549,36 @@ export interface Reconciliation {
   summary: ReconSummary;
   rows: ReconRow[];
 }
+
+/** One withholding-tax corridor on an IC royalty / service payment (OTP-46).
+ *  Derived from supply_chain (the real withholdable base) joined to the
+ *  illustrative, OECD-model-aligned bilateral treaty-rate seed. */
+export interface WhtRow {
+  id: string;
+  payment_type: 'Royalty' | 'Service';
+  material_type: string;
+  payer: string;
+  payee: string;
+  payer_country: string;
+  payee_country: string;
+  corridor: string;
+  gross: number;
+  treaty_rate: number;
+  statutory_rate: number;
+  wht_due: number;
+  treaty_saving: number;
+  basis: string;
+}
+
+export interface WhtTotals {
+  corridors: number;
+  gross: number;
+  wht_due: number;
+  treaty_saving: number;
+  statutory_due: number;
+}
+
+export interface WhtModel {
+  rows: WhtRow[];
+  totals: WhtTotals;
+}

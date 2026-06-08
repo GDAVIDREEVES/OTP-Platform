@@ -49,6 +49,7 @@ import type {
   PricingRow,
   Reconciliation,
   DocumentationRollup,
+  WhtModel,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -280,6 +281,12 @@ export const api = {
    *  (OTP-37 §6662 / OTP-32 Local File / OTP-33 Master File). Derived from the
    *  master-data composition over segment_pl / journal — no hardcoded figures. */
   documentation: () => getJSON<DocumentationRollup>('/api/documentation'),
+
+  /** Withholding tax on IC royalty + service payments (OTP-46) — per-corridor
+   *  treaty WHT due and treaty-vs-statutory saving. The withholdable base is
+   *  derived from supply_chain; the bilateral treaty-rate matrix is a seed. */
+  wht: (period: PeriodParams = {}) =>
+    getJSON<WhtModel>('/api/wht', period as Record<string, unknown>),
 
   /** Research Brain agentic "prepare steps" hand-off (logs an assisted event). */
   researchBrainPrepare: (body: {
