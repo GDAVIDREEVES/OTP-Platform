@@ -51,6 +51,14 @@ export interface Invoice {
   /** True for rows that originated as user-submitted adjustments (write store).
    *  False for rows synthesized from supply_chain_flows. Drives action buttons. */
   submitted?: boolean;
+  /** Raw supply_chain MATERIAL_TYPE for the bucket (e.g. SERVICE, ROYALTY). */
+  materialType?: string;
+  /** Σ STANDARD_COST × TOTAL_VOLUME for the bucket — the charge cost base. */
+  costBase?: number;
+  /** Implied blended markup over cost base ((amount − costBase) / costBase). */
+  markup?: number;
+  /** Count of source supply_chain lines collapsed into this invoice bucket. */
+  lines?: number;
 }
 
 export interface Royalty {
