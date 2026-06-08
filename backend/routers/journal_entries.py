@@ -16,6 +16,7 @@ def journal_entries(
     entity: Optional[str] = None,
     period: Optional[str] = None,
     year: Optional[int] = None,
+    awref: Optional[str] = None,
     limit: int = Query(200, ge=1, le=2000),
 ):
     where_parts = []
@@ -26,11 +27,13 @@ def journal_entries(
         where_parts.append("POPER = ?"); params.append(period)
     if year:
         where_parts.append("GJAHR = ?"); params.append(year)
+    if awref:
+        where_parts.append("AWREF = ?"); params.append(awref)
     where = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
 
     sql = f"""
       SELECT RBUKRS, GJAHR, POPER, BUDAT, BLART, BELNR, DOCLN,
-             RACCT, RASSC, MATNR, WERKS,
+             RACCT, RASSC, MATNR, WERKS, AWREF,
              HSL, RHCUR,
              SGTXT
       FROM journal

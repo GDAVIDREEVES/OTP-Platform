@@ -19,6 +19,8 @@ import { otp35 } from './marquee/otp35';
 import { otp45 } from './marquee/otp45';
 import { otp27 } from './marquee/otp27';
 import { otp41 } from './marquee/otp41';
+import { otp42 } from './marquee/otp42';
+import { otp43 } from './marquee/otp43';
 import { caseWorkspace } from './marquee/caseWorkspace';
 
 /** Rich per-process bindings, keyed by OTP id. Marquee processes are registered
@@ -47,6 +49,8 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-50': caseWorkspace, // MAP filing & negotiation
   'OTP-27': otp27, // new IC flow onboarding (guided wizard over unplanned-flow detection)
   'OTP-41': otp41, // ERP master-data maintenance (guided wizard over the inbound SAP delta)
+  'OTP-42': otp42, // IC billing automation & controls (billed/due-to-bill/blocked over /api/reconciliation)
+  'OTP-43': otp43, // ERP↔TP reconciliation (planned supply_chain vs posted ACDOCA, by AWREF)
   'OTP-25': otp25, // benchmarking studies
   'OTP-29': otp29, // DEMPE functional analysis
   'OTP-34': otp34, // CbCR data extraction & validation (BEPS-13 Table 1)

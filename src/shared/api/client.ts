@@ -45,6 +45,7 @@ import type {
   CsaModel,
   ForecastModel,
   PricingRow,
+  Reconciliation,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -156,11 +157,16 @@ export const api = {
   /** CSA model (cost pool, RAB shares, PCT buy-ins, true-ups) — computed live from segment_pl. */
   csa: (year?: number) => getJSON<CsaModel>('/api/csa', year ? { year } : {}),
 
+  /** ERP↔TP reconciliation — planned IC price book (supply_chain by AWREF) vs
+   *  posted ACDOCA value (journal HSL). Source for OTP-43 recon + OTP-42 billing. */
+  reconciliation: (period: PeriodParams = {}) =>
+    getJSON<Reconciliation>('/api/reconciliation', period as Record<string, unknown>),
+
   /** Latest-Estimate forecast per tested party (OTP-24) — derived from segment_pl actuals by run-rate. */
   forecast: (year?: number) => getJSON<ForecastModel>('/api/forecast', year ? { year } : {}),
 
   journalEntries: (
-    params: { entity?: string; period?: string; year?: number; limit?: number } = {}
+    params: { entity?: string; period?: string; year?: number; awref?: string; limit?: number } = {}
   ) => getJSON<JournalEntryRow[]>('/api/journal-entries', params),
 
   // ------------ write endpoints ------------

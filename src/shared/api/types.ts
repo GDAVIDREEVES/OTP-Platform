@@ -75,6 +75,7 @@ export interface JournalEntryRow {
   RASSC: string;
   MATNR: string;
   WERKS: string;
+  AWREF: string | null;
   HSL: number;
   RHCUR: string;
   SGTXT: string;
@@ -419,4 +420,46 @@ export interface Case {
   due_at: string | null;
   checklist: CaseStep[];
   notes: string | null;
+}
+
+// ----------------- ERP↔TP reconciliation (OTP-43 recon / OTP-42 billing) -----------------
+
+export type ReconStatus = 'reconciled' | 'unposted' | 'value-break' | 'challenged';
+
+/** One planned intercompany flow (supply_chain, keyed by AWREF) tied to its
+ *  posted ACDOCA value (journal HSL by AWREF). The shared source behind the
+ *  OTP-43 reconciliation worklist and the OTP-42 billing exceptions queue. */
+export interface ReconRow {
+  awref: string;
+  seller: string;
+  buyer: string;
+  sellerName: string;
+  buyerName: string;
+  tpMethod: string;
+  materialType: string;
+  gjahr: number;
+  poper: string;
+  planned: number;
+  posted: number | null;
+  delta: number;
+  postings: number;
+  challenged: boolean;
+  apa: boolean;
+  status: ReconStatus;
+}
+
+export interface ReconSummary {
+  reconciled: number;
+  unposted: number;
+  'value-breaks': number;
+  challenged: number;
+  total: number;
+  planned_total: number;
+  posted_total: number;
+  delta_total: number;
+}
+
+export interface Reconciliation {
+  summary: ReconSummary;
+  rows: ReconRow[];
 }
