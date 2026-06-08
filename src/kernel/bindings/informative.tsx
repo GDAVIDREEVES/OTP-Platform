@@ -22,9 +22,9 @@ const Overview: FC<BindingCtx> = ({ def }) => {
   return (
     <Stack spacing={2} sx={{ maxWidth: 760 }}>
       <Alert severity="info" variant="outlined">
-        This process is part of the full 50-process library. Its guided workflow and
-        live data aren&rsquo;t wired for this demo yet — the marquee close-cycle
-        processes are. The shell, audit affordances, and navigation are identical.
+        <b>Reference view.</b> This catalog entry documents the process&rsquo;s scope,
+        OECD anchor, owner, and cadence. The live, guided workflow runs on the marquee
+        close-cycle processes — the shell, audit affordances, and navigation are identical.
       </Alert>
       <Box>
         <Field label="Process" value={`${def.id} · ${def.name}`} />
