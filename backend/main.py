@@ -23,6 +23,7 @@ from routers import (
     berry,
     cases,
     csa,
+    documentation,
     drafts,
     entities,
     evidence,
@@ -93,6 +94,7 @@ for r in (
     research_brain.router,
     reference.router,
     master_data.router,
+    documentation.router,
 ):
     app.include_router(r)
 

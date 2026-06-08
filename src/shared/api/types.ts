@@ -309,6 +309,55 @@ export interface IntercompanyFlow {
   amount: number;
 }
 
+// ----------------- Documentation rollup (OTP-37 / OTP-32 / OTP-33) -----------------
+
+/** One covered transaction under a tested entity's documentation workpaper:
+ *  FAR/method narrative, benchmark range, governing refs, linked evidence ref. */
+export interface DocCoveredRow {
+  ctx_id: string;
+  txn_type_id: string | null;
+  txn_label: string | null;
+  category: string | null;
+  method: string | null;
+  pli: string | null;
+  lower: number | null;
+  median: number | null;
+  upper: number | null;
+  unit: string | null;
+  actual: number | null;
+  status: 'in_range' | 'review' | 'na' | 'unmapped';
+  oecd_anchor: string | null;
+  benchmark_set_id: string | null;
+  policy_ref: string | null;
+  ica_ref: string | null;
+  apa_ref: string | null;
+  payer: MdMatrixParty;
+  payee: MdMatrixParty;
+  tested: MdMatrixParty;
+  /** Resolves via /api/evidence to the entity's audit + ACDOCA postings + chain. */
+  evidence_ref: string;
+}
+
+export interface DocEntity {
+  rbukrs: string;
+  display_name: string;
+  country: string | null;
+  functional_currency: string | null;
+  tp_function_code: string | null;
+  tp_function_label: string | null;
+  tested_party: boolean;
+  covered: DocCoveredRow[];
+  covered_count: number;
+  in_range: number;
+  review: number;
+  evidence_ref: string;
+}
+
+export interface DocumentationRollup {
+  entities: DocEntity[];
+  totals: { entities: number; covered: number; in_range: number; review: number };
+}
+
 // ----------------- Pricing (goods & services price-setting — OTP-4 / OTP-1 / OTP-2) -----------------
 
 /** A settable per-material price row: one chain+material, with the cost-plus

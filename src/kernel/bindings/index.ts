@@ -21,6 +21,9 @@ import { otp27 } from './marquee/otp27';
 import { otp41 } from './marquee/otp41';
 import { otp42 } from './marquee/otp42';
 import { otp43 } from './marquee/otp43';
+import { otp32 } from './marquee/otp32';
+import { otp33 } from './marquee/otp33';
+import { otp37 } from './marquee/otp37';
 import { caseWorkspace } from './marquee/caseWorkspace';
 
 /** Rich per-process bindings, keyed by OTP id. Marquee processes are registered
@@ -57,6 +60,10 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-35': otp35, // Pillar Two / GloBE
   'OTP-45': otp45, // UTP reserve
   'OTP-48': otp45, // provision interaction (same reserve data, provision framing)
+  // US documentation & return-input workpapers — one /api/documentation rollup
+  'OTP-37': otp37, // IRC §6662 documentation prep (best-method + benchmark + §6662 evidence packet)
+  'OTP-32': otp32, // Local File data preparation (same rollup as OECD Ch. V controlled-transaction blocks)
+  'OTP-33': otp33, // Master File data preparation (entity master + DEMPE + CbCR as OECD Master File blocks)
 };
 
 export function getBinding(def: ProcessDef): ProcessBinding {

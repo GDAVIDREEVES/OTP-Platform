@@ -46,6 +46,7 @@ import type {
   ForecastModel,
   PricingRow,
   Reconciliation,
+  DocumentationRollup,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -267,6 +268,11 @@ export const api = {
 
   /** Read-only reference seed set (benchmarks, intangibles, dempe, cbcr, pillar_two, utp_reserve). */
   reference: <T = unknown>(name: string) => getJSON<T>(`/api/reference/${name}`),
+
+  /** Per-entity covered-transaction rollup for the documentation workpapers
+   *  (OTP-37 §6662 / OTP-32 Local File / OTP-33 Master File). Derived from the
+   *  master-data composition over segment_pl / journal — no hardcoded figures. */
+  documentation: () => getJSON<DocumentationRollup>('/api/documentation'),
 
   /** Research Brain agentic "prepare steps" hand-off (logs an assisted event). */
   researchBrainPrepare: (body: {
