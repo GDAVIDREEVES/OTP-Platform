@@ -1,0 +1,173 @@
+{
+  "version": "1",
+  "parameters": [
+    {
+      "key": "csa.growth",
+      "value": 0.08,
+      "type": "number",
+      "default": 0.08,
+      "min": 0.0,
+      "max": 1.0,
+      "category": "csa",
+      "process_id": "OTP-5",
+      "provenance": "assumed",
+      "rationale": "RAB benefit projection growth rate: projected_sales = revenue * (1 + g). Locked in the CSA design spec.",
+      "unit": "ratio"
+    },
+    {
+      "key": "csa.pct_mult",
+      "value": 3,
+      "type": "number",
+      "default": 3,
+      "min": 0.0,
+      "max": null,
+      "category": "csa",
+      "process_id": "OTP-5",
+      "provenance": "assumed",
+      "rationale": "Platform value multiplier for the PCT buy-in: platform_value = pct_mult * pool. Locked in the CSA design spec.",
+      "unit": "multiple"
+    },
+    {
+      "key": "csa.ps_participants",
+      "value": ["1000", "3100", "3000"],
+      "type": "list",
+      "default": ["1000", "3100", "3000"],
+      "min": null,
+      "max": null,
+      "category": "profit_split",
+      "process_id": "OTP-44",
+      "provenance": "assumed",
+      "rationale": "Non-routine parties sharing residual profit under the PSM: 1000 US IP, 3100 CH IP, 3000 DE Manufacturer.",
+      "unit": null
+    },
+    {
+      "key": "csa.ps_default_key",
+      "value": "opex_rd",
+      "type": "string",
+      "default": "opex_rd",
+      "min": null,
+      "max": null,
+      "category": "profit_split",
+      "process_id": "OTP-44",
+      "provenance": "assumed",
+      "rationale": "Default residual profit-split allocation key (R&D value-driver); alternative 'sga' = opex_sm + opex_ga.",
+      "unit": null
+    },
+    {
+      "key": "csa.ps_keys",
+      "value": ["opex_rd", "sga"],
+      "type": "list",
+      "default": ["opex_rd", "sga"],
+      "min": null,
+      "max": null,
+      "category": "profit_split",
+      "process_id": "OTP-44",
+      "provenance": "assumed",
+      "rationale": "Allowed profit-split allocation keys offered in the selector.",
+      "unit": null
+    },
+    {
+      "key": "beat.us_payer",
+      "value": "1000",
+      "type": "string",
+      "default": "1000",
+      "min": null,
+      "max": null,
+      "category": "beat",
+      "process_id": "OTP-36",
+      "provenance": "assumed",
+      "rationale": "US IP Principal Co. (RBUKRS 1000) — the §59A applicable-taxpayer candidate.",
+      "unit": null
+    },
+    {
+      "key": "beat.threshold_pct",
+      "value": 3.0,
+      "type": "number",
+      "default": 3.0,
+      "min": 0.0,
+      "max": 100.0,
+      "category": "beat",
+      "process_id": "OTP-36",
+      "provenance": "assumed",
+      "rationale": "§59A(e)(1)(C) base-erosion percentage threshold.",
+      "unit": "percent"
+    },
+    {
+      "key": "beat.rate_pct",
+      "value": 10.0,
+      "type": "number",
+      "default": 10.0,
+      "min": 0.0,
+      "max": 100.0,
+      "category": "beat",
+      "process_id": "OTP-36",
+      "provenance": "assumed",
+      "rationale": "§59A(b) BEAT rate on modified taxable income (post-2018).",
+      "unit": "percent"
+    },
+    {
+      "key": "beat.racct_type",
+      "value": {
+        "0510000": "cogs",
+        "0820000": "cogs",
+        "0810000": "services",
+        "0855000": "royalties",
+        "0925000": "interest"
+      },
+      "type": "dict",
+      "default": {
+        "0510000": "cogs",
+        "0820000": "cogs",
+        "0810000": "services",
+        "0855000": "royalties",
+        "0925000": "interest"
+      },
+      "min": null,
+      "max": null,
+      "category": "beat",
+      "process_id": "OTP-36",
+      "provenance": "fabricated",
+      "rationale": "RACCT -> payment-type classification driving the §59A base-erosion split. Generic SAP chart-of-accounts codes mapped by account nature; unmapped RACCT falls back to 'other'. The underlying RASSC payment base is real.",
+      "unit": null
+    },
+    {
+      "key": "beat.non_base_eroding",
+      "value": ["cogs"],
+      "type": "list",
+      "default": ["cogs"],
+      "min": null,
+      "max": null,
+      "category": "beat",
+      "process_id": "OTP-36",
+      "provenance": "assumed",
+      "rationale": "Payment types excluded from base-eroding payments under §59A(d)(1) (the COGS exception).",
+      "unit": null
+    },
+    {
+      "key": "beat.payment_types",
+      "value": ["royalties", "services", "interest", "cogs", "other"],
+      "type": "list",
+      "default": ["royalties", "services", "interest", "cogs", "other"],
+      "min": null,
+      "max": null,
+      "category": "beat",
+      "process_id": "OTP-36",
+      "provenance": "assumed",
+      "rationale": "Ordered set of §59A payment-type buckets reported in the base-erosion breakdown.",
+      "unit": null
+    },
+    {
+      "key": "reconciliation.value_break_tolerance",
+      "value": 1.0,
+      "type": "number",
+      "default": 1.0,
+      "min": 0.0,
+      "max": null,
+      "category": "reconciliation",
+      "process_id": "OTP-43",
+      "provenance": "assumed",
+      "rationale": "A flow whose posted value differs from the planned legal price by more than this (absolute, document currency) is a value break; below it, rounding/FX noise is treated as reconciled.",
+      "unit": "currency"
+    }
+  ]
+}

@@ -15,19 +15,23 @@ from typing import Any
 
 from fastapi import APIRouter
 
+import state.parameters as parameters
 from db import q
 
 router = APIRouter()
 
-# --- Config constants (locked in the design spec) ----------------------------
-PARTICIPANTS = ["1000", "3100", "3800"]  # 1000 US, 3100 CH, 3800 NL
+# --- Config (governed parameter store; see state/parameters.py) ---------------
+# Each handler reads these from the parameter store at the top, with the module
+# constant below as the fallback literal — so an unseeded store reproduces the
+# original responses byte-for-byte.
+PARTICIPANTS = ["1000", "3100", "3800"]  # 1000 US, 3100 CH, 3800 NL — CSA participants
 GROWTH = 0.08  # RAB benefit projection: projected_sales = revenue * (1 + g)
 PCT_MULT = 3  # platform_value = PCT_MULT * pool
 
 # --- Profit-split (OTP-44 design / OTP-12 calc & invoicing) -------------------
 # The three non-routine parties that share residual profit under the PSM:
 # 1000 US IP, 3100 CH IP, 3000 DE Manufacturer. Both the participant set and the
-# allocation key are configurable (see DATA DECISION in the plan doc).
+# allocation key are governed parameters (csa.ps_*).
 PS_PARTICIPANTS = ["1000", "3100", "3000"]  # US IP / CH IP / DE Manufacturer
 PS_DEFAULT_KEY = "opex_rd"  # R&D value-driver; alt 'sga' = opex_sm + opex_ga
 PS_KEYS = ("opex_rd", "sga")
@@ -49,6 +53,8 @@ def csa(year: int = 2026) -> dict[str, Any]:
     behind ``/api/segments/pl`` — so every figure reconciles with the rest of
     the demo. Returns zeros/empty gracefully if the year has no data.
     """
+    growth = parameters.get_param("csa.growth", GROWTH)
+    pct_mult = parameters.get_param("csa.pct_mult", PCT_MULT)
     names = _names()
     ph = ",".join("?" for _ in PARTICIPANTS)
     rows = q(
@@ -70,13 +76,13 @@ def csa(year: int = 2026) -> dict[str, Any]:
                 "name": names.get(rbukrs, rbukrs),
                 "revenue": revenue,
                 "opex_rd": opex_rd,
-                "projected_sales": revenue * (1 + GROWTH),
+                "projected_sales": revenue * (1 + growth),
             }
         )
 
     total_projected = sum(p["projected_sales"] for p in parts)
     pool = sum(p["opex_rd"] for p in parts)
-    platform_value = PCT_MULT * pool
+    platform_value = pct_mult * pool
 
     if total_projected == 0:
         # No data for the year — return a graceful empty/zero model.
@@ -84,8 +90,8 @@ def csa(year: int = 2026) -> dict[str, Any]:
             "year": year,
             "pool": 0.0,
             "platform_value": 0.0,
-            "growth": GROWTH,
-            "pct_mult": PCT_MULT,
+            "growth": growth,
+            "pct_mult": pct_mult,
             "totals": {"revenue": 0.0, "opex_rd": 0.0, "true_up": 0.0},
             "participants": [
                 {
@@ -127,8 +133,8 @@ def csa(year: int = 2026) -> dict[str, Any]:
         "year": year,
         "pool": round(pool, 2),
         "platform_value": round(platform_value, 2),
-        "growth": GROWTH,
-        "pct_mult": PCT_MULT,
+        "growth": growth,
+        "pct_mult": pct_mult,
         "totals": {
             "revenue": round(sum(p["revenue"] for p in parts), 2),
             "opex_rd": round(pool, 2),
@@ -155,17 +161,20 @@ def profit_split(year: int = 2026, key: str = PS_DEFAULT_KEY) -> dict[str, Any]:
     ``/api/segments/pl`` — reconciliation by construction. Returns a graceful
     zero model when the year/key has no spend.
     """
-    if key not in PS_KEYS:
-        key = PS_DEFAULT_KEY
+    ps_participants = parameters.get_param("csa.ps_participants", PS_PARTICIPANTS)
+    ps_default_key = parameters.get_param("csa.ps_default_key", PS_DEFAULT_KEY)
+    ps_keys = tuple(parameters.get_param("csa.ps_keys", list(PS_KEYS)))
+    if key not in ps_keys:
+        key = ps_default_key
     names = _names()
-    ph = ",".join("?" for _ in PS_PARTICIPANTS)
+    ph = ",".join("?" for _ in ps_participants)
     rows = q(
         f"SELECT RBUKRS, "
         f"SUM(operating_profit) AS operating_profit, "
         f"SUM(opex_rd) AS opex_rd, SUM(opex_sm) AS opex_sm, SUM(opex_ga) AS opex_ga "
         f"FROM segment_pl WHERE GJAHR = ? AND RBUKRS IN ({ph}) "
         f"GROUP BY RBUKRS",
-        [year, *PS_PARTICIPANTS],
+        [year, *ps_participants],
     )
     by_id = {str(r["RBUKRS"]): r for r in rows}
 
@@ -173,7 +182,7 @@ def profit_split(year: int = 2026, key: str = PS_DEFAULT_KEY) -> dict[str, Any]:
         return float(r[col]) if r and r[col] is not None else 0.0
 
     parts = []
-    for rbukrs in PS_PARTICIPANTS:
+    for rbukrs in ps_participants:
         r = by_id.get(rbukrs)
         operating_profit = _f(r, "operating_profit")
         opex_rd = _f(r, "opex_rd")
@@ -213,8 +222,8 @@ def profit_split(year: int = 2026, key: str = PS_DEFAULT_KEY) -> dict[str, Any]:
     return {
         "year": year,
         "key": key,
-        "default_key": PS_DEFAULT_KEY,
-        "keys": list(PS_KEYS),
+        "default_key": ps_default_key,
+        "keys": list(ps_keys),
         "combined_profit": round(combined_profit, 2),
         "key_total": round(key_total, 2),
         "totals": {

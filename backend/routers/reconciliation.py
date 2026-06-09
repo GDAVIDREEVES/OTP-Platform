@@ -33,6 +33,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
+import state.parameters as parameters
 from db import q
 from period_filter import PeriodFilter
 from services.labels import pretty_method
@@ -43,7 +44,9 @@ _DIM = Path(__file__).parent.parent / "dim" / "entity_dim.json"
 
 # A flow whose posted value differs from the planned legal price by more than
 # this (absolute, in document currency) is a value break worth a controller's
-# attention. Below it, rounding/FX noise is treated as reconciled.
+# attention. Below it, rounding/FX noise is treated as reconciled. This is the
+# governed `reconciliation.value_break_tolerance` parameter; the constant below
+# is the fallback literal read at handler top so responses stay byte-identical.
 VALUE_BREAK_TOLERANCE = 1.0
 
 
@@ -53,12 +56,12 @@ def _names() -> dict[str, str]:
     return {e["rbukrs"]: e["display_name"] for e in entities}
 
 
-def _classify(posted: float | None, delta: float, challenged: bool) -> str:
+def _classify(posted: float | None, delta: float, challenged: bool, tolerance: float) -> str:
     if challenged:
         return "challenged"
     if posted is None:
         return "unposted"
-    if abs(delta) > VALUE_BREAK_TOLERANCE:
+    if abs(delta) > tolerance:
         return "value-break"
     return "reconciled"
 
@@ -76,6 +79,9 @@ def reconciliation(
     holds the four KPI counts (reconciled / unposted / value-breaks /
     challenged) plus the planned/posted/delta totals.
     """
+    tolerance = parameters.get_param(
+        "reconciliation.value_break_tolerance", VALUE_BREAK_TOLERANCE
+    )
     names = _names()
     pf = PeriodFilter(year=year, period_from=periodFrom, period_to=periodTo)
     pf_clause, pf_params = pf.where()
@@ -130,7 +136,7 @@ def reconciliation(
         posted = float(r["posted"]) if r["posted"] is not None else None
         delta = (posted - planned) if posted is not None else 0.0
         challenged = bool(r["challenged"])
-        status = _classify(posted, delta, challenged)
+        status = _classify(posted, delta, challenged, tolerance)
 
         summary["total"] += 1
         summary["planned_total"] += planned
