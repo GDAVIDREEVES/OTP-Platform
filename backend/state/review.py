@@ -11,7 +11,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+import persistence.overrides as overrides
 import state.audit as audit
+import state.lineage as lineage
 from state.engine import LOCK, get_conn
 
 # decision -> (stored status, audit event_type)
@@ -70,12 +72,27 @@ def decide(
             (checker, status, comments, now, item_id),
         )
         conn.commit()
+        record_ref = row["record_ref"]
         audit.record(
             actor=checker, actor_kind="human",
-            process_id=row["process_id"], record_ref=row["record_ref"],
+            process_id=row["process_id"], record_ref=record_ref,
             event_type=status, rationale=comments,
         )
         updated = conn.execute("SELECT * FROM review_items WHERE id = ?", (item_id,)).fetchone()
+
+    # Loop 1.1 — an approved in-period adjustment hands back to monitoring (OTP-20):
+    # promote the adjustment to Approved and record the OTP-16 -> OTP-20 handoff so the
+    # "re-validate" hop surfaces on the adj:* record's Audit tab + evidence packet.
+    if decision == "approve" and record_ref.startswith("adj:"):
+        adj_id = record_ref.split(":", 1)[1]
+        if overrides.update_adjustment(adj_id, {"status": "Approved", "approvedBy": checker}) is not None:
+            lineage.record_handoff(
+                record_ref=record_ref,
+                from_process="OTP-16",
+                to_process="OTP-20",
+                actor=checker,
+                summary="Adjustment approved — re-validate monitoring; entity expected back in range",
+            )
     return _to_dict(updated)
 
 
