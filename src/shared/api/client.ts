@@ -56,6 +56,9 @@ import type {
   VatModel,
   TreasuryModel,
   StewardshipModel,
+  Catalog,
+  CatalogEntry,
+  ProvenanceRollup,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -310,6 +313,17 @@ export const api = {
 
   /** Read-only reference seed set (benchmarks, intangibles, dempe, cbcr, pillar_two, utp_reserve). */
   reference: <T = unknown>(name: string) => getJSON<T>(`/api/reference/${name}`),
+
+  // ------------ Data catalog + provenance (OTP-49 console — Phase 2c) ------------
+
+  /** The full governed data catalog — warehouse views, SQLite tables, seeds, parameters. */
+  catalog: () => getJSON<Catalog>('/api/catalog'),
+
+  /** One catalog entry by id (e.g. "warehouse:segment_pl", "seed:treasury"). */
+  catalogEntry: (id: string) => getJSON<CatalogEntry>(`/api/catalog/${encodeURIComponent(id)}`),
+
+  /** Provenance rollup — every source + parameter grouped real|assumed|fabricated. */
+  catalogProvenance: () => getJSON<ProvenanceRollup>('/api/catalog/provenance'),
 
   /** Per-entity covered-transaction rollup for the documentation workpapers
    *  (OTP-37 §6662 / OTP-32 Local File / OTP-33 Master File). Derived from the

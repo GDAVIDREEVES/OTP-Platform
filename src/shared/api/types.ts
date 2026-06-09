@@ -802,3 +802,43 @@ export interface TreasuryModel {
   cash_pool: TreasuryCashPool;
   totals: TreasuryTotals;
 }
+
+// ----------------- Data catalog + provenance (OTP-49 console — Phase 2c) -----------------
+
+/** Where a catalog entry sits in the stack. */
+export type CatalogKind = 'warehouse' | 'state' | 'seed' | 'parameter';
+
+/** real = verifiable warehouse figure, assumed = illustrative input,
+ *  fabricated = magnitude invented for the demo. */
+export type Provenance = 'real' | 'assumed' | 'fabricated';
+
+/** One governed data source — a warehouse view, SQLite table, reference seed,
+ *  or calc parameter — with its provenance and downstream lineage. */
+export interface CatalogEntry {
+  id: string;
+  kind: CatalogKind;
+  name: string;
+  description: string | null;
+  provenance: Provenance | null;
+  lineage: string | null;
+}
+
+export type Catalog = CatalogEntry[];
+
+/** A trimmed catalog entry inside a provenance bucket (deep-link target). */
+export interface ProvenanceItem {
+  id: string;
+  kind: CatalogKind;
+  name: string;
+}
+
+export interface ProvenanceBucket {
+  count: number;
+  items: ProvenanceItem[];
+}
+
+/** Every source + parameter grouped by provenance, with counts + a total. */
+export interface ProvenanceRollup {
+  buckets: Record<Provenance, ProvenanceBucket>;
+  total: number;
+}

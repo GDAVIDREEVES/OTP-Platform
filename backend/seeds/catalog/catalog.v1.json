@@ -1,0 +1,134 @@
+{
+  "version": "1",
+  "note": "Static descriptors for the DuckDB warehouse views (db.py) and the SQLite state tables (state/schema.sql). Seeds are NOT listed here — services/catalog.py auto-discovers them via seeds.names()+seeds.meta(); parameters are discovered via parameters.list_params(). Warehouse views are read-only parquet (provenance: real); SQLite tables are mutable demo state (provenance: real — the records are produced by governed in-app actions).",
+  "warehouse": [
+    {
+      "id": "warehouse:entity_roles",
+      "name": "entity_roles",
+      "description": "One row per legal entity: country (LAND1), TP role code/description, arm's-length operating-margin band (OM_LOW_PCT/OM_HIGH_PCT), and the role boolean flags (IS_PRINCIPAL, IS_IP_OWNER, IS_FINANCING_ARM, IS_LRD, …).",
+      "provenance": "real",
+      "lineage": "Consumed by /api/entities, /api/kpis, services/entities.py; drives the entity directory + role overlay across the cockpit."
+    },
+    {
+      "id": "warehouse:segment_pl",
+      "name": "segment_pl",
+      "description": "Segmented P&L per entity/segment/period (GJAHR/POPER): revenue, cogs, opex_production/rd/sm/ga/dist, ic_charges, depreciation, operating_profit, operating_margin. The arm's-length-margin and allocation base for most calcs.",
+      "provenance": "real",
+      "lineage": "Consumed by /api/csa, /api/profit-split, /api/beat, /api/stewardship, /api/forecast, /api/segments/pl, pnl.py; the single GROUP-BY source the calc engine aggregates."
+    },
+    {
+      "id": "warehouse:supply_chain",
+      "name": "supply_chain",
+      "description": "Planned intercompany legal-price book by chain step: material/type, IP owner, selling/buying company, TP method, volume, standard cost, markup rate, TOTAL_LEGAL_PRICE, APA/CHALLENGED flags, AWREF (the posting key back to journal).",
+      "provenance": "real",
+      "lineage": "Consumed by /api/reconciliation (planned price), /api/wht, /api/vat, /api/transactions/* (flows/pricing); the price-vs-posted reconciliation anchor."
+    },
+    {
+      "id": "warehouse:journal",
+      "name": "journal",
+      "description": "ACDOCA-shaped universal journal: posted documents (RBUKRS/GJAHR/BELNR/DOCLN), account (RACCT), related party (RASSC), amounts in document/local/group currency (TSL/KSL/HSL), reversal/settlement lineage. The posted-actuals side.",
+      "provenance": "real",
+      "lineage": "Consumed by /api/journal-entries, /api/reconciliation (posted HSL), /api/beat (RASSC base), /api/invoices; ties posted flows back to plan."
+    }
+  ],
+  "state": [
+    {
+      "id": "state:audit_events",
+      "name": "audit_events",
+      "description": "Append-only, hash-chained audit stream — one row per state change anywhere in the platform. Written only through state/audit.py:record().",
+      "provenance": "real",
+      "lineage": "Written by every governed action; read by /api/audit, /api/audit/verify, /api/evidence/{ref}."
+    },
+    {
+      "id": "state:process_drafts",
+      "name": "process_drafts",
+      "description": "Per-user, per-record workflow drafts (autosave + leave-and-return).",
+      "provenance": "real",
+      "lineage": "Read/written by /api/drafts; surfaced in the unified inbox (/api/worklist)."
+    },
+    {
+      "id": "state:users",
+      "name": "users",
+      "description": "Demo users and their single role (operator|reviewer|director); active user via X-OTP-User header.",
+      "provenance": "real",
+      "lineage": "Seeded from seeds/users; drives separation-of-duties in the review queue."
+    },
+    {
+      "id": "state:review_items",
+      "name": "review_items",
+      "description": "Maker-checker review queue — pending|approved|rejected items per record_ref.",
+      "provenance": "real",
+      "lineage": "Read/written by /api/review-queue + /api/review/*; aggregated into /api/worklist."
+    },
+    {
+      "id": "state:adjustments",
+      "name": "adjustments",
+      "description": "Submitted true-up / period-end adjustment records (full JSON in data + promoted status).",
+      "provenance": "real",
+      "lineage": "Read/written by /api/adjustments; feeds OTP-16/20 loops + /evidence/adj:{id}."
+    },
+    {
+      "id": "state:policy_overrides",
+      "name": "policy_overrides",
+      "description": "Editable per-flow policy overrides applied over the warehouse price book.",
+      "provenance": "real",
+      "lineage": "Read/written by /api/overrides/policy."
+    },
+    {
+      "id": "state:app_settings",
+      "name": "app_settings",
+      "description": "Key/value app settings store.",
+      "provenance": "real",
+      "lineage": "Read/written by /api/settings."
+    },
+    {
+      "id": "state:seed_versions",
+      "name": "seed_versions",
+      "description": "Tracks which seed file versions have been loaded (version-gated reseed).",
+      "provenance": "real",
+      "lineage": "Maintained by the seed loaders (state/master_data.py, cases.py, parameters.py)."
+    },
+    {
+      "id": "state:md_entity_function",
+      "name": "md_entity_function",
+      "description": "Editable TP function overlay per entity (function code, primary/tested-party flags, categories).",
+      "provenance": "real",
+      "lineage": "Read/written by /api/master-data/* (functions + entity-function)."
+    },
+    {
+      "id": "state:md_overlay",
+      "name": "md_overlay",
+      "description": "Per-context master-data overlay (policy/ICA/APA refs, target override, notes).",
+      "provenance": "real",
+      "lineage": "Read/written by /api/master-data/overlay."
+    },
+    {
+      "id": "state:md_staging",
+      "name": "md_staging",
+      "description": "Inbound master-data mapping staging (unmapped→proposed→in_review→applied).",
+      "provenance": "real",
+      "lineage": "Read/written by /api/master-data/staging/*."
+    },
+    {
+      "id": "state:md_mapping",
+      "name": "md_mapping",
+      "description": "Applied canonical master-data mappings (raw key → canonical JSON).",
+      "provenance": "real",
+      "lineage": "Written by /api/master-data/staging/*/approve."
+    },
+    {
+      "id": "state:cases",
+      "name": "cases",
+      "description": "Governance cases (Case Workspace — OTP-30/31/40/50): controversy/restructuring/integration matters with status, owner, due date, checklist + audit trail.",
+      "provenance": "real",
+      "lineage": "Read/written by /api/cases; aggregated into /api/worklist; linked from documentation processes."
+    },
+    {
+      "id": "state:parameters",
+      "name": "parameters",
+      "description": "Governed parameter store — one row per calc parameter pulled out of router code into a single auditable registry (value/default JSON-encoded). Every edit hash-chained at param:{key}.",
+      "provenance": "real",
+      "lineage": "Read by csa.py/beat.py/reconciliation.py via get_param; read/written by /api/parameters; entries also surfaced as catalog 'parameter' kind."
+    }
+  ]
+}

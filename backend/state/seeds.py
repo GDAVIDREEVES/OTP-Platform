@@ -37,3 +37,33 @@ def load(name: str) -> dict[str, Any]:
 
 def names() -> list[str]:
     return list(_FILES)
+
+
+# Seeds whose magnitudes are invented for the demo carry an explicit
+# `fabricated: true` flag OR a `note` that opens with "FABRICATED" (the
+# treasury/stewardship registers pre-date the flag but say so in prose). Both
+# signals collapse to provenance "fabricated"; every other seed is "assumed"
+# (illustrative reference applied over the real warehouse base).
+def meta(name: str) -> dict[str, Any]:
+    """Provenance metadata for a registered seed (does not alter load()).
+
+    Returns ``{provenance, source, maintainer, lineage, fabricated}``:
+    - ``provenance`` is "fabricated" when the seed declares ``fabricated: true``
+      or its ``note`` opens with "FABRICATED", else "assumed";
+    - ``source`` lifts the seed's existing ``note`` (description) if present;
+    - ``fabricated`` is the resolved boolean.
+    """
+    if name not in _FILES:
+        raise KeyError(name)
+    doc = load(name)
+    note = doc.get("note") if isinstance(doc, dict) else None
+    fabricated = bool(doc.get("fabricated")) if isinstance(doc, dict) else False
+    if isinstance(note, str) and note.strip().upper().startswith("FABRICATED"):
+        fabricated = True
+    return {
+        "provenance": "fabricated" if fabricated else "assumed",
+        "source": note,
+        "maintainer": "TP team",
+        "lineage": f"seed → /api/reference/{name}",
+        "fabricated": fabricated,
+    }
