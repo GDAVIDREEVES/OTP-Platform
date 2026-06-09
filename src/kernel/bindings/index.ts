@@ -69,6 +69,7 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-40': caseWorkspace, // TP audit defense & IDR
   'OTP-50': caseWorkspace, // MAP filing & negotiation
   'OTP-28': caseWorkspace, // TP policy exception / waiver tracking (policy_waiver cases)
+  'OTP-26': caseWorkspace, // IC agreement (ICA) inventory & maintenance — structural reference register (ica cases)
   'OTP-27': otp27, // new IC flow onboarding (guided wizard over unplanned-flow detection)
   'OTP-41': otp41, // ERP master-data maintenance (guided wizard over the inbound SAP delta)
   'OTP-42': otp42, // IC billing automation & controls (billed/due-to-bill/blocked over /api/reconciliation)

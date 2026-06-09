@@ -245,6 +245,86 @@
         { "key": "expiry", "label": "Expiry review — restore the 5% markup at expiry", "done": false }
       ],
       "notes": "Shared-services markup to the newly-converted Irish entity held at 3% (vs the 5% policy) during the post-restructuring transition window. Short-dated waiver expiring 30 Jun 2026; approval still outstanding."
+    },
+    {
+      "id": "CASE-13",
+      "process_id": "OTP-26",
+      "kind": "ica",
+      "title": "Master royalty ICA — 1000 (US IP Principal) ↔ 3000 (DE Mfg)",
+      "status": "open",
+      "owner": "Daniel Okafor",
+      "counterparty": "1000 US IP Principal ↔ 3000 DE Manufacturing",
+      "jurisdiction": "United States / Germany",
+      "exposure": null,
+      "opened_at": "2024-01-01",
+      "due_at": "2026-12-31",
+      "checklist": [
+        { "key": "executed", "label": "Agreement executed and on file (signed, dated, countersigned)", "done": true },
+        { "key": "benchmarked", "label": "Pricing terms benchmarked and within the supporting study", "done": true },
+        { "key": "board_approved", "label": "Board / authorised-signatory approval recorded", "done": true },
+        { "key": "renewal_review", "label": "Annual renewal review — confirm terms still arm's-length", "done": false }
+      ],
+      "notes": "Master IP licence governing the intra-group royalty on the HoldCo-owned manufacturing IP used by the German principal. Structural reference entry in the IC agreement register; annual renewal review outstanding."
+    },
+    {
+      "id": "CASE-14",
+      "process_id": "OTP-26",
+      "kind": "ica",
+      "title": "Limited-risk distribution ICA — 3100 (CH IP Principal) ↔ 3200 (FR Dist)",
+      "status": "open",
+      "owner": "Priya Natarajan",
+      "counterparty": "3100 CH IP Principal ↔ 3200 FR Distribution",
+      "jurisdiction": "Switzerland / France",
+      "exposure": null,
+      "opened_at": "2024-04-01",
+      "due_at": "2026-09-30",
+      "checklist": [
+        { "key": "executed", "label": "Agreement executed and on file (signed, dated, countersigned)", "done": true },
+        { "key": "benchmarked", "label": "Resale-margin terms benchmarked and within the supporting study", "done": true },
+        { "key": "board_approved", "label": "Board / authorised-signatory approval recorded", "done": false },
+        { "key": "renewal_review", "label": "Annual renewal review — confirm terms still arm's-length", "done": false }
+      ],
+      "notes": "Limited-risk distribution agreement setting the resale margin for the French distributor buying from the Swiss principal. Register entry; signatory approval and renewal review still to be confirmed."
+    },
+    {
+      "id": "CASE-15",
+      "process_id": "OTP-26",
+      "kind": "ica",
+      "title": "Intra-group services ICA — 1000 (US IP Principal) ↔ 3800 (NL Dist)",
+      "status": "in_progress",
+      "owner": "Sam Rodriguez",
+      "counterparty": "1000 US IP Principal ↔ 3800 NL Distribution",
+      "jurisdiction": "United States / Netherlands",
+      "exposure": null,
+      "opened_at": "2023-07-01",
+      "due_at": "2026-07-31",
+      "checklist": [
+        { "key": "executed", "label": "Agreement executed and on file (signed, dated, countersigned)", "done": true },
+        { "key": "benchmarked", "label": "Cost-plus markup benchmarked and within the supporting study", "done": false },
+        { "key": "board_approved", "label": "Board / authorised-signatory approval recorded", "done": true },
+        { "key": "renewal_review", "label": "Annual renewal review — confirm terms still arm's-length", "done": false }
+      ],
+      "notes": "Shared-services agreement covering the cost-plus charge for central services provided to the Dutch distributor. Benchmarking refresh in progress; flagged for renewal review at the next study cycle."
+    },
+    {
+      "id": "CASE-16",
+      "process_id": "OTP-26",
+      "kind": "ica",
+      "title": "Intercompany financing ICA — 3400 (IE Financing) ↔ 3000 (DE Mfg)",
+      "status": "open",
+      "owner": "Daniel Okafor",
+      "counterparty": "3400 IE Financing ↔ 3000 DE Manufacturing",
+      "jurisdiction": "Ireland / Germany",
+      "exposure": null,
+      "opened_at": "2024-10-01",
+      "due_at": "2026-10-31",
+      "checklist": [
+        { "key": "executed", "label": "Agreement executed and on file (signed, dated, countersigned)", "done": true },
+        { "key": "benchmarked", "label": "Loan spread benchmarked and within the supporting study", "done": true },
+        { "key": "board_approved", "label": "Board / authorised-signatory approval recorded", "done": false },
+        { "key": "renewal_review", "label": "Annual renewal review — confirm terms still arm's-length", "done": false }
+      ],
+      "notes": "Term-loan facility agreement governing intra-group funding from the Irish financing company to the German principal. Structural register entry; signatory approval and renewal review pending."
     }
   ]
 }
