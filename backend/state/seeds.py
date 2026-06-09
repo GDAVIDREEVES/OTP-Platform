@@ -20,6 +20,7 @@ _FILES = {
     "wht_treaty": "compliance/wht_treaty.v1.json",
     "treasury": "finance/treasury.v1.json",
     "stewardship": "finance/stewardship.v1.json",
+    "guarantee": "finance/guarantee.v1.json",
 }
 
 

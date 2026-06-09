@@ -35,5 +35,16 @@ def test_stewardship_register_loads():
     assert any(ln["stewardship"] for ln in doc["lines"])  # at least one shareholder cost
 
 
+def test_guarantee_register_loads():
+    doc = client.get("/api/reference/guarantee").json()
+    assert doc["fabricated"] is True
+    assert len(doc["arrangements"]) >= 2
+    assert doc["guarantor"] == "1000"  # US IP Principal guarantor
+    for a in doc["arrangements"]:
+        # fee captures part of (never exceeds) the yield benefit
+        assert 0 < a["guarantee_fee_bps"] <= a["yield_benefit_bps"]
+        assert 25 <= a["yield_benefit_bps"] <= 90
+
+
 def test_unknown_reference_404():
     assert client.get("/api/reference/nope").status_code == 404
