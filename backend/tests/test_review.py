@@ -81,7 +81,9 @@ def test_approving_adjustment_loops_back_to_monitoring(state_db):
     assert audit.verify_chain()["ok"]
 
 
-def test_rejecting_adjustment_does_not_loop_back(state_db):
+def test_rejecting_does_not_loop_forward_to_monitoring(state_db):
+    # Loop 1.2 — a rejection returns the work to its *originating* process, never
+    # forward to OTP-20 (that hand-back is reserved for approvals).
     adj = overrides.submit_adjustment(
         {"entityId": "E2", "entityName": "Acme FR", "amount": -100000.0,
          "currency": "USD", "mode": "median", "targetMargin": 5.0, "actualMargin": 9.0,
@@ -90,4 +92,20 @@ def test_rejecting_adjustment_does_not_loop_back(state_db):
     ref = f"adj:{adj['id']}"
     item = review.create_item(process_id="OTP-16", record_ref=ref, maker="u_maria")
     review.decide(item["id"], checker="u_sam", decision="reject", comments="benchmark stale")
-    assert not any(h["event_type"] == "handoff" for h in lineage.list_handoffs(ref))
+    assert not any((h.get("after") or {}).get("to") == "OTP-20" for h in lineage.list_handoffs(ref))
+
+
+def test_rejecting_returns_to_originating_process(state_db):
+    # Loop 1.2 — rejecting a review item writes one handoff that loops the record
+    # back to the process that submitted it (from == to), carrying the comment, so
+    # the maker is guided to where the fix belongs. It rides the same audit chain.
+    item = review.create_item(process_id="OTP-3", record_ref="OTP3-royalty-API", maker="u_maria")
+    review.decide(item["id"], checker="u_sam", decision="reject", comments="band looks stale")
+
+    handoffs = lineage.list_handoffs("OTP3-royalty-API")
+    hop = next(h for h in handoffs if h["event_type"] == "handoff")
+    assert hop["actor"] == "u_sam"
+    assert hop["after"]["from"] == "OTP-3"
+    assert hop["after"]["to"] == "OTP-3"
+    assert "band looks stale" in hop["rationale"]
+    assert audit.verify_chain()["ok"]

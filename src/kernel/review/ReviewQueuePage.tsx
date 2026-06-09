@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import AppShell from '@/shared/components/layout/AppShell';
 import { api } from '@/shared/api/client';
+import { originRoute } from '@/kernel/workflow/originRoute';
 import { useToast } from '@/shared/providers/DataProvider';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import type { ReviewItem } from '@/shared/api/types';
@@ -29,6 +30,7 @@ export default function ReviewQueuePage() {
   const user = useSessionUser();
   const navigate = useNavigate();
   const [items, setItems] = useState<ReviewItem[]>([]);
+  const [returned, setReturned] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
   const [rejecting, setRejecting] = useState<ReviewItem | null>(null);
@@ -36,12 +38,23 @@ export default function ReviewQueuePage() {
 
   const refresh = useCallback(() => {
     setLoading(true);
-    api
-      .reviewQueue('pending')
-      .then(setItems)
-      .catch(() => setItems([]))
+    // Loop 1.2 — rejected items the *current user* made are surfaced as a
+    // "Returned to you" worklist so the maker can jump back to the originating
+    // process and resubmit.
+    Promise.all([
+      api.reviewQueue('pending').catch(() => [] as ReviewItem[]),
+      api.reviewQueue('rejected').catch(() => [] as ReviewItem[]),
+    ])
+      .then(([pending, rejected]) => {
+        setItems(pending);
+        setReturned(rejected.filter((it) => it.maker === user.id));
+      })
+      .catch(() => {
+        setItems([]);
+        setReturned([]);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [user.id]);
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -83,6 +96,35 @@ export default function ReviewQueuePage() {
           segregation of duties is enforced, and every decision is logged. Switch role from the avatar
           (top-right) to approve as a different person.
         </Alert>
+
+        {!loading && returned.length > 0 && (
+          <Alert severity="warning" variant="outlined">
+            <Stack spacing={1.5}>
+              <Box sx={{ fontWeight: 700 }}>Returned to you</Box>
+              {returned.map((it) => {
+                const route = originRoute(it.record_ref);
+                return (
+                  <Box key={it.id}>
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                      <Chip size="small" label={it.process_id} sx={{ fontWeight: 700 }} />
+                      <Box component="span">{it.record_ref}</Box>
+                      {route && (
+                        <Button size="small" variant="outlined" onClick={() => navigate(route)}>
+                          Fix &amp; resubmit
+                        </Button>
+                      )}
+                    </Stack>
+                    {it.comments && (
+                      <Box sx={{ mt: 0.5, fontStyle: 'italic', color: 'text.secondary' }}>
+                        “{it.comments}”
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })}
+            </Stack>
+          </Alert>
+        )}
 
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>

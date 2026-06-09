@@ -78,6 +78,20 @@ def decide(
             process_id=row["process_id"], record_ref=record_ref,
             event_type=status, rationale=comments,
         )
+
+        # Loop 1.2 — a rejection returns the work to its originating process so the
+        # maker knows where to go. The "return" is one more handoff on the same
+        # record_ref (from_process == to_process: it loops back to where it came
+        # from), surfacing on that record's Audit tab + evidence packet.
+        if decision == "reject":
+            lineage.record_handoff(
+                record_ref=record_ref,
+                from_process=row["process_id"],
+                to_process=row["process_id"],
+                actor=checker,
+                summary=f"Returned for changes: {comments or 'see review'}",
+            )
+
         updated = conn.execute("SELECT * FROM review_items WHERE id = ?", (item_id,)).fetchone()
 
     # Loop 1.1 — an approved in-period adjustment hands back to monitoring (OTP-20):
