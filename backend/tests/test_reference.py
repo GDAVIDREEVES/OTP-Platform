@@ -46,5 +46,22 @@ def test_guarantee_register_loads():
         assert 25 <= a["yield_benefit_bps"] <= 90
 
 
+def test_captive_register_loads():
+    doc = client.get("/api/reference/captive").json()
+    assert doc["fabricated"] is True
+    assert len(doc["policies"]) >= 2
+    assert doc["insurer"] == "3400"  # Ireland Financing Co. as captive insurer
+    gp = sum(p["gross_premium"] for p in doc["policies"])
+    losses = sum(p["incurred_losses"] for p in doc["policies"])
+    expenses = sum(p["expenses"] for p in doc["policies"])
+    combined = (losses + expenses) / gp
+    # priced to underwrite a profit: combined ratio inside the ceiling
+    assert combined <= doc["combined_ratio_ceiling"]
+    # statutory capital clears the solvency floor (capital / net premium)
+    assert doc["capital"] / gp >= doc["capital_adequacy_floor"]
+    for p in doc["policies"]:
+        assert 0 < p["incurred_losses"] < p["gross_premium"]  # loss ratio < 100%
+
+
 def test_unknown_reference_404():
     assert client.get("/api/reference/nope").status_code == 404

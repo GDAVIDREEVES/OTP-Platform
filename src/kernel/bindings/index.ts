@@ -11,6 +11,7 @@ import { otp3 } from './marquee/otp3';
 import { otp5 } from './marquee/otp5';
 import { otp6 } from './marquee/otp6';
 import { otp7 } from './marquee/otp7';
+import { otp8 } from './marquee/otp8';
 import { otp11 } from './marquee/otp11';
 import { otp13 } from './marquee/otp13';
 import { otp14 } from './marquee/otp14';
@@ -46,6 +47,7 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-5': otp5, // CSA RAB share + PCT setting (wizard)
   'OTP-6': otp6, // IC loan / cash-pool rate setting (rating-adjusted spread vs BM-FIN)
   'OTP-7': otp7, // financial-guarantee fee determination (yield-benefit approach vs BM-FIN credit)
+  'OTP-8': otp8, // captive insurance / reinsurance premium setting (combined-ratio + capital-adequacy test, fabricated)
   'OTP-9': otp9, // royalty charge & invoice batch
   'OTP-10': otp10, // service cost-allocation charge & invoice batch
   'OTP-11': otp11, // CSA in-period true-up (batch)

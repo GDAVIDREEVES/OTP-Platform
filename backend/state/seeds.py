@@ -21,6 +21,7 @@ _FILES = {
     "treasury": "finance/treasury.v1.json",
     "stewardship": "finance/stewardship.v1.json",
     "guarantee": "finance/guarantee.v1.json",
+    "captive": "finance/captive.v1.json",
 }
 
 
