@@ -59,6 +59,7 @@ import type {
   Catalog,
   CatalogEntry,
   ProvenanceRollup,
+  Parameter,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -324,6 +325,24 @@ export const api = {
 
   /** Provenance rollup — every source + parameter grouped real|assumed|fabricated. */
   catalogProvenance: () => getJSON<ProvenanceRollup>('/api/catalog/provenance'),
+
+  // ------------ Governed parameter store (OTP-49 console — Phase 2a) ------------
+
+  /** Every governed calc parameter (optionally filtered by category), key-ordered. */
+  parameters: (category?: string) =>
+    getJSON<Parameter[]>('/api/parameters', category ? { category } : {}),
+
+  /** One governed parameter by key (404 if unknown). */
+  parameter: (key: string) => getJSON<Parameter>(`/api/parameters/${encodeURIComponent(key)}`),
+
+  /** Edit a parameter's value — hash-chained at param:{key}. ``value`` is free-form
+   *  JSON (scalar | list | dict); ``rationale`` is recorded in the audit event. */
+  patchParameter: (key: string, body: { value: unknown; actor: string; rationale?: string }) =>
+    sendJSON<Parameter>('PATCH', `/api/parameters/${encodeURIComponent(key)}`, body),
+
+  /** Reset a parameter to its governed default — also hash-chained at param:{key}. */
+  resetParameter: (key: string, body: { actor: string }) =>
+    sendJSON<Parameter>('POST', `/api/parameters/${encodeURIComponent(key)}/reset`, body),
 
   /** Per-entity covered-transaction rollup for the documentation workpapers
    *  (OTP-37 §6662 / OTP-32 Local File / OTP-33 Master File). Derived from the

@@ -842,3 +842,24 @@ export interface ProvenanceRollup {
   buckets: Record<Provenance, ProvenanceBucket>;
   total: number;
 }
+
+// ----------------- Governed parameter store (OTP-49 console — Phase 2a) -----------------
+
+/** One governed calc parameter — the single source for a magnitude that used to
+ *  be a scattered hardcoded literal. ``value``/``default`` are free-form JSON
+ *  (scalar | list | dict). Every edit is hash-chained at record_ref="param:{key}". */
+export interface Parameter {
+  key: string;
+  value: unknown;
+  default: unknown;
+  type: string | null;
+  min_value: number | null;
+  max_value: number | null;
+  category: string | null;
+  process_id: string | null;
+  provenance: Provenance | null;
+  rationale: string | null;
+  unit: string | null;
+  updated_at: string | null;
+  updated_by: string | null;
+}
