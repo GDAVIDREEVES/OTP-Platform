@@ -163,8 +163,9 @@ export interface LineageStep {
   record_ref: string;
   event_type: string;
   rationale: string | null;
-  before_json?: unknown;
-  after_json?: unknown;
+  /** For a `handoff` event, the originating/receiving process pair. */
+  before?: unknown;
+  after?: { from?: string; to?: string } | null;
 }
 
 export interface Draft {

@@ -14,6 +14,7 @@ import WorkflowPath from '@/kernel/workflow/WorkflowPath';
 import AgenticHandoffMarker from '@/kernel/workflow/AgenticHandoffMarker';
 import { useGuidedWorkflow } from '@/kernel/workflow/useGuidedWorkflow';
 import { useReference } from '@/kernel/data/useReference';
+import { useBenchmarkRefreshed, BenchmarkRefreshedChip } from '@/kernel/workflow/benchmarkRefresh';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 
 const nameOf = (entities: Entity[], code: string) => entities.find((e) => e.id === code)?.name ?? code;
@@ -85,6 +86,7 @@ const Wizard: FC<BindingCtx> = () => {
   const bm = (data?.sets ?? []).find((s) => s.set_id === 'BM-ROY-API');
   const lower = bm?.lower ?? 4, median = bm?.median ?? 6, upper = bm?.upper ?? 8;
   const g = useGuidedWorkflow('OTP-3', 'OTP3-royalty-API', STEPS);
+  const benchmarkRefreshed = useBenchmarkRefreshed('OTP3-royalty-API');
   const rate = Number(g.wf.payload.rate ?? median);
   const inRange = rate >= lower && rate <= upper;
   const rationale = String(g.wf.payload.rationale || '');
@@ -133,9 +135,10 @@ const Wizard: FC<BindingCtx> = () => {
     if (step.key === 'setRate') {
       return (
         <Stack spacing={2}>
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
             <Typography variant="body2">Arm&rsquo;s-length range <b>{lower}–{upper}%</b> (median {median}%)</Typography>
             <ProvenanceChip source="OTP-25 benchmarking" tooltip="Backed by the benchmarking set" onClick={() => navigate('/process/OTP-25/overview')} />
+            {benchmarkRefreshed && <BenchmarkRefreshedChip wizardRoute="/process/OTP-3/overview" />}
           </Stack>
           <TextField label="Royalty rate (%)" type="number" size="small" value={rate} onChange={(e) => g.wf.patchPayload({ rate: Number(e.target.value) })} sx={{ maxWidth: 220 }} />
           <Alert severity={inRange ? 'success' : 'warning'} variant="outlined" sx={{ maxWidth: 560 }}>

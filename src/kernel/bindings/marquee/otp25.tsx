@@ -10,7 +10,24 @@ import WorkflowPath from '@/kernel/workflow/WorkflowPath';
 import AgenticHandoffMarker from '@/kernel/workflow/AgenticHandoffMarker';
 import { useGuidedWorkflow } from '@/kernel/workflow/useGuidedWorkflow';
 import { useReference } from '@/kernel/data/useReference';
+import { api } from '@/shared/api/client';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
+
+/** Downstream prices that consume a benchmarking set: refreshing the set hands
+ *  off to each consumer's rate-setting record_ref so it surfaces a "re-confirm"
+ *  flag (one handoff audit event on the consumer's ref — no side table). */
+const DOWNSTREAM: Record<string, { record_ref: string; to_process: string; summary: string }> = {
+  'BM-ROY-API': {
+    record_ref: 'OTP3-royalty-API',
+    to_process: 'OTP-3',
+    summary: 'Benchmark BM-ROY-API refreshed — re-confirm royalty rate against the new IQR',
+  },
+  'BM-FIN': {
+    record_ref: 'OTP6-ic-rate-setting',
+    to_process: 'OTP-6',
+    summary: 'Benchmark BM-FIN refreshed — re-confirm IC loan rate',
+  },
+};
 
 interface BMSet {
   set_id: string; method: string; applies_to: string; pli: string;
@@ -92,6 +109,24 @@ const Wizard: FC<BindingCtx> = () => {
   const key = STEPS[g.wf.stepIndex]?.key;
   const canContinue = key === 'select' ? !!set : key === 'refresh' ? prepared : true;
 
+  // On submit, fan out a handoff to each downstream consumer of the refreshed
+  // set so OTP-3 / OTP-6 flag their rate as stale (best-effort; never blocks).
+  const completeAndFanOut = async () => {
+    await g.submit();
+    const downstream = DOWNSTREAM[setId];
+    if (downstream) {
+      await api
+        .recordHandoff({
+          record_ref: downstream.record_ref,
+          from_process: 'OTP-25',
+          to_process: downstream.to_process,
+          actor: 'u_demo',
+          summary: downstream.summary,
+        })
+        .catch(() => undefined);
+    }
+  };
+
   const renderStep = (step: StepDef) => {
     if (step.key === 'select') {
       return (
@@ -136,7 +171,7 @@ const Wizard: FC<BindingCtx> = () => {
 
   return (
     <WorkflowPath steps={STEPS} stepIndex={g.wf.stepIndex} setStepIndex={g.wf.setStepIndex} canContinue={canContinue}
-      onComplete={() => void g.submit()} completing={g.submitting} renderStep={renderStep} lastSavedAt={g.wf.lastSavedAt} />
+      onComplete={() => void completeAndFanOut()} completing={g.submitting} renderStep={renderStep} lastSavedAt={g.wf.lastSavedAt} />
   );
 };
 

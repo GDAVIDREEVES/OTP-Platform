@@ -1,5 +1,6 @@
 {
   "version": "1",
+  "as_of": "2026-06-01",
   "sets": [
     {
       "set_id": "BM-ROY-API",
@@ -12,7 +13,8 @@
       "unit": "%",
       "source": "RoyaltyRange — patented compounds",
       "comparables": 24,
-      "year": 2026
+      "year": 2026,
+      "revised_at": "2026-06-01"
     },
     {
       "set_id": "BM-ROY-TM",
@@ -25,7 +27,8 @@
       "unit": "%",
       "source": "RoyaltyRange — consumer-health marks",
       "comparables": 17,
-      "year": 2026
+      "year": 2026,
+      "revised_at": "2026-06-01"
     },
     {
       "set_id": "BM-LRD",
@@ -38,7 +41,8 @@
       "unit": "%",
       "source": "Amadeus — EU pharma distributors",
       "comparables": 18,
-      "year": 2026
+      "year": 2026,
+      "revised_at": "2026-06-01"
     },
     {
       "set_id": "BM-TOLL",
@@ -51,7 +55,8 @@
       "unit": "%",
       "source": "Amadeus — APAC contract mfrs",
       "comparables": 21,
-      "year": 2026
+      "year": 2026,
+      "revised_at": "2026-06-01"
     },
     {
       "set_id": "BM-SVC",
@@ -64,7 +69,8 @@
       "unit": "%",
       "source": "Amadeus — management services",
       "comparables": 15,
-      "year": 2026
+      "year": 2026,
+      "revised_at": "2026-06-01"
     },
     {
       "set_id": "BM-FIN",
@@ -77,7 +83,8 @@
       "unit": "%",
       "source": "Loan-comparable (Bloomberg)",
       "comparables": 30,
-      "year": 2026
+      "year": 2026,
+      "revised_at": "2026-06-01"
     }
   ]
 }
