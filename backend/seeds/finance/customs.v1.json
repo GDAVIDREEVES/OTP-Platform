@@ -1,0 +1,37 @@
+{
+  "version": "1",
+  "fabricated": true,
+  "note": "FABRICATED customs reference — ad-valorem import duty rates by goods material_type and importing jurisdiction, plus the declared-value basis (first-sale vs last-sale) per importer. The warehouse has no customs source; these duty rates and basis elections are illustrative and PUBLICLY CHECKABLE against actual tariff schedules (EU TARIC, UK Global Tariff, India Customs Tariff). They are applied to a REAL dutiable base: the planned intercompany TP price by AWREF from /api/reconciliation (physical-goods legs only — SEMI / FG / RAW). A duty 'break' is flagged where the customs declared value diverges from the planned TP price beyond the materiality threshold, i.e. the value the duty was paid on is not the arm's-length price set in TP. Confirm rates and basis against the live tariff schedules before relying on these figures.",
+  "currency": "USD",
+  "materiality_pct": 1.0,
+  "dutiable_material_types": ["SEMI", "FG", "RAW"],
+  "value_basis": [
+    { "importer": "3200", "jurisdiction": "FR", "jurisdiction_name": "France", "basis": "first-sale", "note": "First-sale-for-export elected on EU import — duty assessed on the earlier manufacturer sale price." },
+    { "importer": "3300", "jurisdiction": "GB", "jurisdiction_name": "United Kingdom", "basis": "last-sale", "note": "Last-sale (transaction value of the sale into GB) — UK does not permit first-sale." },
+    { "importer": "3800", "jurisdiction": "NL", "jurisdiction_name": "Netherlands", "basis": "first-sale", "note": "First-sale-for-export elected on EU import." },
+    { "importer": "3000", "jurisdiction": "DE", "jurisdiction_name": "Germany", "basis": "last-sale", "note": "Last-sale transaction value declared at the German border." },
+    { "importer": "4100", "jurisdiction": "IN", "jurisdiction_name": "India", "basis": "last-sale", "note": "Last-sale transaction value — India assesses on the price into the importer." }
+  ],
+  "duty_rates": [
+    { "jurisdiction": "FR", "material_type": "RAW",  "duty_rate": 2.5 },
+    { "jurisdiction": "FR", "material_type": "SEMI", "duty_rate": 4.7 },
+    { "jurisdiction": "FR", "material_type": "FG",   "duty_rate": 6.5 },
+    { "jurisdiction": "GB", "material_type": "RAW",  "duty_rate": 2.0 },
+    { "jurisdiction": "GB", "material_type": "SEMI", "duty_rate": 4.0 },
+    { "jurisdiction": "GB", "material_type": "FG",   "duty_rate": 8.0 },
+    { "jurisdiction": "NL", "material_type": "RAW",  "duty_rate": 2.5 },
+    { "jurisdiction": "NL", "material_type": "SEMI", "duty_rate": 4.7 },
+    { "jurisdiction": "NL", "material_type": "FG",   "duty_rate": 6.5 },
+    { "jurisdiction": "DE", "material_type": "RAW",  "duty_rate": 2.5 },
+    { "jurisdiction": "DE", "material_type": "SEMI", "duty_rate": 4.7 },
+    { "jurisdiction": "DE", "material_type": "FG",   "duty_rate": 6.5 },
+    { "jurisdiction": "IN", "material_type": "RAW",  "duty_rate": 5.0 },
+    { "jurisdiction": "IN", "material_type": "SEMI", "duty_rate": 7.5 },
+    { "jurisdiction": "IN", "material_type": "FG",   "duty_rate": 12.0 }
+  ],
+  "default_duty_rate": 3.0,
+  "declared_value_adjustment": {
+    "note": "FABRICATED divergence factor used to model where the customs declared value differs from the planned TP price. A factor != 1.0 means the entered customs value (e.g. a stale price list, or a first-sale value not yet aligned to the TP true-up) does not equal the arm's-length TP price, creating a reconciliation break and a duty over/under-payment.",
+    "by_material_type": { "SEMI": 1.0, "FG": 0.965, "RAW": 1.0 }
+  }
+}

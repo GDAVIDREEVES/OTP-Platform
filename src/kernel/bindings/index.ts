@@ -35,6 +35,7 @@ import { otp32 } from './marquee/otp32';
 import { otp33 } from './marquee/otp33';
 import { otp37 } from './marquee/otp37';
 import { otp15 } from './marquee/otp15';
+import { otp18 } from './marquee/otp18';
 import { caseWorkspace } from './marquee/caseWorkspace';
 
 /** Rich per-process bindings, keyed by OTP id. Marquee processes are registered
@@ -88,6 +89,7 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-32': otp32, // Local File data preparation (same rollup as OECD Ch. V controlled-transaction blocks)
   'OTP-33': otp33, // Master File data preparation (entity master + DEMPE + CbCR as OECD Master File blocks)
   'OTP-15': otp15, // stewardship cost identification & exclusion (parent G&A base vs shareholder costs)
+  'OTP-18': otp18, // customs revaluation reconciliation (planned TP price vs customs declared value, duty deltas, by AWREF)
 };
 
 export function getBinding(def: ProcessDef): ProcessBinding {
