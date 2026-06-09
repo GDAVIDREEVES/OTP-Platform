@@ -1,0 +1,40 @@
+{
+  "version": "1",
+  "fabricated": true,
+  "note": "Illustrative standard VAT / GST rate matrix by jurisdiction, applied to the group's real intercompany flows (royalty / service / goods legs from supply_chain) to size the indirect-tax cash impact and non-recoverable leakage. Rates are STANDARD national rates and the recoverability flags are typical-case simplifications — they ARE publicly checkable but change over time, so verify the current rate and the registration / recovery position per entity before relying on these figures. This is reference data, not VAT advice. The VATable base it is applied to is real (from supply_chain); the rate matrix and recoverability flags are the illustrative seed.",
+  "default": { "rate": 0.0, "recoverable": true, "regime": "VAT", "basis": "no indirect tax modelled for this jurisdiction" },
+  "jurisdictions": [
+    {
+      "cc": "DE", "country": "Germany", "regime": "VAT", "rate": 19.0, "recoverable": true,
+      "basis": "Germany standard VAT 19% — input VAT recoverable for a taxable person making taxable supplies (reverse-charge on cross-border B2B)"
+    },
+    {
+      "cc": "FR", "country": "France", "regime": "VAT", "rate": 20.0, "recoverable": true,
+      "basis": "France standard VAT (TVA) 20% — input VAT recoverable for a fully-taxable distributor"
+    },
+    {
+      "cc": "GB", "country": "United Kingdom", "regime": "VAT", "rate": 20.0, "recoverable": true,
+      "basis": "United Kingdom standard VAT 20% — input VAT recoverable; post-Brexit import VAT via postponed accounting"
+    },
+    {
+      "cc": "NL", "country": "Netherlands", "regime": "VAT", "rate": 21.0, "recoverable": true,
+      "basis": "Netherlands standard VAT (BTW) 21% — input VAT recoverable for a taxable trading company"
+    },
+    {
+      "cc": "IE", "country": "Ireland", "regime": "VAT", "rate": 23.0, "recoverable": true,
+      "basis": "Ireland standard VAT 23% — input VAT recoverable for a taxable person; cross-border B2B reverse-charge"
+    },
+    {
+      "cc": "CH", "country": "Switzerland", "regime": "VAT", "rate": 8.1, "recoverable": false,
+      "basis": "Switzerland standard VAT 8.1% (in force 1 Jan 2024) — modelled as a non-recoverable leakage on the IP-principal cost base (illustrative; recovery depends on registration / taxable-supply ratio)"
+    },
+    {
+      "cc": "IN", "country": "India", "regime": "GST", "rate": 18.0, "recoverable": false,
+      "basis": "India GST standard slab 18% — input tax credit modelled as blocked / non-recoverable on the toll-manufacturing leg (illustrative; ITC depends on registration and output mix)"
+    },
+    {
+      "cc": "US", "country": "United States", "regime": "Sales tax", "rate": 0.0, "recoverable": true,
+      "basis": "United States — no federal VAT; state sales / use tax applies at retail only and is not modelled on these wholesale intercompany legs (effective 0% for this analysis)"
+    }
+  ]
+}

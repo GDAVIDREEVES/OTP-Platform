@@ -701,6 +701,42 @@ export interface WhtModel {
   totals: WhtTotals;
 }
 
+// ----------------- VAT / indirect-tax impact (OTP-19) -----------------
+
+/** A single recipient-jurisdiction VAT line over the real IC flows. The base is
+ *  live from supply_chain; the standard rate + recoverability flag are seeded. */
+export interface VatRow {
+  id: string;
+  jurisdiction: string;
+  country: string;
+  regime: string;
+  royalty_base: number;
+  service_base: number;
+  goods_base: number;
+  base: number;
+  rate: number;
+  recoverable_flag: boolean;
+  vat_charged: number;
+  recoverable: number;
+  net_cost: number;
+  basis: string;
+}
+
+export interface VatTotals {
+  jurisdictions: number;
+  base: number;
+  vat_charged: number;
+  recoverable: number;
+  net_cost: number;
+}
+
+export interface VatModel {
+  /** Always true — the rate matrix + recoverability flags are an illustrative seed. */
+  fabricated: boolean;
+  rows: VatRow[];
+  totals: VatTotals;
+}
+
 // ----------------- Treasury (IC loans / cash pool — OTP-6 / OTP-13 / OTP-14) -----------------
 
 /** A single intercompany loan from the lender (3400) to an operating entity.

@@ -53,6 +53,7 @@ import type {
   Reconciliation,
   DocumentationRollup,
   WhtModel,
+  VatModel,
   TreasuryModel,
   StewardshipModel,
 } from './types';
@@ -320,6 +321,13 @@ export const api = {
    *  derived from supply_chain; the bilateral treaty-rate matrix is a seed. */
   wht: (period: PeriodParams = {}) =>
     getJSON<WhtModel>('/api/wht', period as Record<string, unknown>),
+
+  /** VAT / indirect-tax impact on IC royalty, service + goods legs (OTP-19) —
+   *  per-jurisdiction VATable base, VAT charged, recoverable input VAT and net
+   *  (non-recoverable) cost leakage. The base is derived from supply_chain; the
+   *  standard rate matrix + recoverability flags are an illustrative seed. */
+  vat: (period: PeriodParams = {}) =>
+    getJSON<VatModel>('/api/vat', period as Record<string, unknown>),
 
   /** IC loan register + cash-pool positions with computed annual interest
    *  (OTP-6 rate setting / OTP-13 loan accrual / OTP-14 pool settlement). The
