@@ -22,6 +22,7 @@ import DocEvidenceDrawer from '@/kernel/data/DocEvidenceDrawer';
 import type { DocCoveredRow } from '@/shared/api/types';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 import { rangeText, useDocumentation } from './otp37';
+import RelatedCases from './relatedCases';
 
 const STATUS: Record<string, { label: string; color: string }> = {
   in_range: { label: 'In range', color: tokens.ok },
@@ -114,6 +115,7 @@ const LocalFile: FC<BindingCtx> = () => {
           </Table>
         </Paper>
       ))}
+      <RelatedCases />
       <DocEvidenceDrawer open={!!evRef} onClose={() => setEvRef(null)} recordRef={evRef ?? undefined} title={evTitle} />
     </Stack>
   );

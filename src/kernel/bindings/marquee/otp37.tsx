@@ -22,6 +22,7 @@ import KpiStrip from '@/kernel/shell/KpiStrip';
 import DocEvidenceDrawer from '@/kernel/data/DocEvidenceDrawer';
 import type { DocCoveredRow, DocEntity, DocumentationRollup } from '@/shared/api/types';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
+import RelatedCases from './relatedCases';
 
 /** Shared loader for the per-entity documentation rollup. */
 export function useDocumentation() {
@@ -144,6 +145,7 @@ const Grid: FC<BindingCtx> = () => {
           </Table>
         </Box>
       ))}
+      <RelatedCases />
       <DocEvidenceDrawer open={!!evRef} onClose={() => setEvRef(null)} recordRef={evRef ?? undefined} title={evTitle} />
     </Stack>
   );

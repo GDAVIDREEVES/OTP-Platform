@@ -22,6 +22,7 @@ import KpiStrip from '@/kernel/shell/KpiStrip';
 import { useReference } from '@/kernel/data/useReference';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 import { useDocumentation } from './otp37';
+import RelatedCases from './relatedCases';
 
 // --- OECD Master File reference shapes (mirroring otp29 DEMPE + otp34 CbCR) ---
 interface Intangible { intangible_id: string; name: string; type: string; legal_owner_rbukrs: string; chain_ids: string[] }
@@ -173,6 +174,8 @@ const MasterFile: FC<BindingCtx> = () => {
           </TableBody>
         </Table>
       </Paper>
+
+      <RelatedCases />
     </Stack>
   );
 };

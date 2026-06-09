@@ -24,6 +24,10 @@ import { tokens } from '@/shared/theme';
 
 const ACTOR = 'u_demo';
 
+/** Case kinds whose defense rests on the §6662 / Local File documentation pack
+ *  (OTP-37) — the controversy side of the documentation ⇄ cases loop. */
+const DOC_LINKED_KINDS = new Set(['apa', 'audit_defense']);
+
 const STATUS_COLOR: Record<Case['status'], string> = {
   open: tokens.ink,
   in_progress: tokens.action,
@@ -98,6 +102,23 @@ export default function CaseDrawer({
     } finally {
       setBusy(false);
     }
+  };
+
+  /** Jump to the §6662 / Local File documentation pack (OTP-37), logging the
+   *  cross-process link as a handoff on this case's record_ref so it rides the
+   *  audit chain (surfaces on the Audit tab + evidence packet automatically). */
+  const linkDocumentation = async () => {
+    if (!current) return;
+    void api
+      .recordHandoff({
+        record_ref: `case:${current.id}`,
+        from_process: 'OTP-37',
+        to_process: 'OTP-40',
+        actor: ACTOR,
+        summary: 'Local File / §6662 packet linked to controversy case',
+      })
+      .catch(() => undefined);
+    navigate('/process/OTP-37/docs');
   };
 
   return (
@@ -217,6 +238,25 @@ export default function CaseDrawer({
                 Full history on the Audit tab.
               </Typography>
             </Stack>
+
+            {/* Supporting documentation — only for the kinds whose defense rests
+                on the §6662 / Local File pack (closes the docs ⇄ cases loop). */}
+            {DOC_LINKED_KINDS.has(current.kind) && (
+              <Stack spacing={0.5}>
+                <Button
+                  variant="outlined"
+                  startIcon={<DescriptionOutlinedIcon />}
+                  onClick={linkDocumentation}
+                  disabled={busy}
+                  sx={{ alignSelf: 'flex-start' }}
+                >
+                  Supporting documentation
+                </Button>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                  Local File / §6662 workpaper (OTP-37). Linking logs a handoff on this case.
+                </Typography>
+              </Stack>
+            )}
           </Stack>
         )}
       </Box>
