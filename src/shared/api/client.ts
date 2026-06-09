@@ -30,6 +30,7 @@ import type {
   ChainVerify,
   Draft,
   ReviewItem,
+  LineageStep,
   EvidencePacket,
   TpFunction,
   MdEntityRow,
@@ -286,6 +287,20 @@ export const api = {
 
   evidence: (recordRef: string) =>
     getJSON<EvidencePacket>(`/api/evidence/${encodeURIComponent(recordRef)}`),
+
+  // ------------ cross-process lineage (handoffs / timeline feed) ------------
+
+  /** Record one cross-process handoff against a record_ref (rides the audit chain). */
+  recordHandoff: (body: {
+    record_ref: string;
+    from_process: string;
+    to_process: string;
+    actor: string;
+    summary: string;
+  }) => sendJSON('POST', '/api/lineage', body),
+
+  /** The lineage/timeline feed for a record_ref (lifecycle milestones + handoffs). */
+  lineage: (ref: string) => getJSON<LineageStep[]>(`/api/lineage/${encodeURIComponent(ref)}`),
 
   /** Read-only reference seed set (benchmarks, intangibles, dempe, cbcr, pillar_two, utp_reserve). */
   reference: <T = unknown>(name: string) => getJSON<T>(`/api/reference/${name}`),

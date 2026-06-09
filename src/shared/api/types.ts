@@ -152,6 +152,21 @@ export interface AuditEvent {
   hash: string;
 }
 
+/** One step in a record's cross-process lineage/timeline feed (GET /api/lineage).
+ *  A handoff event carries the from/to process pair in `after` ({from, to}). */
+export interface LineageStep {
+  id: number;
+  ts: string;
+  actor: string;
+  actor_kind: 'human' | 'assistant';
+  process_id: string | null;
+  record_ref: string;
+  event_type: string;
+  rationale: string | null;
+  before_json?: unknown;
+  after_json?: unknown;
+}
+
 export interface Draft {
   id: number;
   user_id: string;
