@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter
 
 import state.parameters as parameters
-from db import q
+from calc import allocation, warehouse
 
 router = APIRouter()
 
@@ -57,11 +57,13 @@ def csa(year: int = 2026) -> dict[str, Any]:
     pct_mult = parameters.get_param("csa.pct_mult", PCT_MULT)
     names = _names()
     ph = ",".join("?" for _ in PARTICIPANTS)
-    rows = q(
-        f"SELECT RBUKRS, SUM(revenue) AS revenue, SUM(opex_rd) AS opex_rd "
-        f"FROM segment_pl WHERE GJAHR = ? AND RBUKRS IN ({ph}) "
-        f"GROUP BY RBUKRS",
-        [year, *PARTICIPANTS],
+    rows = warehouse.aggregate(
+        "segment_pl",
+        ["RBUKRS"],
+        ["revenue", "opex_rd"],
+        year=year,
+        where=f"RBUKRS IN ({ph})",
+        params=PARTICIPANTS,
     )
     by_id = {str(r["RBUKRS"]): r for r in rows}
 
@@ -109,10 +111,14 @@ def csa(year: int = 2026) -> dict[str, Any]:
             ],
         }
 
+    # RAB share = projected_sales_i / Σ projected_sales (full precision); the
+    # target contribution allocates the pool by that share. PCT buy-in applies
+    # the same share to the platform value. (Engine kernel: calc.allocation.)
+    alloc = allocation.allocate(parts, "rab_share", total=pool)
     participants = []
-    for p in parts:
-        rab_share = p["projected_sales"] / total_projected  # full precision
-        target = rab_share * pool
+    for p, a in zip(parts, alloc):
+        rab_share = a["share"]  # full precision
+        target = a["allocated"]
         true_up = target - p["opex_rd"]
         pct_buyin = rab_share * platform_value
         participants.append(
@@ -168,13 +174,13 @@ def profit_split(year: int = 2026, key: str = PS_DEFAULT_KEY) -> dict[str, Any]:
         key = ps_default_key
     names = _names()
     ph = ",".join("?" for _ in ps_participants)
-    rows = q(
-        f"SELECT RBUKRS, "
-        f"SUM(operating_profit) AS operating_profit, "
-        f"SUM(opex_rd) AS opex_rd, SUM(opex_sm) AS opex_sm, SUM(opex_ga) AS opex_ga "
-        f"FROM segment_pl WHERE GJAHR = ? AND RBUKRS IN ({ph}) "
-        f"GROUP BY RBUKRS",
-        [year, *ps_participants],
+    rows = warehouse.aggregate(
+        "segment_pl",
+        ["RBUKRS"],
+        ["operating_profit", "opex_rd", "opex_sm", "opex_ga"],
+        year=year,
+        where=f"RBUKRS IN ({ph})",
+        params=ps_participants,
     )
     by_id = {str(r["RBUKRS"]): r for r in rows}
 
@@ -201,10 +207,13 @@ def profit_split(year: int = 2026, key: str = PS_DEFAULT_KEY) -> dict[str, Any]:
     combined_profit = sum(p["operating_profit"] for p in parts)
     key_total = sum(p["key_value"] for p in parts)
 
+    # Residual share = key_i / Σ key (full precision); allocate the combined
+    # profit by that value-driver share. (Engine kernel: calc.allocation.)
+    alloc = allocation.allocate(parts, "value_driver", total=combined_profit)
     participants = []
-    for p in parts:
-        share = (p["key_value"] / key_total) if key_total else 0.0  # full precision
-        allocated = share * combined_profit
+    for p, a in zip(parts, alloc):
+        share = a["share"]  # full precision
+        allocated = a["allocated"]
         participants.append(
             {
                 "rbukrs": p["rbukrs"],

@@ -29,6 +29,7 @@ from typing import Any
 from fastapi import APIRouter
 
 import state.parameters as parameters
+from calc import warehouse
 from db import q
 
 router = APIRouter()
@@ -76,15 +77,15 @@ def _us_related_party_deductions(year: int, us_payer: str) -> list[dict[str, Any
     """US payer deductible related-party lines, by RACCT (HSL < 0 = expense).
 
     REAL: aggregated straight from ``journal`` for RBUKRS = US payer where the
-    affiliate trading partner RASSC is set (and is not the US payer itself)."""
-    return q(
-        "SELECT RACCT, SUM(HSL) AS hsl, COUNT(*) AS n "
-        "FROM journal "
-        "WHERE RBUKRS = ? AND GJAHR = ? "
-        "AND RASSC IS NOT NULL AND RASSC <> '' AND RASSC <> ? "
-        "AND HSL < 0 "
-        "GROUP BY RACCT",
-        [us_payer, year, us_payer],
+    affiliate trading partner RASSC is set (and is not the US payer itself).
+    Routed through the shared aggregation kernel (calc.warehouse)."""
+    return warehouse.aggregate(
+        "journal",
+        ["RACCT"],
+        [("SUM(HSL)", "hsl"), ("COUNT(*)", "n")],
+        year=year,
+        where="RBUKRS = ? AND RASSC IS NOT NULL AND RASSC <> '' AND RASSC <> ? AND HSL < 0",
+        params=[us_payer, us_payer],
     )
 
 
