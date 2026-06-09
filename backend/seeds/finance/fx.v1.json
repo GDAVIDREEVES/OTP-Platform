@@ -1,0 +1,46 @@
+{
+  "version": "1",
+  "fabricated": true,
+  "note": "FABRICATED FX / hedging register for IC positions (OTP-47). There is no FX-rate, hedge-ratio or hedge-instrument source in the warehouse. The IC FX exposures are anchored to the fabricated treasury register (cf. /api/treasury): the EUR exposure (~70M) ties to the EUR-denominated IC loans ICL-3000 (40M) + ICL-3200 (30M); the CHF (~55M) and GBP (~35M) exposures are sized credibly for the group's CH IP Principal (3100) and GB Distribution (3300) IC balances. Spot rates are illustrative month-end snapshots; hedge ratios (50-85%) and instruments (FX forwards / cross-currency swaps) are policy assumptions, not booked deals. MTM is computed at runtime in the binding from spot vs the hedged forward rate. Confirm scale, rates and hedge coverage before relying on these figures (cf. the treasury $150M / CSA $120M calls).",
+  "base_currency": "USD",
+  "as_of": "2026-05-31",
+  "min_hedge_policy_pct": 60,
+  "positions": [
+    {
+      "currency": "EUR",
+      "label": "Euro",
+      "entity": "3000",
+      "entity_name": "Germany Manufacturing Co.",
+      "exposure_source": "IC loans ICL-3000 + ICL-3200 (EUR-denominated)",
+      "ic_exposure_local": 64000000,
+      "spot_rate": 1.085,
+      "forward_rate": 1.092,
+      "hedge_ratio_pct": 80,
+      "hedge_instrument": "FX forward"
+    },
+    {
+      "currency": "CHF",
+      "label": "Swiss franc",
+      "entity": "3100",
+      "entity_name": "Switzerland IP Principal",
+      "exposure_source": "IC royalty + cash-pool deposit balances (CHF-denominated)",
+      "ic_exposure_local": 48000000,
+      "spot_rate": 1.118,
+      "forward_rate": 1.124,
+      "hedge_ratio_pct": 65,
+      "hedge_instrument": "Cross-currency swap"
+    },
+    {
+      "currency": "GBP",
+      "label": "Pound sterling",
+      "entity": "3300",
+      "entity_name": "GB Distribution Co.",
+      "exposure_source": "IC trade payables + service-fee balances (GBP-denominated)",
+      "ic_exposure_local": 27000000,
+      "spot_rate": 1.272,
+      "forward_rate": 1.281,
+      "hedge_ratio_pct": 50,
+      "hedge_instrument": "FX forward"
+    }
+  ]
+}

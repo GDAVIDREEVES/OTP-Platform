@@ -63,5 +63,19 @@ def test_captive_register_loads():
         assert 0 < p["incurred_losses"] < p["gross_premium"]  # loss ratio < 100%
 
 
+def test_fx_register_loads():
+    doc = client.get("/api/reference/fx").json()
+    assert doc["fabricated"] is True
+    assert doc["base_currency"] == "USD"
+    assert len(doc["positions"]) >= 3
+    # IC FX positions are quoted vs USD for the non-USD IC-position currencies
+    assert {p["currency"] for p in doc["positions"]} == {"EUR", "CHF", "GBP"}
+    for p in doc["positions"]:
+        assert 50 <= p["hedge_ratio_pct"] <= 85  # hedge ratio inside the policy band
+        assert p["spot_rate"] > 0 and p["forward_rate"] > 0
+        assert p["ic_exposure_local"] > 0
+        assert p["entity"] in {"1000", "3000", "3100", "3200", "3300", "3400", "3800", "4100"}
+
+
 def test_unknown_reference_404():
     assert client.get("/api/reference/nope").status_code == 404
