@@ -152,6 +152,22 @@ export interface AuditEvent {
   hash: string;
 }
 
+/** One step in a record's cross-process lineage/timeline feed (GET /api/lineage).
+ *  A handoff event carries the from/to process pair in `after` ({from, to}). */
+export interface LineageStep {
+  id: number;
+  ts: string;
+  actor: string;
+  actor_kind: 'human' | 'assistant';
+  process_id: string | null;
+  record_ref: string;
+  event_type: string;
+  rationale: string | null;
+  /** For a `handoff` event, the originating/receiving process pair. */
+  before?: unknown;
+  after?: { from?: string; to?: string } | null;
+}
+
 export interface Draft {
   id: number;
   user_id: string;
@@ -175,6 +191,20 @@ export interface ReviewItem {
   comments: string | null;
   created_at: string;
   decided_at: string | null;
+}
+
+/** One row in the unified worklist / Inbox — a cross-process "what's on my
+ *  plate" feed aggregating drafts, review items, OTP-20 exceptions, and open
+ *  cases. Read-only: `route` deep-links back to the owning work surface. */
+export interface WorklistItem {
+  kind: 'draft' | 'review' | 'exception' | 'case';
+  title: string;
+  ref: string;
+  process_id: string | null;
+  route: string | null;
+  due_at: string | null;
+  priority: 'high' | 'medium' | 'low';
+  status: string;
 }
 
 export interface ChainVerify {
@@ -669,6 +699,42 @@ export interface WhtTotals {
 export interface WhtModel {
   rows: WhtRow[];
   totals: WhtTotals;
+}
+
+// ----------------- VAT / indirect-tax impact (OTP-19) -----------------
+
+/** A single recipient-jurisdiction VAT line over the real IC flows. The base is
+ *  live from supply_chain; the standard rate + recoverability flag are seeded. */
+export interface VatRow {
+  id: string;
+  jurisdiction: string;
+  country: string;
+  regime: string;
+  royalty_base: number;
+  service_base: number;
+  goods_base: number;
+  base: number;
+  rate: number;
+  recoverable_flag: boolean;
+  vat_charged: number;
+  recoverable: number;
+  net_cost: number;
+  basis: string;
+}
+
+export interface VatTotals {
+  jurisdictions: number;
+  base: number;
+  vat_charged: number;
+  recoverable: number;
+  net_cost: number;
+}
+
+export interface VatModel {
+  /** Always true — the rate matrix + recoverability flags are an illustrative seed. */
+  fabricated: boolean;
+  rows: VatRow[];
+  totals: VatTotals;
 }
 
 // ----------------- Treasury (IC loans / cash pool — OTP-6 / OTP-13 / OTP-14) -----------------

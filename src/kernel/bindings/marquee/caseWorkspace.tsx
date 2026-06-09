@@ -43,6 +43,7 @@ const HEADER: Record<string, string> = {
   'OTP-30': 'Restructuring / exit charges',
   'OTP-31': 'M&A integration',
   'OTP-28': 'Policy waivers',
+  'OTP-26': 'IC agreements',
 };
 
 const daysToDue = (dueAt: string | null): number | null =>

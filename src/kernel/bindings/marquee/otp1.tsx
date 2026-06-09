@@ -10,6 +10,7 @@ import { formatCurrency } from '@/shared/utils/format';
 import type { PricingRow } from '@/shared/api/types';
 import type { StepDef } from '@/kernel/registry/types';
 import KpiStrip from '@/kernel/shell/KpiStrip';
+import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
 import WorkflowPath from '@/kernel/workflow/WorkflowPath';
 import AgenticHandoffMarker from '@/kernel/workflow/AgenticHandoffMarker';
 import { useGuidedWorkflow } from '@/kernel/workflow/useGuidedWorkflow';
@@ -101,6 +102,7 @@ const PriceTable: FC<{ rows: PricingRow[] }> = ({ rows }) => (
 );
 
 const Review: FC<BindingCtx> = () => {
+  const navigate = useNavigate();
   const { rows, loading } = useGoodsPricing();
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
   if (!rows || !rows.length) return <Alert severity="info" variant="outlined">No goods price rows for the period.</Alert>;
@@ -110,6 +112,14 @@ const Review: FC<BindingCtx> = () => {
         Goods markups (cost-plus / resale) are computed live from supply_chain and tested against the
         limited-risk distributor (BM-LRD) and toll-manufacturer (BM-TOLL) bands per the TP method on each chain.
       </Alert>
+      <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>Price basis</Typography>
+        <ProvenanceChip
+          source="OTP-29 DEMPE"
+          tooltip="Which entity earns the manufacturing return follows the OTP-29 DEMPE substance analysis"
+          onClick={() => navigate('/process/OTP-29/overview')}
+        />
+      </Stack>
       <PriceTable rows={rows} />
     </Stack>
   );

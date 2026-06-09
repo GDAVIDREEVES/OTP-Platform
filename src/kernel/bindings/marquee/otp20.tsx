@@ -18,9 +18,13 @@ import {
 } from '@mui/material';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useEntities, useKpis } from '@/shared/providers/DataProvider';
+import { useSubmittedAdjustments } from '@/shared/hooks/useSubmittedAdjustments';
 import { statusColor, statusLabel } from '@/shared/utils/status';
 import { formatCurrency } from '@/shared/utils/format';
+import { tokens } from '@/shared/theme';
+import type { SubmittedAdjustment } from '@/shared/api/types';
 import type { Entity } from '@/shared/types/entity';
 import KpiStrip from '@/kernel/shell/KpiStrip';
 import DrillDrawer from '@/kernel/data/DrillDrawer';
@@ -67,9 +71,34 @@ function FlaggedRow({ e }: { e: Entity }) {
   );
 }
 
+function ResolvedRow({ adj }: { adj: SubmittedAdjustment }) {
+  const navigate = useNavigate();
+  return (
+    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ py: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+          {adj.entityName ?? adj.entityId}{' '}
+          <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>
+            · adjustment {formatCurrency(adj.amount, adj.currency || 'USD')}
+          </Typography>
+        </Typography>
+      </Box>
+      <Chip
+        size="small"
+        clickable
+        icon={<CheckCircleOutlineIcon sx={{ color: 'white !important' }} />}
+        label="Re-validated — now in range"
+        onClick={() => navigate(`/evidence/${encodeURIComponent(`adj:${adj.id}`)}`)}
+        sx={{ bgcolor: tokens.ok, color: 'white', fontWeight: 700 }}
+      />
+    </Stack>
+  );
+}
+
 const Overview: FC<BindingCtx> = () => {
   const k = useKpis();
   const flagged = useEntities().filter((e) => e.status === 'out-of-range' || e.status === 'watch');
+  const resolved = (useSubmittedAdjustments().data ?? []).filter((a) => a.status === 'Approved');
   return (
     <Stack spacing={2} sx={{ maxWidth: 860 }}>
       <Typography variant="body1">
@@ -77,6 +106,14 @@ const Overview: FC<BindingCtx> = () => {
         watch, across <b>{k.entityCount}</b> monitored. This is detection only — each flag is the entry
         point to an in-period adjustment (OTP-16), pre-populated with the gap to range.
       </Typography>
+      {resolved.length > 0 && (
+        <Box>
+          <Typography variant="overline" sx={{ color: 'text.secondary' }}>Resolved this period</Typography>
+          {resolved.map((a) => (
+            <ResolvedRow key={a.id} adj={a} />
+          ))}
+        </Box>
+      )}
       {flagged.length > 0 ? (
         <Box>
           <Typography variant="overline" sx={{ color: 'text.secondary' }}>Flagged this period</Typography>

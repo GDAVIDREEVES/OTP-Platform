@@ -18,10 +18,11 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PrintIcon from '@mui/icons-material/Print';
 import GppGoodIcon from '@mui/icons-material/GppGood';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { api } from '@/shared/api/client';
 import { formatCurrency } from '@/shared/utils/format';
 import { tokens } from '@/shared/theme';
-import type { EvidencePacket as Packet } from '@/shared/api/types';
+import type { AuditEvent, EvidencePacket as Packet } from '@/shared/api/types';
 
 const fmt = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : String(v));
 const fmtTs = (ts: string) => {
@@ -31,6 +32,80 @@ const fmtTs = (ts: string) => {
     return ts;
   }
 };
+
+/** Event types that make up a record's cross-process lineage (mirrors
+ *  backend/state/lineage.py:_TIMELINE_EVENTS — the lifecycle milestones plus the
+ *  cross-process handoff hops). Everything else is noise for this narrative. */
+const LINEAGE_EVENTS = new Set([
+  'created',
+  'submitted',
+  'approved',
+  'rejected',
+  'handoff',
+  'posted',
+]);
+
+/** A `handoff` event carries the originating/receiving process pair in `after`. */
+function handoffPair(e: AuditEvent): { from?: string; to?: string } {
+  const a = e.after;
+  if (a && typeof a === 'object') {
+    const { from, to } = a as { from?: unknown; to?: unknown };
+    return {
+      from: typeof from === 'string' ? from : undefined,
+      to: typeof to === 'string' ? to : undefined,
+    };
+  }
+  return {};
+}
+
+/** A short verb for a lineage step; the rationale carries the detail. */
+const STEP_VERB: Record<string, string> = {
+  created: 'created',
+  submitted: 'submitted',
+  approved: 'approved',
+  rejected: 'rejected',
+  handoff: 'handed off',
+  posted: 'posted',
+};
+
+/** One node in the horizontal lineage stepper. `process` is the owning process
+ *  tag shown under the verb (the receiving side for a handoff); `assistant`
+ *  drives the lavender vs neutral tone. */
+interface LineageNode {
+  id: number;
+  verb: string;
+  process: string | null;
+  assistant: boolean;
+  ts: string;
+  detail: string | null;
+}
+
+function toNodes(events: AuditEvent[]): LineageNode[] {
+  return events
+    .filter((e) => LINEAGE_EVENTS.has(e.event_type))
+    .map((e) => {
+      const assistant = e.actor_kind === 'assistant';
+      if (e.event_type === 'handoff') {
+        const { to } = handoffPair(e);
+        return {
+          id: e.id,
+          verb: STEP_VERB.handoff,
+          process: to ?? e.process_id,
+          assistant,
+          ts: e.ts,
+          detail: e.rationale,
+        };
+      }
+      return {
+        id: e.id,
+        verb: STEP_VERB[e.event_type] ?? e.event_type,
+        process: e.process_id,
+        assistant,
+        ts: e.ts,
+        detail: e.rationale,
+      };
+    });
+}
 
 /** Standalone, print-ready evidence packet: event history + before/after diffs
  *  + linked ACDOCA postings + chain integrity. The toolbar hides on print. */
@@ -91,6 +166,83 @@ export default function EvidencePacket() {
                 />
               </Stack>
             </Box>
+
+            {(() => {
+              const nodes = toNodes(packet.events);
+              if (nodes.length === 0) return null;
+              return (
+                <Box>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>Process lineage</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1.25 }}>
+                    The cross-process story for this record — each hop is one more event on the same
+                    hash-chained trail. Lavender steps were prepared by the Research Brain; neutral steps
+                    you own.
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'stretch',
+                      gap: 0.5,
+                      '@media print': { flexWrap: 'wrap' },
+                    }}
+                  >
+                    {nodes.map((n, i) => (
+                      <Box key={n.id} sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Box
+                          sx={{
+                            minWidth: 124,
+                            border: '1px solid',
+                            borderColor: n.assistant ? tokens.assist : 'divider',
+                            bgcolor: n.assistant ? '#FAF5FF' : '#F8FAFC',
+                            borderRadius: 1.5,
+                            px: 1.25,
+                            py: 0.75,
+                          }}
+                        >
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontWeight: 800,
+                              textTransform: 'capitalize',
+                              color: n.assistant ? tokens.assist : 'text.primary',
+                              display: 'block',
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {n.verb}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                            {n.process ?? '—'}
+                          </Typography>
+                          {n.detail && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: 'text.secondary',
+                                display: 'block',
+                                mt: 0.25,
+                                fontSize: 10,
+                                maxWidth: 180,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title={n.detail}
+                            >
+                              {n.detail}
+                            </Typography>
+                          )}
+                        </Box>
+                        {i < nodes.length - 1 && (
+                          <ChevronRightIcon sx={{ color: 'text.disabled', mx: 0.25 }} />
+                        )}
+                      </Box>
+                    ))}
+                  </Box>
+                </Box>
+              );
+            })()}
 
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>Event history</Typography>

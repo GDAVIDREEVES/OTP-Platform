@@ -14,6 +14,7 @@ import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
 import WorkflowPath from '@/kernel/workflow/WorkflowPath';
 import AgenticHandoffMarker from '@/kernel/workflow/AgenticHandoffMarker';
 import { useGuidedWorkflow } from '@/kernel/workflow/useGuidedWorkflow';
+import { useBenchmarkRefreshed, BenchmarkRefreshedChip } from '@/kernel/workflow/benchmarkRefresh';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 
 /** Alive-guarded fetch of the treasury model (loan register + cash pool). */
@@ -116,6 +117,7 @@ const Wizard: FC<BindingCtx> = () => {
   const navigate = useNavigate();
   const { model, loading } = useTreasury();
   const g = useGuidedWorkflow('OTP-6', 'OTP6-ic-rate-setting', STEPS);
+  const benchmarkRefreshed = useBenchmarkRefreshed('OTP6-ic-rate-setting');
   const prepared = !!g.wf.payload.prepared;
 
   if (g.submitted) {
@@ -166,6 +168,10 @@ const Wizard: FC<BindingCtx> = () => {
     if (step.key === 'setRates') {
       return (
         <Stack spacing={2}>
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Typography variant="body2">BM-FIN band <b>{model.benchmark.lower}–{model.benchmark.upper}%</b> (median {model.benchmark.median}%)</Typography>
+            {benchmarkRefreshed && <BenchmarkRefreshedChip wizardRoute="/process/OTP-6/overview" />}
+          </Stack>
           <Alert severity={within === n ? 'success' : 'warning'} variant="outlined">
             {within === n
               ? `All ${n} loans in range — defensible against the BM-FIN ${model.benchmark.lower}–${model.benchmark.upper}% band.`

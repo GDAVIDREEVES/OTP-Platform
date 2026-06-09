@@ -1,0 +1,47 @@
+{
+  "version": "1",
+  "fabricated": true,
+  "note": "FABRICATED financial-guarantee register — no guarantee/credit-rating source exists in the warehouse. The guarantor (1000 US IP Principal) explicitly guarantees borrowing by operating subs; the fee is priced on the yield-benefit approach: the beneficiary's all-in cost falls from its standalone-rating spread to the (implicitly-supported) group-rating spread, and the arm's-length fee captures roughly half of that yield benefit (an interquartile sharing convention). Magnitudes — ~$165M total guaranteed principal, yield_benefit_bps 35-85, guarantee_fee_bps 20-45 — are sized as credible for a ~$300-590M-revenue group and aligned to the BM-FIN credit band (cf. the CSA $120M and treasury ~$150M calls). Confirm scale and the rating uplift before relying on these figures. Annual fee is COMPUTED in the binding as guaranteed_principal x guarantee_fee_bps.",
+  "benchmark_id": "BM-FIN",
+  "guarantor": "1000",
+  "guarantor_name": "US IP Principal Co.",
+  "guarantor_group_rating": "A",
+  "arrangements": [
+    {
+      "guarantee_id": "FG-3000",
+      "beneficiary": "3000",
+      "beneficiary_name": "Germany Manufacturing Co.",
+      "guaranteed_principal": 75000000,
+      "currency": "EUR",
+      "facility": "Syndicated term loan (external bank)",
+      "standalone_rating": "BB",
+      "group_rating": "A",
+      "yield_benefit_bps": 85,
+      "guarantee_fee_bps": 42
+    },
+    {
+      "guarantee_id": "FG-3200",
+      "beneficiary": "3200",
+      "beneficiary_name": "France Distribution Co.",
+      "guaranteed_principal": 50000000,
+      "currency": "EUR",
+      "facility": "Revolving credit facility (external bank)",
+      "standalone_rating": "BB+",
+      "group_rating": "A",
+      "yield_benefit_bps": 60,
+      "guarantee_fee_bps": 30
+    },
+    {
+      "guarantee_id": "FG-3800",
+      "beneficiary": "3800",
+      "beneficiary_name": "Netherlands Distribution Co.",
+      "guaranteed_principal": 40000000,
+      "currency": "EUR",
+      "facility": "Bilateral term loan (external bank)",
+      "standalone_rating": "BBB-",
+      "group_rating": "A",
+      "yield_benefit_bps": 35,
+      "guarantee_fee_bps": 20
+    }
+  ]
+}

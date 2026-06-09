@@ -30,6 +30,8 @@ import type {
   ChainVerify,
   Draft,
   ReviewItem,
+  WorklistItem,
+  LineageStep,
   EvidencePacket,
   TpFunction,
   MdEntityRow,
@@ -51,6 +53,7 @@ import type {
   Reconciliation,
   DocumentationRollup,
   WhtModel,
+  VatModel,
   TreasuryModel,
   StewardshipModel,
 } from './types';
@@ -284,8 +287,26 @@ export const api = {
   rejectReview: (id: number, body: { checker: string; comments: string }) =>
     sendJSON<ReviewItem>('POST', `/api/review/${id}/reject`, body),
 
+  /** Unified worklist / Inbox — the user's cross-process "what's on my plate"
+   *  feed (drafts, review items, OTP-20 exceptions, open cases), overdue-first. */
+  worklist: (userId: string) => getJSON<WorklistItem[]>('/api/worklist', { user: userId }),
+
   evidence: (recordRef: string) =>
     getJSON<EvidencePacket>(`/api/evidence/${encodeURIComponent(recordRef)}`),
+
+  // ------------ cross-process lineage (handoffs / timeline feed) ------------
+
+  /** Record one cross-process handoff against a record_ref (rides the audit chain). */
+  recordHandoff: (body: {
+    record_ref: string;
+    from_process: string;
+    to_process: string;
+    actor: string;
+    summary: string;
+  }) => sendJSON('POST', '/api/lineage', body),
+
+  /** The lineage/timeline feed for a record_ref (lifecycle milestones + handoffs). */
+  lineage: (ref: string) => getJSON<LineageStep[]>(`/api/lineage/${encodeURIComponent(ref)}`),
 
   /** Read-only reference seed set (benchmarks, intangibles, dempe, cbcr, pillar_two, utp_reserve). */
   reference: <T = unknown>(name: string) => getJSON<T>(`/api/reference/${name}`),
@@ -300,6 +321,13 @@ export const api = {
    *  derived from supply_chain; the bilateral treaty-rate matrix is a seed. */
   wht: (period: PeriodParams = {}) =>
     getJSON<WhtModel>('/api/wht', period as Record<string, unknown>),
+
+  /** VAT / indirect-tax impact on IC royalty, service + goods legs (OTP-19) —
+   *  per-jurisdiction VATable base, VAT charged, recoverable input VAT and net
+   *  (non-recoverable) cost leakage. The base is derived from supply_chain; the
+   *  standard rate matrix + recoverability flags are an illustrative seed. */
+  vat: (period: PeriodParams = {}) =>
+    getJSON<VatModel>('/api/vat', period as Record<string, unknown>),
 
   /** IC loan register + cash-pool positions with computed annual interest
    *  (OTP-6 rate setting / OTP-13 loan accrual / OTP-14 pool settlement). The

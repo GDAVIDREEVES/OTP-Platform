@@ -34,6 +34,7 @@ from routers import (
     invoices,
     journal_entries,
     kpis,
+    lineage,
     margins,
     master_data,
     overrides,
@@ -47,7 +48,9 @@ from routers import (
     stewardship,
     transactions,
     treasury,
+    vat,
     wht,
+    worklist,
     years,
 )
 
@@ -91,6 +94,7 @@ for r in (
     audit.router,
     drafts.router,
     review.router,
+    lineage.router,
     cases.router,
     csa.router,
     evidence.router,
@@ -100,9 +104,11 @@ for r in (
     master_data.router,
     documentation.router,
     treasury.router,
+    vat.router,
     wht.router,
     beat.router,
     stewardship.router,
+    worklist.router,
 ):
     app.include_router(r)
 

@@ -1,0 +1,45 @@
+{
+  "version": "1",
+  "fabricated": true,
+  "note": "FABRICATED captive insurance / reinsurance program — there is NO insurer entity or premium/claims source in the warehouse. The group's Ireland Financing Co. (3400) is cast as the captive insurer writing direct cover for operating affiliates across 2-3 lines. Pricing is arm's-length-tested two ways: (a) the combined ratio (losses + expenses) / premium must sit inside an underwriting band a third-party insurer would accept, and (b) capital adequacy = capital / net premium must clear a solvency floor. Magnitudes — ~$9.4M gross premium, ~$6.0M incurred losses (loss ratio ~64%), combined ratio ~86%, ~$15M statutory capital (capital adequacy ~1.6x) — are sized as credible for a ~$300-590M-revenue group and aligned to the existing treasury/guarantee fabricated registers (cf. the CSA $120M, treasury ~$150M, guarantee ~$165M calls). Confirm scale, the loss picks, and the capital position before relying on these figures. Loss ratio, expense ratio, combined ratio and capital-adequacy ratio are all COMPUTED in the binding from premium / losses / expenses / capital — never seeded directly.",
+  "benchmark_id": "BM-FIN",
+  "insurer": "3400",
+  "insurer_name": "Ireland Financing Co. (Captive)",
+  "currency": "USD",
+  "program_year": 2025,
+  "capital": 15000000,
+  "combined_ratio_ceiling": 0.95,
+  "capital_adequacy_floor": 1.5,
+  "policies": [
+    {
+      "policy_id": "CAP-PROP",
+      "line": "Property & business interruption",
+      "insured": "3000",
+      "insured_name": "Germany Manufacturing Co.",
+      "sum_insured": 220000000,
+      "gross_premium": 4200000,
+      "incurred_losses": 2520000,
+      "expenses": 760000
+    },
+    {
+      "policy_id": "CAP-LIAB",
+      "line": "Product & general liability",
+      "insured": "1000",
+      "insured_name": "US IP Principal Co.",
+      "sum_insured": 150000000,
+      "gross_premium": 3100000,
+      "incurred_losses": 2170000,
+      "expenses": 560000
+    },
+    {
+      "policy_id": "CAP-MAR",
+      "line": "Marine cargo & transit",
+      "insured": "3800",
+      "insured_name": "Netherlands Distribution Co.",
+      "sum_insured": 90000000,
+      "gross_premium": 2100000,
+      "incurred_losses": 1310000,
+      "expenses": 380000
+    }
+  ]
+}

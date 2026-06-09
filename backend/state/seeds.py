@@ -19,7 +19,12 @@ _FILES = {
     "utp_reserve": "compliance/utp_reserve.v1.json",
     "wht_treaty": "compliance/wht_treaty.v1.json",
     "treasury": "finance/treasury.v1.json",
+    "fx": "finance/fx.v1.json",
+    "vat": "finance/vat.v1.json",
     "stewardship": "finance/stewardship.v1.json",
+    "guarantee": "finance/guarantee.v1.json",
+    "captive": "finance/captive.v1.json",
+    "customs": "finance/customs.v1.json",
 }
 
 
