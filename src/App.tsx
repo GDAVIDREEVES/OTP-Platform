@@ -34,6 +34,7 @@ const ResearchBrain = lazy(() => import('@/features/research-brain/ResearchBrain
 const ProcessLibrary = lazy(() => import('@/kernel/navigation/ProcessLibraryPage'));
 const ProcessShellRoute = lazy(() => import('@/kernel/shell/ProcessShell'));
 const ReviewQueue = lazy(() => import('@/kernel/review/ReviewQueuePage'));
+const Inbox = lazy(() => import('@/kernel/inbox/InboxPage'));
 const Home = lazy(() => import('@/kernel/home/OperatingCadenceHome'));
 const Director = lazy(() => import('@/kernel/director/ExposureDashboard'));
 const EvidencePacketPage = lazy(() => import('@/kernel/audit/EvidencePacket'));
@@ -86,6 +87,7 @@ export function App() {
                 <Route path="/process/:otpId" element={<ProcessShellRoute />} />
                 <Route path="/process/:otpId/:tab" element={<ProcessShellRoute />} />
                 <Route path="/review" element={<ReviewQueue />} />
+                <Route path="/inbox" element={<Inbox />} />
                 <Route path="/director" element={<Director />} />
                 <Route path="/master-data" element={<MasterData />} />
                 <Route path="/master-data/:tab" element={<MasterData />} />

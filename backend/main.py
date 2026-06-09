@@ -49,6 +49,7 @@ from routers import (
     transactions,
     treasury,
     wht,
+    worklist,
     years,
 )
 
@@ -105,6 +106,7 @@ for r in (
     wht.router,
     beat.router,
     stewardship.router,
+    worklist.router,
 ):
     app.include_router(r)
 

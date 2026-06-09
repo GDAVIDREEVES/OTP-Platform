@@ -193,6 +193,20 @@ export interface ReviewItem {
   decided_at: string | null;
 }
 
+/** One row in the unified worklist / Inbox — a cross-process "what's on my
+ *  plate" feed aggregating drafts, review items, OTP-20 exceptions, and open
+ *  cases. Read-only: `route` deep-links back to the owning work surface. */
+export interface WorklistItem {
+  kind: 'draft' | 'review' | 'exception' | 'case';
+  title: string;
+  ref: string;
+  process_id: string | null;
+  route: string | null;
+  due_at: string | null;
+  priority: 'high' | 'medium' | 'low';
+  status: string;
+}
+
 export interface ChainVerify {
   ok: boolean;
   broken_at: number | null;
