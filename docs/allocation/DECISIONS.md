@@ -216,3 +216,110 @@ auditable/conservative interpretation, record it here, and continue.
     also re-runs the generated schema gate + V-R3 over the key value rows it
     actually uses (a negative or float factor would corrupt the
     apportionment), even though the M1 seed gate already validates seeds.
+
+## M4 — Stages 5–6: markup, FX/charge-out, charge ledger (2026-06-10)
+
+32. **V-M2 LVAIGS facet is a WARN; the engine applies the regime-fixed 5%.**
+    The SPEC §7 catalogue lists V-M2 as BLOCK, but the §4 Stage-5 contract
+    explicitly carves the LVAIGS case out: "LVAIGS fixed 5% (warn if policy
+    says otherwise)" — mirrored by the build instruction. So SCM/Pass-through
+    ≠ 0% and Benchmarked-without-study-ref BLOCK, while an LVAIGS policy with
+    a deviating `markup_pct` fires V-M2 at WARN severity and the engine
+    prices the regime-FIXED 5% (the deviant rate is never applied — the
+    regime pins the rate, so nothing is silently defaulted; the policy row
+    is flagged for repair). `rules.exception()` gained a `severity` override
+    used only by this facet.
+
+33. **V-M1 covers determinacy, not just existence.** Zero 4_MarkupPolicy rows
+    in scope as-of the period for a charged (pool, recipient jurisdiction)
+    BLOCKs ("never default a markup"); MORE than one row in scope BLOCKs
+    equally — not exactly one determinate policy (mirrors the V-K1 duplicate
+    reading, M3 #25).
+
+34. **Pass-through legs skip policy resolution entirely.** A disbursement
+    advanced for a recipient recharges AT COST with 0% markup by construction
+    (V-P4 / SPEC §4 Stage 2); Stage 5 prices them without consulting
+    4_MarkupPolicy — "pass-through inside a marked-up pool" (SPEC §9.1) keeps
+    the pool's own policy for the allocated/direct legs. Direct-charge legs
+    (charge_method = Direct) DO bear the (pool, recipient jurisdiction)
+    markup — the SPEC exempts them from the key, not from the margin.
+
+35. **Charge granularity: one 10_ChargeLedger row per (pool, recipient,
+    period, stream).** Streams (allocated / direct / pass-through) are never
+    merged — they carry different markup treatment and V-X2 ties the
+    allocated cost component to the chargeable base. Deterministic ids:
+    `CHG-{period}-{pool}-{recipient}` with `-DIRECT` / `-PASSTHRU` suffixes.
+    Direct/pass-through legs aggregate per (pool, provider, recipient) with
+    full cost-line lineage on the engine-side charge (and in the Stage-6
+    `lineage` output).
+
+36. **Demo currency: every leg charges in the provider's booking currency
+    (USD).** Config `chargeCurrency: "recipient" | "provider"` — default
+    "recipient" per SPEC §4 Stage 6 ("convert to recipient currency"); the
+    demo runs "provider", which the schema allows (`charge_currency` =
+    "Recipient functional/transaction currency" — this is the transaction
+    currency). Recipients' functional EUR/GBP differ, but converting would
+    break the warehouse tie (pair gross is USD). The identity rate "1.0" is
+    LOGGED with the configured fx_rate_type and the period-end date — an
+    identity is not a default; no snapshot row is required for same-currency
+    legs.
+
+37. **FX/tax reference failures map to V-R1/V-R2 (no invented rule IDs).**
+    A cross-currency leg whose (from, to, configured type) snapshot lookup
+    resolves to ≠ 1 row, an unresolvable provider/recipient entity as-of the
+    period, and an ambiguous jurisdiction-pair tax rule are V-R1 (the
+    charge's reference must resolve — engine-enforced); a malformed snapshot
+    row (non-string/non-positive rate, missing rate_date) or incomplete tax
+    rule (Standard-rated without a determinate `vat_rate`, malformed
+    `wht_rate`, off-enumeration treatment) is V-R2 (the row fails its shape
+    contract) — extending the M2 #15 classification.
+
+38. **Cost and markup convert separately; gross is their exact sum.** At
+    SPEC §5.6 boundary 3 each component quantizes HALF_EVEN to the TARGET
+    currency's minor unit, and `gross_charge_amount = cost + markup` exactly,
+    preserving the schema identity in the charge currency (rounding the gross
+    independently could break it by a cent). VAT/WHT amounts (v1 simple
+    rate-based attributes) quantize at the same per-charge boundary; a
+    jurisdiction pair with no rule row simply omits the attributes (they are
+    Recommended/Conditional in the schema — absent reference data for an
+    optional attribute is not a silent default). Zero-decimal currencies
+    (JPY et al.) quantize to whole units via
+    `allocation/algorithms/currency.py`.
+
+39. **`budget_or_actual` from `runType`: budget→Budget, actual→Actual,
+    trueup→Actual.** A true-up run RECOMPUTES the year on actuals (SPEC
+    §5.4); the True-up delta rows (with `true_up_parent_charge_id`) are
+    emitted by Stage 7 in M6, never by Stage 6.
+
+40. **Markup quantum = the provider's booking-currency minor unit.** SPEC
+    §5.6 boundary 2 says "minor unit" without naming a currency; at Stage 5
+    amounts are still in the provider's books, so its functional currency
+    governs (v1 assumes a provider books all pool costs in its functional
+    currency — the seeds comply; mixed-currency pools are out of v1 scope).
+    The provider entity must therefore resolve as-of the period (V-R1).
+
+41. **`run_id` / `documentation_ref` are stamped by the orchestrator (M6).**
+    Stages do not know run identity (engine purity); Stage 6 emits
+    schema-shaped rows without them, and the persistence adapter adds
+    `run_id` (M1 #8). The posting file is RETURNED as a structure (one per
+    provider, SPEC §8.2 fields plus charge_id) — the orchestrator writes run
+    artifacts (ADAPTATION D1); `invoice_required` = the provider and
+    recipient jurisdictions differ (cross-border IC services need an
+    invoice); account hints are static v1 strings (4910 revenue / 6910
+    expense).
+
+42. **Stage-2 pool dicts now carry `documentation_ref`** (3_Pool, Recommended
+    — read via `.get`), because V-M4's "undocumented divergence" needs the
+    pool's documentation reference at Stage 5. V-M4 compares the policies
+    actually USED by the pool's charges in the run (LVAIGS somewhere +
+    Benchmarked > 5% elsewhere, no documentation_ref → WARN); pools absent
+    from Stage 5's `pools` input (direct/pass-through-only legs) skip V-M4 —
+    nothing to compare against.
+
+43. **Per-period demo markup ties to FY pair gross by construction —
+    verified, not assumed.** With the pair-effective benchmarked rate
+    (gross/cb − 1 at precision 28, M1 #12), Σ over the two billing periods of
+    `HALF_EVEN(cb_p × rate)` equals FY gross − FY cb exactly for all four
+    pairs (checked numerically; asserted to the cent by the M4 demo
+    reconciliation gate). Blended FY markup = 14,344,773.26 / 13,586,402.70
+    − 1 ≈ 5.58% — the demo story.

@@ -1,9 +1,10 @@
-"""Composable validation rules — SPEC §7 catalogue, M2/M3 subset.
+"""Composable validation rules — SPEC §7 catalogue, M2/M3/M4 subset.
 
 Implements the referential & schema rules (V-R1, V-R2, V-R3), the pooling &
-mapping rules (V-P1..V-P5), the benefit-test rules (V-B1..V-B3) and the key
-rules (V-K1..V-K4) as pure, composable functions. The markup/cascade/recon
-families (V-M*, V-C*, V-X*) land with their stages in M4+.
+mapping rules (V-P1..V-P5), the benefit-test rules (V-B1..V-B3), the key
+rules (V-K1..V-K4) and the markup rules (V-M1..V-M4) as pure, composable
+functions. The cascade/recon families (V-C*, V-X*) land with their stages
+in M5/M6.
 
 Every fired rule is a plain dict::
 
@@ -53,6 +54,10 @@ SEVERITY: dict[str, str] = {
     "V-K2": BLOCK,  # key value as_of_date within the freshness window
     "V-K3": BLOCK,  # engine-recomputed total_factor_value; ratios sum to 1 within 1e-12
     "V-K4": WARN,   # key changed vs. prior year for the same pool
+    "V-M1": BLOCK,  # markup policy exists for every (pool, recipient jurisdiction)
+    "V-M2": BLOCK,  # regime/markup coherence (LVAIGS deviation facet is WARN — SPEC §4 Stage 5)
+    "V-M3": BLOCK,  # SCM requires eligibility basis + business judgment conclusion
+    "V-M4": WARN,   # LVAIGS here / Benchmarked > 5% there without documentation_ref
 }
 
 #: V-K3 — ratios sum to 1 within 1e-12 before apportionment (SPEC §7).
@@ -60,11 +65,18 @@ RATIO_TOLERANCE = Decimal("1E-12")
 
 
 def exception(rule_id: str, message: str, *,
-              objects: Iterable[Any] = (), pool_id: str | None = None) -> dict:
-    """One fired rule for the exception report (SPEC §8.4)."""
+              objects: Iterable[Any] = (), pool_id: str | None = None,
+              severity: str | None = None) -> dict:
+    """One fired rule for the exception report (SPEC §8.4).
+
+    ``severity`` overrides the catalogue default ONLY where the SPEC stage
+    contract carves out a facet of a rule — the single user today is V-M2's
+    LVAIGS deviation, which the Stage-5 contract downgrades to a warning
+    ("warn if policy says otherwise", SPEC §4; DECISIONS.md M4).
+    """
     return {
         "rule_id": rule_id,
-        "severity": SEVERITY[rule_id],
+        "severity": severity or SEVERITY[rule_id],
         "message": message,
         "objects": list(objects),
         "pool_id": pool_id,
@@ -597,4 +609,150 @@ def v_k4_key_changed_vs_prior_year(
         f"pool {pool_id}: allocation key changed from {prior_year_key_id!r} "
         f"(prior year) to {key_id!r} — consistency scrutiny",
         objects=[prior_year_key_id, key_id], pool_id=pool_id,
+    )]
+
+
+# ------------------------------------------------------------------ markup --
+
+
+#: V-M2 — the OECD LVAIGS simplified approach is regime-FIXED at 5%
+#: (TPG 7.61); SPEC §4 Stage 5 applies it and warns on a deviating policy.
+LVAIGS_RATE = Decimal("0.05")
+
+# 4_MarkupPolicy.regime enumeration values (schema.json "regime").
+REGIME_LVAIGS = "LVAIGS (5%)"
+REGIME_SCM = "SCM (0%)"
+REGIME_BENCHMARKED = "Benchmarked"
+REGIME_PASS_THROUGH = "Pass-through (0%)"
+
+
+def v_m1_markup_policy_resolution(
+    pool_id: str,
+    jurisdiction: str,
+    period: str,
+    policies: Sequence[Mapping[str, Any]],
+) -> list[dict]:
+    """V-M1 BLOCK — a markup policy exists for every charged (pool, recipient
+    jurisdiction) (SPEC §7).
+
+    Zero 4_MarkupPolicy rows in scope as-of the period is a missing policy —
+    a blocking exception by design, NEVER a defaulted markup (SPEC §4 Stage 5,
+    ENGINE-CLAUDE.md "No silent defaults"). More than one row in scope is not
+    exactly one determinate policy and blocks equally (DECISIONS.md M4).
+    """
+    if len(policies) == 1:
+        return []
+    if not policies:
+        return [exception(
+            "V-M1",
+            f"pool {pool_id}: no 4_MarkupPolicy row in scope for jurisdiction "
+            f"{jurisdiction!r} as-of {period} — a missing markup policy is a "
+            "blocking exception, never a default",
+            objects=[pool_id, jurisdiction], pool_id=pool_id,
+        )]
+    ids = [p.get("markup_policy_id") for p in policies]
+    return [exception(
+        "V-M1",
+        f"pool {pool_id}: {len(policies)} 4_MarkupPolicy rows in scope for "
+        f"jurisdiction {jurisdiction!r} as-of {period} ({ids}) — not exactly "
+        "one determinate policy",
+        objects=ids, pool_id=pool_id,
+    )]
+
+
+def v_m2_regime_markup_coherence(policy: Mapping[str, Any]) -> list[dict]:
+    """V-M2 — regime/markup coherence (SPEC §7).
+
+    SCM (0%) and Pass-through (0%) must carry exactly 0% (BLOCK); Benchmarked
+    requires a non-empty ``benchmark_study_ref`` (BLOCK); LVAIGS (5%) is
+    regime-FIXED at 5% — a deviating policy rate fires a WARN and the engine
+    applies the fixed 5% (SPEC §4 Stage 5 "warn if policy says otherwise";
+    DECISIONS.md M4). Callers schema-gate the row first, so ``markup_pct``
+    parses.
+    """
+    pid = policy["markup_policy_id"]
+    pool_id = policy["pool_id"]
+    regime = policy["regime"]
+    pct = Decimal(policy["markup_pct"])
+    if regime in (REGIME_SCM, REGIME_PASS_THROUGH) and pct != ZERO:
+        return [exception(
+            "V-M2",
+            f"policy {pid}: regime {regime!r} must carry a 0% markup, got "
+            f"{policy['markup_pct']} — at-cost regimes never bear a margin",
+            objects=[pid], pool_id=pool_id,
+        )]
+    if regime == REGIME_LVAIGS and pct != LVAIGS_RATE:
+        return [exception(
+            "V-M2",
+            f"policy {pid}: LVAIGS is regime-fixed at 5% but the policy says "
+            f"{policy['markup_pct']} — the engine applies the fixed 5% "
+            "(SPEC §4 Stage 5)",
+            objects=[pid], pool_id=pool_id, severity=WARN,
+        )]
+    if regime == REGIME_BENCHMARKED \
+            and not str(policy.get("benchmark_study_ref") or "").strip():
+        return [exception(
+            "V-M2",
+            f"policy {pid}: Benchmarked regime requires a benchmark_study_ref "
+            "— an unsupported benchmarked markup is undocumented by design",
+            objects=[pid], pool_id=pool_id,
+        )]
+    return []
+
+
+def v_m3_scm_support(policy: Mapping[str, Any]) -> list[dict]:
+    """V-M3 BLOCK — SCM policies require ``scm_eligibility_basis ≠ n/a`` and a
+    non-empty ``business_judgment_conclusion`` (SPEC §7; the mandatory support
+    for a US Treas. Reg. §1.482-9(b) services-cost-method position)."""
+    if policy["regime"] != REGIME_SCM:
+        return []
+    pid = policy["markup_policy_id"]
+    pool_id = policy["pool_id"]
+    excs: list[dict] = []
+    basis = policy.get("scm_eligibility_basis")
+    if basis is None or basis == "n/a":
+        excs.append(exception(
+            "V-M3",
+            f"policy {pid}: SCM regime with scm_eligibility_basis "
+            f"{basis!r} — a 0% SCM position needs a specified-covered-service "
+            "or low-margin eligibility basis",
+            objects=[pid], pool_id=pool_id,
+        ))
+    if not str(policy.get("business_judgment_conclusion") or "").strip():
+        excs.append(exception(
+            "V-M3",
+            f"policy {pid}: SCM regime without a business_judgment_conclusion "
+            "— the not-core/no-key-advantage conclusion is mandatory support",
+            objects=[pid], pool_id=pool_id,
+        ))
+    return excs
+
+
+def v_m4_lvaigs_benchmarked_divergence(
+    pool_id: str,
+    documentation_ref: str | None,
+    used_policies: Sequence[Mapping[str, Any]],
+) -> list[dict]:
+    """V-M4 WARN — same pool charged under LVAIGS in one jurisdiction and
+    Benchmarked > 5% elsewhere without a documentation_ref (SPEC §7:
+    divergence is fine; undocumented divergence is not).
+
+    ``used_policies`` are the policies actually applied to the pool's charges
+    in this run; the documentation_ref is the pool's (3_Pool) — DECISIONS.md
+    M4."""
+    if str(documentation_ref or "").strip():
+        return []
+    lvaigs = sorted(p["markup_policy_id"] for p in used_policies
+                    if p["regime"] == REGIME_LVAIGS)
+    rich = sorted(p["markup_policy_id"] for p in used_policies
+                  if p["regime"] == REGIME_BENCHMARKED
+                  and Decimal(p["markup_pct"]) > LVAIGS_RATE)
+    if not (lvaigs and rich):
+        return []
+    return [exception(
+        "V-M4",
+        f"pool {pool_id}: charged under LVAIGS ({lvaigs}) in one jurisdiction "
+        f"and Benchmarked > 5% ({rich}) elsewhere with no pool "
+        "documentation_ref — undocumented divergence",
+        objects=lvaigs + rich, pool_id=pool_id,
     )]

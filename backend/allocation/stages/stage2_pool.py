@@ -48,8 +48,10 @@ from typing import Any, Mapping
 from allocation.algorithms.effective_dating import resolve_as_of
 from allocation.validation import rules
 
+# Catalogue attributes carried on every pool dict for the downstream stages
+# (documentation_ref is Recommended in 3_Pool — V-M4 reads it at Stage 5).
 _POOL_ATTRS = ("service_line", "characterization", "default_key_id",
-               "direct_charge_flag")
+               "direct_charge_flag", "documentation_ref")
 
 
 def stage2_pool(
@@ -184,7 +186,7 @@ def stage2_pool(
             "pool_id": pool_id,
             "provider_entity_id": pool["provider_entity_id"],
             "period": period,
-            **{attr: pool[attr] for attr in _POOL_ATTRS},
+            **{attr: pool.get(attr) for attr in _POOL_ATTRS},
             "total_pooled_cost": total,
             "line_ids": [l["cost_line_id"] for l in pool_lines],  # ascending
             "lines": [dict(l) for l in pool_lines],
