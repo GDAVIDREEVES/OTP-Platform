@@ -878,6 +878,8 @@ export interface CalcRun {
   summary: Record<string, unknown> | null;
   params_read: TraceStep[];
   trace: TraceStep[];
+  /** Derived (CS-c): did the run's overrides intersect the params it read? */
+  scenario_sensitive: boolean;
 }
 
 /** POST /api/calcs/{id}/run — the persisted run row plus the (unstored) output body. */
@@ -916,6 +918,37 @@ export interface CalcDefResolved extends CalcDef {
     parameters: Parameter[];
   };
   last_run: CalcRun | null;
+}
+
+// ----------------- What-if scenarios (Calc Studio CS-c) -----------------
+
+export type ScenarioStatus = 'draft' | 'in_review' | 'promoted' | 'discarded';
+
+/** One what-if scenario (state/scenarios.py) — a named bundle of parameter
+ *  overrides overlaid over the governed store for a run, never written to it.
+ *  Promotion rides the maker-checker /review queue; every mutation is
+ *  hash-chained at record_ref="scenario:{id}". */
+export interface Scenario {
+  id: string;
+  name: string;
+  description: string | null;
+  overrides: Record<string, unknown>;
+  status: ScenarioStatus;
+  created_by: string;
+  created_at: string;
+  updated_at: string | null;
+}
+
+/** POST /api/scenarios/{id}/compare — the same calc run twice (governed base
+ *  vs scenario overlay) plus the recursive numeric delta (scenario − base)
+ *  over matching paths. Both runs persist to the run console. */
+export interface ScenarioCompare {
+  base: unknown;
+  scenario: unknown;
+  delta: unknown;
+  scenario_sensitive: boolean;
+  base_run_id: number;
+  scenario_run_id: number;
 }
 
 // ----------------- Governed parameter store (OTP-49 console — Phase 2a) -----------------

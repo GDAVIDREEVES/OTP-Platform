@@ -29,6 +29,7 @@ from typing import Any, Callable
 
 import state.audit as audit
 import state.calc_runs as calc_runs
+import state.parameters as parameters
 from calc import trace
 from routers.beat import beat
 from routers.berry import berry_trend
@@ -110,14 +111,15 @@ def run(
     returned under ``"output"`` but never stored. On handler failure a
     ``failed`` row is persisted and the exception re-raised.
 
-    ``scenario_overrides`` is plumbed for CS-c; until the parameter overlay
-    lands, passing it is an explicit error rather than a silent no-op.
+    ``scenario_overrides`` (CS-c) is overlaid over ``get_param`` reads via
+    ``parameters.overrides()`` for the duration of the handler call ONLY — the
+    governed store is never written by a scenario run. The persisted/returned
+    run carries ``scenario_sensitive``: whether any override key was actually
+    read by the handler (overrides ∩ params_read ≠ ∅).
     """
     d = get_def(calc_id)
     if d is None:
         raise ValueError(f"unknown calculation: {calc_id}")
-    if scenario_overrides is not None:
-        raise ValueError("scenarios not yet enabled")
 
     handler, defaults = _RUNNERS[calc_id]
     kwargs = {**defaults, **(args or {})}
@@ -125,11 +127,13 @@ def run(
     t0 = time.perf_counter()
     with trace.collect() as steps:
         try:
-            output = handler(**kwargs)
+            with parameters.overrides(scenario_overrides or {}):
+                output = handler(**kwargs)
         except Exception as e:
             calc_runs.insert_run(
                 calc_id=calc_id, actor=actor, status="failed",
-                scenario_id=scenario_id, args=kwargs,
+                scenario_id=scenario_id, overrides=scenario_overrides,
+                args=kwargs,
                 duration_ms=int((time.perf_counter() - t0) * 1000),
                 params_read=[s for s in steps if s["step"] == "param"],
                 trace=list(steps), error=str(e),
@@ -143,7 +147,8 @@ def run(
 
     row = calc_runs.insert_run(
         calc_id=calc_id, actor=actor, status="succeeded",
-        scenario_id=scenario_id, args=kwargs, duration_ms=duration_ms,
+        scenario_id=scenario_id, overrides=scenario_overrides,
+        args=kwargs, duration_ms=duration_ms,
         output_digest=digest, summary=summary, params_read=params_read,
         trace=list(steps),
     )

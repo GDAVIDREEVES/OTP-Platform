@@ -37,11 +37,20 @@ def _now() -> str:
 
 
 def _to_dict(row: Any) -> dict[str, Any]:
-    """Row -> API dict: parse each ``*_json`` column into its object key."""
+    """Row -> API dict: parse each ``*_json`` column into its object key.
+
+    ``scenario_sensitive`` (CS-c) is derived, not stored: did the run's
+    overrides intersect the parameters the handler actually read? Deriving it
+    from the two persisted columns means it can never drift and historical
+    rows gain the flag retroactively.
+    """
     d = {k: row[k] for k in row.keys()}
     for raw, (key, fallback) in _JSON_COLS.items():
         raw_val = d.pop(raw)
         d[key] = json.loads(raw_val) if raw_val else fallback
+    d["scenario_sensitive"] = bool(
+        set(d["overrides"] or {}) & {p.get("key") for p in d["params_read"]}
+    )
     return d
 
 

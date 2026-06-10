@@ -160,10 +160,13 @@ def test_run_unknown_calc_raises(state_db):
         calc_registry.run("nope", actor="t")
 
 
-def test_scenario_overrides_rejected_in_cs_a(state_db):
+def test_scenario_overrides_enabled_in_cs_c(state_db):
+    """The CS-a "scenarios not yet enabled" guard is gone: overrides overlay
+    get_param reads for the run (full coverage in tests/test_scenarios.py)."""
     parameters.seed_if_empty()
-    with pytest.raises(ValueError, match="scenarios not yet enabled"):
-        calc_registry.run("csa", actor="t", scenario_overrides={"csa.growth": 0.1})
+    run = calc_registry.run("csa", actor="t", scenario_overrides={"csa.growth": 0.1})
+    assert run["output"]["growth"] == 0.1
+    assert run["scenario_sensitive"] is True
 
 
 def test_trace_inert_outside_collect(state_db):

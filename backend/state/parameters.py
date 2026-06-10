@@ -16,16 +16,42 @@ with no extra wiring.
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import calc.trace as trace  # stdlib-only collector — no import cycle
 import state.audit as audit
 from state.engine import LOCK, get_conn
 
 _DIR = Path(__file__).parent.parent / "seeds" / "parameters"
+
+# Scenario overlay (Calc Studio CS-c). A contextvar so the override values are
+# scoped to the enclosing ``overrides()`` block (and its thread/task) only —
+# ``get_param`` consults it FIRST, so a scenario run sees its what-if values
+# while ``set_param``/``list_params``/``get_param_row`` (the governed truth)
+# never do. Outside an ``overrides()`` block reads behave exactly as before.
+_OVERRIDES: ContextVar[dict[str, Any] | None] = ContextVar(
+    "parameter_overrides", default=None
+)
+
+
+@contextmanager
+def overrides(values: dict[str, Any]) -> Iterator[None]:
+    """Overlay ``values`` over ``get_param`` reads for the enclosed block.
+
+    The previous overlay (normally ``None``) is restored on exit even on
+    error, so a failing scenario run cannot leak its overrides into later
+    requests. Nested blocks shadow (and then restore) the outer overlay.
+    """
+    token = _OVERRIDES.set(values)
+    try:
+        yield
+    finally:
+        _OVERRIDES.reset(token)
 
 
 def _now() -> str:
@@ -52,7 +78,16 @@ def get_param(key: str, default: Any = None) -> Any:
     The ``default`` fallback equals the old hardcoded literal at each call site,
     so the parameter store can never silently change a response: an unseeded
     store behaves exactly like the pre-migration code.
+
+    The scenario overlay (``overrides()``) is consulted FIRST: inside an
+    overlay block an overridden key returns its what-if value (traced with
+    ``overridden=True``) without ever touching the governed store.
     """
+    overlay = _OVERRIDES.get()
+    if overlay is not None and key in overlay:
+        value = overlay[key]
+        trace.emit("param", key=key, value=value, overridden=True)
+        return value
     row = get_conn().execute("SELECT value FROM parameters WHERE key = ?", (key,)).fetchone()
     value = json.loads(row["value"]) if row else default
     trace.emit("param", key=key, value=value, overridden=False)

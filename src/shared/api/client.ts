@@ -64,6 +64,8 @@ import type {
   CalcDefResolved,
   CalcRun,
   CalcRunResult,
+  Scenario,
+  ScenarioCompare,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -372,6 +374,45 @@ export const api = {
 
   /** One run by id (404 if unknown). */
   run: (runId: number) => getJSON<CalcRun>(`/api/runs/${runId}`),
+
+  // ------------ What-if scenarios (Calc Studio — CS-c) ------------
+
+  /** Every scenario, newest first (optionally filtered by status). */
+  scenarios: (status?: string) => getJSON<Scenario[]>('/api/scenarios', status ? { status } : {}),
+
+  /** One scenario by id (404 if unknown). */
+  scenario: (id: string) => getJSON<Scenario>(`/api/scenarios/${encodeURIComponent(id)}`),
+
+  /** Create a draft scenario — overrides map governed parameter keys to what-if
+   *  values; every mutation is hash-chained at scenario:{id}. */
+  createScenario: (body: {
+    name: string;
+    description?: string;
+    overrides: Record<string, unknown>;
+    actor: string;
+  }) => sendJSON<Scenario>('POST', '/api/scenarios', body),
+
+  /** Edit a DRAFT scenario (409 once in_review/promoted/discarded). */
+  patchScenario: (
+    id: string,
+    body: { name?: string; description?: string; overrides?: Record<string, unknown>; actor: string }
+  ) => sendJSON<Scenario>('PATCH', `/api/scenarios/${encodeURIComponent(id)}`, body),
+
+  /** Run a calc twice — governed base vs scenario overlay — and diff them.
+   *  Both runs persist to the run console; the store is never written. */
+  compareScenario: (
+    id: string,
+    body: { calc_id: string; actor: string; args?: Record<string, unknown> }
+  ) => sendJSON<ScenarioCompare>('POST', `/api/scenarios/${encodeURIComponent(id)}/compare`, body),
+
+  /** Submit for promotion: status -> in_review + a pending maker-checker item
+   *  at scenario:{id}. A DIFFERENT reviewer must approve in /review. */
+  promoteScenario: (id: string, body: { maker: string }) =>
+    sendJSON<Scenario>('POST', `/api/scenarios/${encodeURIComponent(id)}/promote`, body),
+
+  /** Discard a scenario (terminal — the audit chain at scenario:{id} remains). */
+  discardScenario: (id: string, body: { actor: string }) =>
+    sendJSON<Scenario>('POST', `/api/scenarios/${encodeURIComponent(id)}/discard`, body),
 
   /** Per-entity covered-transaction rollup for the documentation workpapers
    *  (OTP-37 §6662 / OTP-32 Local File / OTP-33 Master File). Derived from the

@@ -4,13 +4,14 @@ import AppShell from '@/shared/components/layout/AppShell';
 import EmptyTabState from '@/kernel/shell/EmptyTabState';
 import CalculationsTab from './tabs/CalculationsTab';
 import DriversTab from './tabs/DriversTab';
+import ScenariosTab from './tabs/ScenariosTab';
 import RunsTab from './tabs/RunsTab';
 import DataCatalogTab from './tabs/DataCatalogTab';
 import ProvenanceTab from './tabs/ProvenanceTab';
 
 /** Calc Studio — the first-class calculation-management module (Phase 3).
  *  Mirrors enterprise FP&A/EPM platforms: the calculation registry, the
- *  governed drivers, scenarios (CS-c), the run console, lineage (CS-d), the
+ *  governed drivers, what-if scenarios, the run console, lineage (CS-d), the
  *  data catalog and the provenance rollup — one module over the governed
  *  subsystem the OTP-49 console (now a thin pointer binding) introduced. */
 
@@ -46,12 +47,7 @@ export default function CalcStudioWorkspace() {
       </Tabs>
       {active === 'calculations' && <CalculationsTab />}
       {active === 'drivers' && <DriversTab />}
-      {active === 'scenarios' && (
-        <EmptyTabState
-          label="Scenarios"
-          hint="What-if scenarios over the governed drivers — create, compare and promote — arrive with CS-c."
-        />
-      )}
+      {active === 'scenarios' && <ScenariosTab />}
       {active === 'runs' && <RunsTab />}
       {active === 'lineage' && (
         <EmptyTabState

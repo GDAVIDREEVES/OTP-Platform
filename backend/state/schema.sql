@@ -198,3 +198,21 @@ CREATE TABLE IF NOT EXISTS calc_runs (
   error            TEXT                               -- failure message (status = failed)
 );
 CREATE INDEX IF NOT EXISTS ix_calc_runs_calc ON calc_runs (calc_id);
+
+-- What-if scenarios (Calc Studio CS-c). A scenario is a named bundle of
+-- parameter overrides ({param_key: value} in overrides_json) that a run can
+-- overlay over the governed store without ever writing it. Promotion rides
+-- the existing maker-checker queue: submit -> in_review -> approve applies
+-- each override via state/parameters.py:set_param (audited at param:{key})
+-- and marks the scenario promoted; reject returns it to draft. Every mutation
+-- is hash-chained at record_ref="scenario:{id}" (see state/scenarios.py).
+CREATE TABLE IF NOT EXISTS scenarios (
+  id             TEXT PRIMARY KEY,                  -- "SC-1", "SC-2", ...
+  name           TEXT NOT NULL,
+  description    TEXT,
+  overrides_json TEXT NOT NULL DEFAULT '{}',        -- JSON {param_key: value}
+  status         TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','in_review','promoted','discarded')),
+  created_by     TEXT NOT NULL,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT
+);
