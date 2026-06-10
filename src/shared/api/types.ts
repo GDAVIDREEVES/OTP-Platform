@@ -843,6 +843,170 @@ export interface ProvenanceRollup {
   total: number;
 }
 
+// ----------------- Calc Studio (calculation registry + run console — CS-a/CS-b) -----------------
+
+/** What a registered calculation does with its inputs. */
+export type CalcType = 'allocation' | 'derivation' | 'aggregate' | 'band-test' | 'reconciliation';
+
+/** One declared handler argument (merged over by POST /api/calcs/{id}/run args). */
+export interface CalcArgSpec {
+  type: string;
+  default: unknown;
+}
+
+/** One raw trace step collected during a run ({"step": "param" | "aggregate" |
+ *  "allocate" | "band", ...detail}) — shaped into a tree in CS-d. */
+export interface TraceStep {
+  step: string;
+  [detail: string]: unknown;
+}
+
+/** One persisted calculation run (state/calc_runs.py). The output body is
+ *  never stored — only its sha256 digest + the seed's summary_keys extract. */
+export interface CalcRun {
+  id: number;
+  calc_id: string;
+  actor: string;
+  ts: string;
+  scenario_id: string | null;
+  status: 'succeeded' | 'failed';
+  duration_ms: number | null;
+  output_digest: string | null;
+  error: string | null;
+  overrides: Record<string, unknown> | null;
+  args: Record<string, unknown> | null;
+  summary: Record<string, unknown> | null;
+  params_read: TraceStep[];
+  trace: TraceStep[];
+  /** Derived (CS-c): did the run's overrides intersect the params it read? */
+  scenario_sensitive: boolean;
+}
+
+/** POST /api/calcs/{id}/run — the persisted run row plus the (unstored) output
+ *  body and the shaped explain-steps (CS-d — fresh runs shape with the full
+ *  output, the richest trace). */
+export interface CalcRunResult extends CalcRun {
+  output: unknown;
+  shaped_trace: ShapedStep[];
+}
+
+/** One registry entry (seeds/calculations/calculations.v1.json) — what the
+ *  calculation computes (formula), what it reads (inputs resolve against the
+ *  catalog + parameter store) and how the runner invokes it. */
+export interface CalcDef {
+  id: string;
+  name: string;
+  type: CalcType;
+  process_id: string;
+  owner: string;
+  status: string;
+  version: string;
+  description: string;
+  formula: string;
+  inputs: { catalog: string[]; parameters: string[] };
+  output: string;
+  endpoint: string;
+  args: Record<string, CalcArgSpec>;
+  summary_keys: string[];
+  scenario_capable: boolean;
+  /** Attached by GET /api/calcs — the most recent run, or null if never run. */
+  last_run?: CalcRun | null;
+}
+
+/** GET /api/calcs/{id} — the definition with each catalog input attached as
+ *  its full catalog entry and each parameter key as its governed row. */
+export interface CalcDefResolved extends CalcDef {
+  resolved_inputs: {
+    catalog: CatalogEntry[];
+    parameters: Parameter[];
+  };
+  last_run: CalcRun | null;
+}
+
+// ----------------- Shaped traces + lineage graph (Calc Studio CS-d) -----------------
+
+/** One governed parameter read inside a shaped trace step (the `overridden`
+ *  flag marks a scenario-overlay value). */
+export interface ShapedStepParam {
+  key: string;
+  value: unknown;
+  overridden: boolean;
+}
+
+/** One explain-step of a shaped trace (services/calc_traces.py) — curated for
+ *  csa/profit_split/beat, generic Inputs → Output for the rest. `sources` are
+ *  catalog ids from the definition's inputs (always resolvable). */
+export interface ShapedStep {
+  id: string;
+  label: string;
+  formula: string;
+  params: ShapedStepParam[];
+  values: Record<string, unknown>;
+  sources: string[];
+}
+
+/** GET /api/runs/{id}?shaped=true — the persisted run plus its shaped trace
+ *  (historical runs shape retroactively from summary + raw trace). */
+export interface CalcRunShaped extends CalcRun {
+  shaped_trace: ShapedStep[];
+}
+
+export type CalcGraphNodeKind = 'source' | 'parameter' | 'calculation' | 'process';
+
+/** One node of the dependency DAG (GET /api/calcs/graph): column 0 sources,
+ *  1 parameters, 2 calculations, 3 processes. Provenance is null for the
+ *  calculation/process columns. */
+export interface CalcGraphNode {
+  id: string;
+  kind: CalcGraphNodeKind;
+  label: string;
+  provenance: Provenance | null;
+  column: number;
+}
+
+export interface CalcGraphEdge {
+  from: string;
+  to: string;
+}
+
+/** The dependency DAG assembled from the registry seed — sources |
+ *  parameters | calculations | processes. */
+export interface CalcGraph {
+  nodes: CalcGraphNode[];
+  edges: CalcGraphEdge[];
+}
+
+// ----------------- What-if scenarios (Calc Studio CS-c) -----------------
+
+export type ScenarioStatus = 'draft' | 'in_review' | 'promoted' | 'discarded';
+
+/** One what-if scenario (state/scenarios.py) — a named bundle of parameter
+ *  overrides overlaid over the governed store for a run, never written to it.
+ *  Promotion rides the maker-checker /review queue; every mutation is
+ *  hash-chained at record_ref="scenario:{id}". */
+export interface Scenario {
+  id: string;
+  name: string;
+  description: string | null;
+  overrides: Record<string, unknown>;
+  status: ScenarioStatus;
+  created_by: string;
+  created_at: string;
+  updated_at: string | null;
+}
+
+/** POST /api/scenarios/{id}/compare — the same calc run twice (governed base
+ *  vs scenario overlay) plus the recursive numeric delta (scenario − base)
+ *  over matching paths. Both runs persist to the run console. */
+export interface ScenarioCompare {
+  base: unknown;
+  scenario: unknown;
+  delta: unknown;
+  scenario_sensitive: boolean;
+  base_run_id: number;
+  scenario_run_id: number;
+}
+
 // ----------------- Governed parameter store (OTP-49 console — Phase 2a) -----------------
 
 /** One governed calc parameter — the single source for a magnitude that used to

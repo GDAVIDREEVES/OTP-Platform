@@ -14,6 +14,7 @@ from typing import Any
 import persistence.overrides as overrides
 import state.audit as audit
 import state.lineage as lineage
+import state.scenarios as scenarios
 from state.engine import LOCK, get_conn
 
 # decision -> (stored status, audit event_type)
@@ -107,6 +108,18 @@ def decide(
                 actor=checker,
                 summary="Adjustment approved — re-validate monitoring; entity expected back in range",
             )
+
+    # CS-c — scenario promotion rides the same gate: approving a scenario:*
+    # item applies its overrides to the governed store (each set_param audited
+    # at param:{key}) and marks the scenario promoted; rejecting returns it to
+    # draft so the maker can rework the overrides.
+    if record_ref.startswith("scenario:"):
+        scenario_id = record_ref.split(":", 1)[1]
+        if scenarios.get_scenario(scenario_id) is not None:
+            if decision == "approve":
+                scenarios.apply_promotion(scenario_id, checker)
+            else:
+                scenarios.mark_rejected(scenario_id)
     return _to_dict(updated)
 
 

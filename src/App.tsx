@@ -39,6 +39,7 @@ const Home = lazy(() => import('@/kernel/home/OperatingCadenceHome'));
 const Director = lazy(() => import('@/kernel/director/ExposureDashboard'));
 const EvidencePacketPage = lazy(() => import('@/kernel/audit/EvidencePacket'));
 const MasterData = lazy(() => import('@/features/master-data/MasterDataWorkspace'));
+const CalcStudio = lazy(() => import('@/features/calc-studio/CalcStudioWorkspace'));
 
 function RouteFallback() {
   return (
@@ -91,6 +92,8 @@ export function App() {
                 <Route path="/director" element={<Director />} />
                 <Route path="/master-data" element={<MasterData />} />
                 <Route path="/master-data/:tab" element={<MasterData />} />
+                <Route path="/calc-studio" element={<CalcStudio />} />
+                <Route path="/calc-studio/:tab" element={<CalcStudio />} />
                 <Route path="/evidence/:ref" element={<EvidencePacketPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

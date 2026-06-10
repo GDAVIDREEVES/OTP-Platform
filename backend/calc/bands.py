@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from calc import trace
 from services.status import compute_status
 from state import seeds
 
@@ -28,7 +29,9 @@ def evaluate_band(
     ``variance`` the signed points outside the band (0 inside, ``None`` for
     no-data). This is the single band-evaluation entry point for the engine.
     """
-    return compute_status(actual, low, high)
+    status, variance = compute_status(actual, low, high)
+    trace.emit("band", actual=actual, low=low, high=high, status=status)
+    return status, variance
 
 
 def benchmark_band(set_id: str) -> dict[str, Any] | None:

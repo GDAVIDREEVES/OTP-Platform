@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from calc import trace
+
 # basis -> the per-row measure that drives the split.
 _BASIS_MEASURE = {
     "rab_share": "projected_sales",  # csa() RAB benefit measure
@@ -54,4 +56,5 @@ def allocate(
     for r in rows:
         share = (float(r[col]) / basis_total) if basis_total else 0.0
         out.append({"share": share, "allocated": share * total})
+    trace.emit("allocate", basis=basis, total=total, rows=len(out))
     return out

@@ -174,3 +174,45 @@ CREATE TABLE IF NOT EXISTS parameters (
   updated_by    TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_parameters_category ON parameters (category);
+
+-- Calculation run history (Calc Studio CS-a). One row per registry run
+-- (services/calc_registry.py:run()): who ran which calc with which args, the
+-- sha256 digest + summary of the output (the full output body is NOT persisted
+-- — reconciliation alone is ~135KB), the parameters read and the raw trace
+-- collected via calc/trace.py. Runs are also hash-chained into the audit
+-- stream at record_ref="calc:{calc_id}" (event_type "run").
+CREATE TABLE IF NOT EXISTS calc_runs (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  calc_id          TEXT NOT NULL,
+  actor            TEXT NOT NULL,
+  ts               TEXT NOT NULL,                     -- ISO-8601 UTC
+  scenario_id      TEXT,                              -- scenario run (CS-c); NULL = base
+  overrides_json   TEXT,                              -- JSON {param_key: value} snapshot (CS-c)
+  args_json        TEXT,                              -- JSON kwargs the handler ran with
+  status           TEXT NOT NULL CHECK (status IN ('succeeded', 'failed')),
+  duration_ms      INTEGER,
+  output_digest    TEXT,                              -- sha256 over the canonical output JSON
+  summary_json     TEXT,                              -- JSON {summary_key: value} for the Runs table
+  params_read_json TEXT,                              -- JSON list of "param" trace events
+  trace_json       TEXT,                              -- JSON list of raw trace steps
+  error            TEXT                               -- failure message (status = failed)
+);
+CREATE INDEX IF NOT EXISTS ix_calc_runs_calc ON calc_runs (calc_id);
+
+-- What-if scenarios (Calc Studio CS-c). A scenario is a named bundle of
+-- parameter overrides ({param_key: value} in overrides_json) that a run can
+-- overlay over the governed store without ever writing it. Promotion rides
+-- the existing maker-checker queue: submit -> in_review -> approve applies
+-- each override via state/parameters.py:set_param (audited at param:{key})
+-- and marks the scenario promoted; reject returns it to draft. Every mutation
+-- is hash-chained at record_ref="scenario:{id}" (see state/scenarios.py).
+CREATE TABLE IF NOT EXISTS scenarios (
+  id             TEXT PRIMARY KEY,                  -- "SC-1", "SC-2", ...
+  name           TEXT NOT NULL,
+  description    TEXT,
+  overrides_json TEXT NOT NULL DEFAULT '{}',        -- JSON {param_key: value}
+  status         TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','in_review','promoted','discarded')),
+  created_by     TEXT NOT NULL,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT
+);
