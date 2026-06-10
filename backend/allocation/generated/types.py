@@ -9,7 +9,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import NotRequired, TypedDict
 
-SCHEMA_SHA256 = "a2ed6d26d1dd7f4b468bd892333ad7412f113b5e475017e511f9ab791ed5f6ee"
+SCHEMA_SHA256 = "75225bb2db361e0856dce7db047260264deccfd3018ef00009f50c7ba4443d3b"
 
 class FlowType(str, Enum):
     """Enumeration "flow_type" (used in: 1_CostLine)."""
@@ -30,6 +30,7 @@ class CostNature(str, Enum):
     TRAVEL = "Travel"
     SOFTWARE = "Software"
     FACILITIES = "Facilities"
+    INTERCOMPANY_CHARGE_RECEIVED = "Intercompany charge received"
     OTHER = "Other"
 
 
@@ -182,7 +183,7 @@ class Status(str, Enum):
 # enumeration name -> allowed values (V-R2)
 ENUM_VALUES: dict[str, tuple[str, ...]] = {
     "flow_type": ("Service", "Goods", "Royalty", "CSA", "Financing",),
-    "cost_nature": ("Payroll", "Depreciation", "Third-party fee", "Travel", "Software", "Facilities", "Other",),
+    "cost_nature": ("Payroll", "Depreciation", "Third-party fee", "Travel", "Software", "Facilities", "Intercompany charge received", "Other",),
     "function / service_line": ("IT", "HR", "Finance", "Legal", "Procurement", "Marketing (support)", "Management", "Facilities", "R&D support",),
     "charge_method": ("Direct", "Indirect",),
     "characterization": ("Routine-benchmarked", "LVAIGS", "SCM", "Pass-through",),

@@ -40,10 +40,14 @@ Behavior (SPEC §4 Stage 5), per pool in ascending pool_id order:
    - **pass-through** legs — recharged AT COST, 0% markup, NO policy lookup:
      a disbursement advanced for a recipient is never marked up (V-P4 /
      SPEC §4 Stage 2; DECISIONS.md M4).
-4. ``markup_amount = cost × markup_pct`` quantized HALF_EVEN to the minor
-   unit of the provider's booking currency (SPEC §5.6 rounding boundary 2 —
-   the ONLY rounding in this stage); ``gross_charge = cost + markup_amount``
-   exactly.
+4. ``markup_amount = (cost − markup_exempt) × markup_pct`` quantized
+   HALF_EVEN to the minor unit of the provider's booking currency (SPEC §5.6
+   rounding boundary 2 — the ONLY rounding in this stage);
+   ``gross_charge = cost + markup_amount`` exactly. ``markup_exempt`` is the
+   allocation's ``markup_exempt_cost`` (SPEC §5.2 "single" cascade margin
+   policy: an upstream received charge passes through at its already-marked-
+   up amount with no further markup on that component — only the pool's OWN
+   cost bears this pool's markup); it is zero everywhere outside a cascade.
 
 outputs::
 
@@ -53,9 +57,9 @@ outputs::
               provider_entity_id, recipient_entity_id, period, charge_kind,
               allocation_key_id, allocation_ratio, key_value_id, line_ids,
               recipient_jurisdiction, markup_policy_id, regime,
-              cost_currency, cost_recovered, markup_pct, markup_amount,
-              gross_charge}  (direct/pass-through legs of pools absent from
-              inputs["pools"] appear here only)
+              cost_currency, cost_recovered, markup_exempt_cost, markup_pct,
+              markup_amount, gross_charge}  (direct/pass-through legs of
+              pools absent from inputs["pools"] appear here only)
     held_line_ids:    direct/pass-through lines with no routable pool (V-P1)
     blocked_pool_ids: pools withheld by BLOCK rules (SPEC §7)
 """
@@ -163,6 +167,9 @@ def stage5_markup(
                     "provider": a["provider_entity_id"],
                     "recipient": a["recipient_entity_id"],
                     "cost": a["allocated_cost"],
+                    # SPEC §5.2 "single": the received (upstream) component
+                    # never bears this pool's markup.
+                    "markup_exempt": a.get("markup_exempt_cost") or ZERO,
                     "ratio": a["allocation_ratio"],
                     "key_id": a["key_id"],
                     "key_value_id": a["key_value_id"],
@@ -175,7 +182,8 @@ def stage5_markup(
                     continue
                 legs.append({
                     "kind": kind, "provider": provider, "recipient": recipient,
-                    "cost": entry["amount"], "ratio": None, "key_id": None,
+                    "cost": entry["amount"], "markup_exempt": ZERO,
+                    "ratio": None, "key_id": None,
                     "key_value_id": None, "line_ids": entry["line_ids"],
                 })
         if not legs:
@@ -267,8 +275,9 @@ def stage5_markup(
                 pct = _effective_markup_pct(policy)
             currency = entities[leg["provider"]]["functional_currency"]
             # SPEC §5.6 boundary 2 — markup per charge, HALF_EVEN to the
-            # minor unit. The only rounding in this stage.
-            markup = (leg["cost"] * pct).quantize(
+            # minor unit. The only rounding in this stage. The markable base
+            # excludes the upstream received component (SPEC §5.2 "single").
+            markup = ((leg["cost"] - leg["markup_exempt"]) * pct).quantize(
                 minor_unit(currency), rounding=ROUND_HALF_EVEN)
             assert leg["kind"] != KIND_PASS_THROUGH or markup == ZERO  # V-P4
             charges.append({
@@ -286,6 +295,7 @@ def stage5_markup(
                 "regime": policy["regime"] if policy else None,
                 "cost_currency": currency,
                 "cost_recovered": leg["cost"],
+                "markup_exempt_cost": leg["markup_exempt"],
                 "markup_pct": pct,
                 "markup_amount": markup,
                 "gross_charge": leg["cost"] + markup,  # exact — no rounding

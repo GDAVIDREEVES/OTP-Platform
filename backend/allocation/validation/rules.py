@@ -1,10 +1,10 @@
-"""Composable validation rules — SPEC §7 catalogue, M2/M3/M4 subset.
+"""Composable validation rules — SPEC §7 catalogue, M2/M3/M4/M5 subset.
 
 Implements the referential & schema rules (V-R1, V-R2, V-R3), the pooling &
 mapping rules (V-P1..V-P5), the benefit-test rules (V-B1..V-B3), the key
-rules (V-K1..V-K4) and the markup rules (V-M1..V-M4) as pure, composable
-functions. The cascade/recon families (V-C*, V-X*) land with their stages
-in M5/M6.
+rules (V-K1..V-K4), the markup rules (V-M1..V-M4) and the cascade/reciprocal
+rules (V-C1..V-C3) as pure, composable functions. The reconciliation family
+(V-X*) lands with Stage 7 in M6.
 
 Every fired rule is a plain dict::
 
@@ -58,6 +58,9 @@ SEVERITY: dict[str, str] = {
     "V-M2": BLOCK,  # regime/markup coherence (LVAIGS deviation facet is WARN — SPEC §4 Stage 5)
     "V-M3": BLOCK,  # SCM requires eligibility basis + business judgment conclusion
     "V-M4": WARN,   # LVAIGS here / Benchmarked > 5% there without documentation_ref
+    "V-C1": BLOCK,  # cycle detected and reciprocal solver disabled/unconverged
+    "V-C2": WARN,   # perTier cascade margin policy in effect (every run)
+    "V-C3": BLOCK,  # upstream charge lineage missing on a received-charge cost line
 }
 
 #: V-K3 — ratios sum to 1 within 1e-12 before apportionment (SPEC §7).
@@ -756,3 +759,75 @@ def v_m4_lvaigs_benchmarked_divergence(
         "documentation_ref — undocumented divergence",
         objects=lvaigs + rich, pool_id=pool_id,
     )]
+
+
+# ---------------------------------------------------- cascade & reciprocal --
+
+
+#: 1_CostLine.cost_nature value for a charge received from an upstream pool
+#: (SPEC §5.2; schema.json "cost_nature" enumeration).
+COST_NATURE_RECEIVED = "Intercompany charge received"
+
+
+def v_c1_cycle_unsolvable(
+    scc_pool_ids: Iterable[str], reason: str
+) -> list[dict]:
+    """V-C1 BLOCK — cycle detected and reciprocal solver disabled/unconverged
+    (SPEC §7).
+
+    One exception per SCC member pool so the standard blocked-pool accounting
+    applies ("BLOCK halts the run for the affected pool"); every member names
+    the full cycle in ``objects`` so the report reads as one event.
+    """
+    members = sorted(scc_pool_ids)
+    return [exception(
+        "V-C1",
+        f"pool {pid}: member of the reciprocal cycle {members} that cannot "
+        f"be solved — {reason}",
+        objects=members, pool_id=pid,
+    ) for pid in members]
+
+
+def v_c2_per_tier_margin_policy() -> list[dict]:
+    """V-C2 WARN — ``perTier`` margin policy in effect, emitted on EVERY run
+    (SPEC §7): received intercompany charges are re-margined at each tier —
+    double-margining must be deliberate (SPEC §5.2)."""
+    return [exception(
+        "V-C2",
+        "cascadeMarkupPolicy 'perTier' is in effect: received intercompany "
+        "charges are re-margined at every downstream tier (double margin) — "
+        "this must be a deliberate choice (SPEC §5.2)",
+        objects=["cascadeMarkupPolicy=perTier"],
+    )]
+
+
+def v_c3_received_charge_lineage(
+    pool_id: str,
+    lines: Sequence[Mapping[str, Any]],
+    lineage_refs: Mapping[str, Any] | set[str] | frozenset[str],
+) -> list[dict]:
+    """V-C3 BLOCK — upstream charge lineage missing on a received-charge cost
+    line (SPEC §7).
+
+    A line with ``cost_nature = "Intercompany charge received"`` must appear
+    in the received-charge lineage registry: engine-synthesized lines register
+    at creation (SPEC §5.2 "full lineage to the originating charge");
+    GL-booked received lines register via ``ref_data["received_charge_lineage"]``
+    with a COMPLETE record — ``upstream_charge_ref`` + ``markup_exempt`` — an
+    incomplete record is missing lineage (DECISIONS.md M5).
+    """
+    excs: list[dict] = []
+    for line in lines:
+        if line.get("cost_nature") != COST_NATURE_RECEIVED:
+            continue
+        lid = line.get("cost_line_id") or "?"
+        if lid in lineage_refs:
+            continue
+        excs.append(exception(
+            "V-C3",
+            f"pool {pool_id}: received-charge cost line {lid} has no upstream "
+            "charge lineage — every received charge must trace to its "
+            "originating charge",
+            objects=[lid], pool_id=pool_id,
+        ))
+    return excs

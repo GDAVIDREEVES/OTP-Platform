@@ -1916,6 +1916,7 @@
         "Travel",
         "Software",
         "Facilities",
+        "Intercompany charge received",
         "Other"
       ],
       "used_in": "1_CostLine"

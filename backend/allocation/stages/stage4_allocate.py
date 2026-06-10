@@ -39,8 +39,13 @@ Behavior (SPEC §4 Stage 4), per pool in ascending pool_id order:
    input — V-K3); apportion via the largest-remainder method (SPEC §5.1) so
    allocated amounts sum EXACTLY to the chargeable base.
 
-Cascading/reciprocal (SPEC §5.2-5.3) land in M5; direct-charge and
-pass-through lines were already routed around this stage at Stage 2.
+Cascading/reciprocal (SPEC §5.2-5.3) are orchestrated by
+``allocation/algorithms/cascade.py`` (M5), which calls this stage per tier:
+a pool carrying a ``markup_exempt_component`` (upstream received charges
+under the "single" margin policy) gets a ``markup_exempt_cost`` per
+allocation — the component's share at the recipient's ratio — so Stage 5
+marks up only the pool's OWN cost. Direct-charge and pass-through lines were
+already routed around this stage at Stage 2.
 
 outputs::
 
@@ -204,6 +209,16 @@ def stage4_allocate(
         } for b in beneficiaries]
         total_allocated = sum((a["allocated_cost"] for a in allocations), ZERO)
         assert total_allocated == base  # SPEC §4 Stage 4 exact-sum contract
+
+        # SPEC §5.2 "single" margin policy: the upstream (received) component
+        # is carried per allocation at the recipient's ratio (full precision —
+        # Stage 5's boundary-2 quantization absorbs the sub-cent drift of the
+        # quantized cost leg). The cascade orchestrator guards the bound.
+        exempt_component = pool.get("markup_exempt_component") or ZERO
+        if exempt_component:
+            assert ZERO <= exempt_component <= base
+            for a in allocations:
+                a["markup_exempt_cost"] = exempt_component * a["allocation_ratio"]
 
         out.update(key_id=key_id, total_factor_value=recomputed_total,
                    allocations=allocations, total_allocated=total_allocated)

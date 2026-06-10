@@ -323,3 +323,110 @@ auditable/conservative interpretation, record it here, and continue.
     pairs (checked numerically; asserted to the cent by the M4 demo
     reconciliation gate). Blended FY markup = 14,344,773.26 / 13,586,402.70
     − 1 ≈ 5.58% — the demo story.
+
+## M5 — Cascade (topo) + reciprocal (SCC simultaneous equations) (2026-06-10)
+
+44. **`cost_nature` enumeration extended through schema.json → codegen.**
+    SPEC §5.2 mandates `cost_nature = Intercompany charge received` on
+    received-charge cost lines, but the schema enumeration lacked the value.
+    Per ENGINE-CLAUDE.md rule 3 ("edit schema.json → run codegen → then touch
+    code — never the reverse") the value was added to the `cost_nature`
+    `allowed_values` and types regenerated; DDL is unchanged (enums are
+    engine-validated, not column constraints). Additive — every existing
+    seed/row still validates.
+
+45. **The cascade orchestration path lives in
+    `allocation/algorithms/cascade.py` (`cascade_allocate`).** SPEC §4 calls
+    Stage 4 "cascade-aware"; the build brief says "integrate into stage4
+    orchestration path". Stages stay single-purpose pure functions; the
+    cascade composes `stage4_allocate` + `stage5_markup` per condensation
+    group (upstream charges must be PRICED before they can join a hub pool,
+    so the orchestration necessarily spans both stages). On a flat graph it
+    degrades to exactly the plain Stage-4 + Stage-5 pass (tested), so the M6
+    orchestrator can route every run through it.
+
+46. **Received charges inject POST-Stage-3** (into `chargeable_base` /
+    `total_pooled_cost` of the not-yet-processed hub pool). The benefit gate
+    strips non-chargeable cost from the hub's OWN books; the upstream pool
+    already passed its own gate, and re-gating the received charge would
+    double-apply exclusions. The hub pool's percentage exclusions therefore
+    never touch received components (they ran before injection).
+
+47. **Received-line field choices** (schema-shaped 1_CostLine, no extra
+    fields — the schema gate rejects unknown keys): `cost_line_id =
+    CL-RCV-{upstream charge ref}`; `source_document_ref` = the upstream
+    charge reference (= Stage-6's deterministic `charge_id` scheme for
+    allocated legs, so ledger and lineage key identically); `cost_center =
+    CC-IC-{upstream pool}`; `cost_element` = the 6910 intercompany-services
+    expense hint (mirrors the Stage-6 posting file); `function` = the
+    DESTINATION pool's service line (keeps V-P3 homogeneity meaningful);
+    `charge_method = Indirect`; amount = the upstream GROSS (the
+    already-marked-up amount, SPEC §5.2). The exempt flag travels in the
+    separate `received_lineage` records + pool-level `markup_exempt_component`
+    — never on the schema row.
+
+48. **`markup_exempt_component` is carried on the POOL dict; per-leg
+    `markup_exempt_cost` = component × allocation ratio (full precision).**
+    Stage 5 prices `markup = (cost − markup_exempt) × pct` at boundary 2;
+    the sub-cent drift between the quantized cost leg (boundary 1) and the
+    full-precision exempt share is absorbed by the boundary-2 quantization
+    (it is < 1 cent by the largest-remainder bound, so the markup is exact
+    at the cent). Zero everywhere outside a cascade — M2-M4 behavior is
+    byte-identical (all 93 prior tests unchanged).
+
+49. **Destination routing must resolve to EXACTLY one pool.** A receiving
+    provider with two in-scope pools makes the received charge's destination
+    indeterminate → V-R1 BLOCK on the candidate pools (the "not exactly one
+    determinate X" reading of M4 #33/#37); same for an entity providing two
+    pools inside one SCC (the internal consumption shares cannot split).
+    Cross-currency cascade edges also V-R1 BLOCK: the stage-4 path has no FX
+    snapshot, and silently converting (or not) would be a silent default —
+    v1 requires currency homogeneity along cascade edges. A ZERO-gross
+    received charge synthesizes no line (logged): it adds no cost and a
+    zero row would only blur lineage.
+
+50. **BLOCKs propagate downstream through the graph.** A pool whose upstream
+    charge went missing would otherwise run on a silently short base — a
+    silent default. Downstream pools are withheld and logged WITHOUT a new
+    exception ID (the root cause is already on the report); an SCC member
+    blocked at key resolution escalates to V-C1 for the whole SCC (the
+    consumption matrix is incomplete, so the cycle is unsolvable), and SCC
+    members always share their group's fate.
+
+51. **Reciprocal semantics follow SPEC §5.3 literally.** The system is
+    solved ON COST (`S = C + AᵀS`; Gaussian elimination with partial
+    pivoting on Decimal, SELF-VERIFIED against the system within 1e-10, with
+    the iterative-substitution fallback per SPEC; unconverged → V-C1).
+    Internal SCC flows are implicit in the solve — no ledger charges between
+    members. External recipients are charged from the solved S_i at their
+    key shares via ONE SCC-wide largest-remainder apportionment of Σ C over
+    the weights S_i × share_i(r): conservation (total in == total charged
+    out) holds to the cent BY CONSTRUCTION. Markup applies once, on each
+    department's own cost component C_i × share_i(r) at the charging pool's
+    policy — the received component passes through unmarked, "consistent
+    with §5.2 single"; the slice of own cost routed through sibling members
+    exits at cost (conservatively under-margined rather than re-margined).
+
+52. **`reciprocalSolverEnabled` config key (default true).** V-C1's
+    "solver disabled" facet requires a disablement switch that SPEC §6 does
+    not define; a boolean keyed beside the other run flags is the minimal
+    addition. SCC pool outputs carry `solved_cost`, `reciprocal_scc` and
+    `internal_consumption` for audit reconstruction (`allocation_ratio`
+    stays the pool's OWN key share; the solved S_i explains the difference).
+
+53. **Externally-supplied received-line lineage must be COMPLETE.**
+    `ref_data["received_charge_lineage"]` records (for GL-booked received
+    lines) need both `upstream_charge_ref` and an explicit boolean
+    `markup_exempt`; an incomplete record is NOT registered and the line
+    fires V-C3 — guessing exemption would be a silent default. If a pool's
+    supplied exempt component exceeds its chargeable base (the benefit gate
+    carved into the received charge), V-B1 fires (the combined-exclusions
+    bound read against the pool's own cost) and the pool blocks.
+
+54. **`cascade_allocate` scope = poolable streams.** Direct-charge and
+    pass-through legs (Stage-2 streams a/b) are priced by the orchestrator's
+    separate Stage-5 pass and do NOT cascade in v1 — a direct charge into a
+    hub joining the hub's pool is out of scope (and would need its own
+    routing rule). Stage-7 recon (M6) must read SCC pools at SCC grain:
+    per-pool `total_allocated` ≠ `chargeable_base` inside a cycle by design;
+    the SCC-level sums tie exactly (V-X2 needs the group view).
