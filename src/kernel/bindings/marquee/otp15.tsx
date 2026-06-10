@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FC } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
+  Button,
   Chip,
   CircularProgress,
   Stack,
@@ -67,6 +69,7 @@ const Kpis: FC<BindingCtx> = () => {
 };
 
 const Register: FC<BindingCtx> = () => {
+  const navigate = useNavigate();
   const { model, loading } = useStewardship();
   // Local classification: seeded from the server default; toggled in-session.
   const [excludedFlags, setExcludedFlags] = useState<Record<string, boolean>>({});
@@ -155,6 +158,17 @@ const Register: FC<BindingCtx> = () => {
           </TableRow>
         </TableBody>
       </Table>
+      {/* M7 wiring: the register feeds the allocation engine's benefit-test gate. */}
+      <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+          The flagged lines are carried into the <b>allocation engine</b> as fixed-amount Stage-3
+          (benefit-test) exclusions — the management pools strip this register&apos;s stewardship
+          total per billing period before anything is charged.
+        </Typography>
+        <Button size="small" onClick={() => navigate('/calc-studio/allocations?view=pools')}>
+          Open Allocations workbench
+        </Button>
+      </Stack>
     </Stack>
   );
 };

@@ -1027,3 +1027,265 @@ export interface Parameter {
   updated_at: string | null;
   updated_by: string | null;
 }
+
+// ----------------- Allocation engine (Calc Studio Allocations workbench — M7) -----------------
+//
+// Frontend projections of the engine's API rows. Amount fields are EXACT
+// DECIMAL STRINGS straight off the append-only ledgers (never floats —
+// docs/allocation/ENGINE-CLAUDE.md); the UI renders them lexically and never
+// converts them to IEEE numbers. The authoritative entity shapes live in
+// docs/allocation/intercompany-allocation-schema.json (generated backend
+// types) — these interfaces only describe what the workbench displays.
+
+export type AllocationRunType = 'budget' | 'actual' | 'trueup';
+export type AllocationRunStatus = 'running' | 'succeeded' | 'failed';
+
+/** The run's persisted summary artifact (summary.json) — also returned inline
+ *  by POST /api/allocation/runs (failed runs persist no summary artifact). */
+export interface AllocationRunSummary {
+  run_id: string;
+  period: string;
+  run_type: AllocationRunType;
+  status: string;
+  pools?: number;
+  charges: number;
+  recon_balanced: boolean;
+  total_charged_out: string;
+  blocks: number;
+  warns: number;
+  output_hash: string;
+  input_snapshot_hash?: string;
+}
+
+/** One allocation run record (SPEC §3.2 run table): period, type, the input
+ *  snapshot hash (determinism evidence) and the persisted config. */
+export interface AllocationRun {
+  run_id: string;
+  period: string;
+  run_type: AllocationRunType;
+  engine_version: string;
+  schema_version: string;
+  input_snapshot_hash: string;
+  started_at: string;
+  finished_at: string | null;
+  status: AllocationRunStatus;
+  scope: Record<string, unknown> | null;
+  config: Record<string, unknown> | null;
+  summary: AllocationRunSummary | null;
+}
+
+/** One persisted run artifact (doc pack page, exception report, posting file,
+ *  lineage index, output hash) — content served by the per-artifact reads. */
+export interface AllocationArtifact {
+  name: string;
+  content_type: string;
+  size?: number;
+  created_at: string;
+}
+
+export interface AllocationRunDetail extends AllocationRun {
+  artifacts: AllocationArtifact[];
+}
+
+/** One charge ledger row (schema sheet 10_ChargeLedger + run_id). */
+export interface AllocationCharge {
+  charge_id: string;
+  pool_id: string;
+  provider_entity_id: string;
+  recipient_entity_id: string;
+  period: string;
+  fiscal_year: string;
+  budget_or_actual: 'Budget' | 'Actual' | 'True-up';
+  allocation_key_id: string | null;
+  allocation_ratio_applied: string | null;
+  cost_recovered_amount: string;
+  markup_pct_applied: string;
+  markup_amount: string;
+  gross_charge_amount: string;
+  charge_currency: string;
+  fx_rate: string;
+  fx_rate_type: string;
+  fx_rate_date: string;
+  vat_gst_treatment: string | null;
+  vat_amount: string | null;
+  wht_rate: string | null;
+  wht_amount: string | null;
+  invoice_ref: string | null;
+  journal_entry_ref: string | null;
+  settlement_ref: string | null;
+  true_up_parent_charge_id: string | null;
+  posting_date: string | null;
+  documentation_ref: string | null;
+  run_id: string | null;
+}
+
+/** One recon row (sheet 11_Recon): pooled = exclusions + recovered + residual;
+ *  Balanced iff the engine-computed residual is exactly zero (V-X1). */
+export interface AllocationRecon {
+  recon_id: string;
+  run_id: string;
+  run_timestamp: string;
+  period: string;
+  pool_id: string;
+  provider_entity_id: string;
+  total_pooled_cost: string;
+  total_exclusions: string;
+  total_cost_recovered: string;
+  total_markup: string;
+  total_charged_out: string;
+  unallocated_residual: string;
+  true_up_delta: string | null;
+  recon_status: 'Balanced' | 'Break';
+  break_amount: string | null;
+}
+
+/** One fired V-rule on the SPEC §8.4 exception report. */
+export interface AllocationException {
+  rule_id: string;
+  severity: 'BLOCK' | 'WARN';
+  message: string;
+  objects: string[];
+  pool_id: string | null;
+  remediation: string;
+}
+
+export interface AllocationExceptionReport {
+  run_id: string | null;
+  period: string | null;
+  counts: { BLOCK: number; WARN: number };
+  exceptions: AllocationException[];
+}
+
+/** One per-stage value-flow summary emitted by the orchestrator (the same
+ *  seven SPEC §4 stages the shaped calc trace shows). */
+export interface AllocationStageSummary {
+  id: string;
+  label: string;
+  values: Record<string, unknown>;
+}
+
+/** POST /api/allocation/runs — the run record plus summary, stage value-flow,
+ *  recon rows and the exception report. A FAILED run is a domain outcome, not
+ *  an HTTP error: it comes back 200 with status "failed" and the report. */
+export interface AllocationRunLaunch extends AllocationRun {
+  stage_summaries: AllocationStageSummary[];
+  recon: AllocationRecon[];
+  exception_report: AllocationExceptionReport;
+  artifacts: string[];
+}
+
+/** A constituent cost line from the run's persisted lineage index (schema
+ *  sheet 1_CostLine; amount_local is an exact decimal string). */
+export interface AllocationCostLine {
+  cost_line_id: string;
+  provider_entity_id: string;
+  company_code?: string | null;
+  cost_center: string;
+  profit_center?: string | null;
+  cost_element?: string | null;
+  cost_nature?: string | null;
+  function?: string | null;
+  amount_local: string;
+  currency_local: string;
+  posting_date?: string | null;
+  fiscal_period: string;
+  fiscal_year?: string | null;
+  flow_type?: string | null;
+  charge_method?: string | null;
+  traceable_recipient_id?: string | null;
+  pass_through_flag?: boolean | null;
+  pool_id?: string | null;
+  source_document_ref?: string | null;
+}
+
+/** GET /api/allocation/charges/{id}/lineage — the charge, its allocation
+ *  context and the constituent cost lines (true-up rows drill to their
+ *  parent Budget charge instead). */
+export interface AllocationChargeLineage {
+  charge: AllocationCharge;
+  pool_id: string | null;
+  charge_kind: string | null;
+  key_value_id: string | null;
+  true_up_parent_charge_id: string | null;
+  line_ids: string[];
+  lines: AllocationCostLine[];
+}
+
+/** GET /api/allocation/runs/{id}/docs/{pool} — one doc-pack page (SPEC §8.3). */
+export interface AllocationDoc {
+  run_id: string;
+  pool_id: string;
+  markdown: string;
+}
+
+// Reference-sheet projections (served read-only via /api/reference/allocation_*).
+
+export interface AllocationPool {
+  pool_id: string;
+  pool_name: string;
+  service_line: string;
+  service_description: string;
+  provider_entity_id: string;
+  characterization: string;
+  core_or_support: string;
+  cost_base_definition: string;
+  default_key_id: string;
+  direct_charge_flag: boolean;
+  documentation_ref?: string | null;
+  effective_from: string;
+  effective_to?: string | null;
+  status: string;
+}
+
+export interface AllocationMarkupPolicy {
+  markup_policy_id: string;
+  pool_id: string;
+  jurisdiction: string;
+  regime: string;
+  markup_pct: string;
+  scm_eligibility_basis?: string | null;
+  business_judgment_conclusion?: string | null;
+  benchmark_study_ref?: string | null;
+  effective_from: string;
+  effective_to?: string | null;
+}
+
+export interface AllocationExclusionRow {
+  exclusion_id: string;
+  pool_id: string;
+  exclusion_type: string;
+  exclusion_pct?: string | null;
+  exclusion_amount?: string | null;
+  basis_rationale: string;
+  effective_from: string;
+  effective_to?: string | null;
+  owner?: string | null;
+}
+
+export interface AllocationKeyDef {
+  key_id: string;
+  key_name: string;
+  key_factor: string;
+  factor_components?: string | null;
+  source_system: string;
+  static_or_dynamic: string;
+  recompute_frequency?: string | null;
+  description?: string | null;
+  owner?: string | null;
+}
+
+export interface AllocationEntityRow {
+  entity_id: string;
+  legal_entity_name: string;
+  jurisdiction: string;
+  functional_currency: string;
+  entity_role?: string | null;
+  tier?: number | null;
+}
+
+/** The reference-seed envelope (/api/reference/{name}). */
+export interface AllocationSeed<T> {
+  version: string;
+  note?: string;
+  rows: T[];
+}

@@ -1,0 +1,90 @@
+{
+  "version": "1",
+  "note": "Markup policies (4_MarkupPolicy). Derived at authoring time from warehouse supply_chain SERVICE pairs by seeds/allocation/generate_seeds.py (ADAPTATION D2) \u2014 do not hand-edit; re-run the generator. Benchmarked rates are the pair-effective FY2026 rates (gross/cost-base - 1, full Decimal precision); management pools carry LVAIGS 5%.",
+  "rows": [
+    {
+      "markup_policy_id": "MP-POOL-IT-US-DE",
+      "pool_id": "POOL-IT-US",
+      "jurisdiction": "DE",
+      "regime": "Benchmarked",
+      "markup_pct": "0.056133608608608608608608609",
+      "scm_eligibility_basis": "n/a",
+      "benchmark_study_ref": "BM-POOL-IT-US-2026-DE",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31"
+    },
+    {
+      "markup_policy_id": "MP-POOL-MGMT-CH-FR",
+      "pool_id": "POOL-MGMT-CH",
+      "jurisdiction": "FR",
+      "regime": "LVAIGS (5%)",
+      "markup_pct": "0.05",
+      "scm_eligibility_basis": "n/a",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31"
+    },
+    {
+      "markup_policy_id": "MP-POOL-MGMT-CH-GB",
+      "pool_id": "POOL-MGMT-CH",
+      "jurisdiction": "GB",
+      "regime": "LVAIGS (5%)",
+      "markup_pct": "0.05",
+      "scm_eligibility_basis": "n/a",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31"
+    },
+    {
+      "markup_policy_id": "MP-POOL-MGMT-CH-NL",
+      "pool_id": "POOL-MGMT-CH",
+      "jurisdiction": "NL",
+      "regime": "LVAIGS (5%)",
+      "markup_pct": "0.05",
+      "scm_eligibility_basis": "n/a",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31"
+    },
+    {
+      "markup_policy_id": "MP-POOL-MGMT-US-DE",
+      "pool_id": "POOL-MGMT-US",
+      "jurisdiction": "DE",
+      "regime": "LVAIGS (5%)",
+      "markup_pct": "0.05",
+      "scm_eligibility_basis": "n/a",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31"
+    },
+    {
+      "markup_policy_id": "MP-POOL-RSS-CH-FR",
+      "pool_id": "POOL-RSS-CH",
+      "jurisdiction": "FR",
+      "regime": "Benchmarked",
+      "markup_pct": "0.057886233837833221140302497",
+      "scm_eligibility_basis": "n/a",
+      "benchmark_study_ref": "BM-POOL-RSS-CH-2026-FR",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31"
+    },
+    {
+      "markup_policy_id": "MP-POOL-RSS-CH-GB",
+      "pool_id": "POOL-RSS-CH",
+      "jurisdiction": "GB",
+      "regime": "Benchmarked",
+      "markup_pct": "0.054412118454819550725315469",
+      "scm_eligibility_basis": "n/a",
+      "benchmark_study_ref": "BM-POOL-RSS-CH-2026-GB",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31"
+    },
+    {
+      "markup_policy_id": "MP-POOL-RSS-CH-NL",
+      "pool_id": "POOL-RSS-CH",
+      "jurisdiction": "NL",
+      "regime": "Benchmarked",
+      "markup_pct": "0.054210912917407867131655000",
+      "scm_eligibility_basis": "n/a",
+      "benchmark_study_ref": "BM-POOL-RSS-CH-2026-NL",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31"
+    }
+  ]
+}

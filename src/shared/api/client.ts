@@ -68,6 +68,15 @@ import type {
   CalcGraph,
   Scenario,
   ScenarioCompare,
+  AllocationRun,
+  AllocationRunDetail,
+  AllocationRunLaunch,
+  AllocationCharge,
+  AllocationRecon,
+  AllocationExceptionReport,
+  AllocationArtifact,
+  AllocationChargeLineage,
+  AllocationDoc,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -423,6 +432,60 @@ export const api = {
   /** Discard a scenario (terminal — the audit chain at scenario:{id} remains). */
   discardScenario: (id: string, body: { actor: string }) =>
     sendJSON<Scenario>('POST', `/api/scenarios/${encodeURIComponent(id)}/discard`, body),
+
+  // ------------ Allocation engine (Calc Studio Allocations workbench — M7) ------------
+
+  /** Every allocation engine run (SPEC §3.2 run table), each with its
+   *  persisted summary artifact attached (null until the run succeeded). */
+  allocationRuns: (params: { period?: string; status?: string } = {}) =>
+    getJSON<AllocationRun[]>('/api/allocation/runs', params),
+
+  /** One run with its artifact index (doc pack, posting files, lineage, hash). */
+  allocationRun: (runId: string) =>
+    getJSON<AllocationRunDetail>(`/api/allocation/runs/${encodeURIComponent(runId)}`),
+
+  /** Launch a budget | actual | trueup run (SPEC §6). A failed run is a domain
+   *  outcome, not an HTTP error — it returns 200 with status "failed" plus the
+   *  exception report. Every run is audited at allocation:{run_id}. */
+  launchAllocationRun: (body: {
+    run_type: string;
+    actor: string;
+    period?: string;
+    year?: string;
+    scope?: Record<string, unknown>;
+    config?: Record<string, unknown>;
+  }) => sendJSON<AllocationRunLaunch>('POST', '/api/allocation/runs', body),
+
+  /** The run's append-only charge ledger rows (exact decimal strings). */
+  allocationRunCharges: (runId: string) =>
+    getJSON<AllocationCharge[]>(`/api/allocation/runs/${encodeURIComponent(runId)}/charges`),
+
+  /** The run's recon rows — pooled = exclusions + recovered + residual (V-X1 zero). */
+  allocationRunRecon: (runId: string) =>
+    getJSON<AllocationRecon[]>(`/api/allocation/runs/${encodeURIComponent(runId)}/recon`),
+
+  /** The SPEC §8.4 exception report: every fired V-rule with severity + remediation. */
+  allocationRunExceptions: (runId: string) =>
+    getJSON<AllocationExceptionReport>(
+      `/api/allocation/runs/${encodeURIComponent(runId)}/exceptions`
+    ),
+
+  /** Index of the run's documentation pack (one Markdown page per pool). */
+  allocationRunDocs: (runId: string) =>
+    getJSON<AllocationArtifact[]>(`/api/allocation/runs/${encodeURIComponent(runId)}/docs`),
+
+  /** One doc-pack page (SPEC §8.3 Markdown) for a pool of the run. */
+  allocationRunDoc: (runId: string, poolId: string) =>
+    getJSON<AllocationDoc>(
+      `/api/allocation/runs/${encodeURIComponent(runId)}/docs/${encodeURIComponent(poolId)}`
+    ),
+
+  /** Drill a ledger charge to its allocation ratio, key value and constituent
+   *  cost lines (true-up rows drill to their parent Budget charge). */
+  allocationChargeLineage: (chargeId: string) =>
+    getJSON<AllocationChargeLineage>(
+      `/api/allocation/charges/${encodeURIComponent(chargeId)}/lineage`
+    ),
 
   /** Per-entity covered-transaction rollup for the documentation workpapers
    *  (OTP-37 §6662 / OTP-32 Local File / OTP-33 Master File). Derived from the
