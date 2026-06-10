@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Any, Sequence, Union
 
+from calc import trace
 from db import q
 from period_filter import PeriodFilter
 
@@ -83,4 +84,12 @@ def aggregate(
             bind.extend(pf_params)
     if group_cols:
         sql += " GROUP BY " + ", ".join(group_cols)
-    return q(sql, bind)
+    result = q(sql, bind)
+    trace.emit(
+        "aggregate",
+        table=table,
+        group_by=list(group_cols),
+        measures=[m if isinstance(m, str) else m[1] for m in measures],
+        rows=len(result),
+    )
+    return result

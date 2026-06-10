@@ -21,6 +21,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+import calc.trace as trace  # stdlib-only collector — no import cycle
 import state.audit as audit
 from state.engine import LOCK, get_conn
 
@@ -53,7 +54,9 @@ def get_param(key: str, default: Any = None) -> Any:
     store behaves exactly like the pre-migration code.
     """
     row = get_conn().execute("SELECT value FROM parameters WHERE key = ?", (key,)).fetchone()
-    return json.loads(row["value"]) if row else default
+    value = json.loads(row["value"]) if row else default
+    trace.emit("param", key=key, value=value, overridden=False)
+    return value
 
 
 def list_params(category: str | None = None) -> list[dict[str, Any]]:

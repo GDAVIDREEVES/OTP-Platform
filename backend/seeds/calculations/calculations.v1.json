@@ -1,0 +1,331 @@
+{
+  "version": "1",
+  "note": "Calculation registry (Calc Studio CS-a). One entry per computed endpoint: what it computes (formula), what it reads (inputs.catalog must resolve via services/catalog.py; inputs.parameters must exist in the governed parameter store), and how the runner invokes it (endpoint/args/summary_keys). scenario_capable marks the handlers that read governed parameters via get_param and therefore respond to scenario overrides (CS-c).",
+  "calculations": [
+    {
+      "id": "csa",
+      "name": "CSA RAB shares, PCT buy-in & true-up",
+      "type": "allocation",
+      "process_id": "OTP-5",
+      "owner": "Priya Natarajan",
+      "status": "active",
+      "version": "1",
+      "description": "Cost Sharing Arrangement model for participants 1000/3100/3800: cost pool, reasonably-anticipated-benefit (RAB) shares from growth-projected sales, in-period true-ups and the PCT platform buy-in — all aggregated from segment_pl so it reconciles with the segmented P&L by construction.",
+      "formula": "pool = Σ opex_rd; projected_sales_i = revenue_i × (1 + growth); rab_share_i = projected_sales_i / Σ projected_sales; true_up_i = rab_share_i × pool − opex_rd_i; pct_buyin_i = rab_share_i × (pct_mult × pool)",
+      "inputs": {
+        "catalog": ["warehouse:segment_pl"],
+        "parameters": ["csa.growth", "csa.pct_mult"]
+      },
+      "output": "CSA model: pool, platform_value, per-participant rab_share / target_contribution / true_up / pct_buyin (Σ true_up = 0).",
+      "endpoint": "/api/csa",
+      "args": { "year": { "type": "int", "default": 2026 } },
+      "summary_keys": ["pool", "platform_value", "growth", "pct_mult"],
+      "scenario_capable": true
+    },
+    {
+      "id": "profit_split",
+      "name": "Residual profit split",
+      "type": "allocation",
+      "process_id": "OTP-12",
+      "owner": "Priya Natarajan",
+      "status": "active",
+      "version": "1",
+      "description": "Residual profit split across the non-routine parties (1000 US IP, 3100 CH IP, 3000 DE Manufacturer): combined operating profit from segment_pl allocated by the selected value-driver key (opex_rd default, sga alternative), with per-party true-ups.",
+      "formula": "combined_profit = Σ operating_profit; share_i = key_i / Σ key (key = opex_rd | sga); allocated_i = share_i × combined_profit; true_up_i = allocated_i − operating_profit_i",
+      "inputs": {
+        "catalog": ["warehouse:segment_pl"],
+        "parameters": ["csa.ps_participants", "csa.ps_default_key", "csa.ps_keys"]
+      },
+      "output": "Profit-split model: combined_profit, key_total, per-participant residual_share / allocated_profit / true_up.",
+      "endpoint": "/api/profit-split",
+      "args": {
+        "year": { "type": "int", "default": 2026 },
+        "key": { "type": "str", "default": "opex_rd" }
+      },
+      "summary_keys": ["year", "combined_profit", "key_total"],
+      "scenario_capable": true
+    },
+    {
+      "id": "beat",
+      "name": "BEAT §59A base-erosion computation",
+      "type": "derivation",
+      "process_id": "OTP-36",
+      "owner": "Daniel Okafor",
+      "status": "active",
+      "version": "1",
+      "description": "US payer (1000) base-erosion prep: the real related-party deductible base from journal RASSC lines, classified to payment types by the governed RACCT map, tested against the 3% threshold, with modified taxable income and the 10% BEAT base tax. Includes the per-CFC Schedule M rollup.",
+      "formula": "base_eroding = Σ related-party deductions (journal HSL<0, RASSC set) excluding COGS-type accounts; base_erosion_pct = 100 × base_eroding / total_deductions; MTI = (gross_receipts − total_deductions) + base_eroding; beat_base_tax = MTI × rate_pct / 100",
+      "inputs": {
+        "catalog": ["warehouse:journal", "warehouse:segment_pl"],
+        "parameters": [
+          "beat.us_payer",
+          "beat.threshold_pct",
+          "beat.rate_pct",
+          "beat.racct_type",
+          "beat.non_base_eroding",
+          "beat.payment_types"
+        ]
+      },
+      "output": "BEAT model: base_eroding_payments, base_erosion_pct vs threshold, modified_taxable_income, beat_base_tax, payment-type and per-account splits, Schedule M.",
+      "endpoint": "/api/beat",
+      "args": { "year": { "type": "int", "default": 2026 } },
+      "summary_keys": ["base_eroding_payments", "base_erosion_pct", "beat_base_tax", "total_deductions"],
+      "scenario_capable": true
+    },
+    {
+      "id": "treasury",
+      "name": "IC loan & cash-pool interest accrual",
+      "type": "derivation",
+      "process_id": "OTP-13",
+      "owner": "Sam Rodriguez",
+      "status": "active",
+      "version": "1",
+      "description": "Arm's-length interest on the (fabricated) IC loan register and cash pool: per-loan annual interest from the all-in rate (flagged against the BM-FIN CUP band) and per-seat pool interest from the deposit/borrow spread.",
+      "formula": "loan: annual_interest = principal × all_in_rate / 100, within_benchmark = BM-FIN.lower ≤ all_in_rate ≤ BM-FIN.upper; pool seat: annual_interest = balance × spread / 100; net_position = Σ balances",
+      "inputs": {
+        "catalog": ["seed:treasury", "seed:benchmarks"],
+        "parameters": []
+      },
+      "output": "Loan register + cash pool with computed annual interest, benchmark flags and rolled-up totals.",
+      "endpoint": "/api/treasury",
+      "args": {},
+      "summary_keys": [],
+      "scenario_capable": false
+    },
+    {
+      "id": "wht",
+      "name": "Withholding tax on IC payments",
+      "type": "derivation",
+      "process_id": "OTP-46",
+      "owner": "Daniel Okafor",
+      "status": "active",
+      "version": "1",
+      "description": "Per-corridor withholding tax on IC royalty + service payments: the gross withholdable base from supply_chain (real), joined to the bilateral treaty-rate seed to compute treaty WHT due and the saving versus the statutory fallback.",
+      "formula": "per corridor (source→residence, payment type): gross = Σ TOTAL_LEGAL_PRICE; wht_due = gross × treaty_rate / 100; treaty_saving = gross × (statutory_rate − treaty_rate) / 100",
+      "inputs": {
+        "catalog": ["warehouse:supply_chain", "seed:wht_treaty"],
+        "parameters": []
+      },
+      "output": "Per-corridor WHT rows (gross, treaty/statutory rate, wht_due, treaty_saving) + totals.",
+      "endpoint": "/api/wht",
+      "args": {
+        "year": { "type": "int", "default": null },
+        "periodFrom": { "type": "str", "default": null },
+        "periodTo": { "type": "str", "default": null }
+      },
+      "summary_keys": [],
+      "scenario_capable": false
+    },
+    {
+      "id": "reconciliation",
+      "name": "ERP ↔ TP reconciliation",
+      "type": "reconciliation",
+      "process_id": "OTP-43",
+      "owner": "Sam Rodriguez",
+      "status": "active",
+      "version": "1",
+      "description": "Per-flow reconciliation keyed by AWREF: the planned IC price book (supply_chain) joined to what actually posted in ACDOCA (journal), classifying each flow as reconciled / unposted / value-break / challenged against the governed tolerance.",
+      "formula": "posted(AWREF) = MAX(|HSL|) over the document's journal lines; delta = posted − planned; status = challenged → unposted (no posting) → value-break (|delta| > tolerance) → reconciled",
+      "inputs": {
+        "catalog": ["warehouse:supply_chain", "warehouse:journal"],
+        "parameters": ["reconciliation.value_break_tolerance"]
+      },
+      "output": "Reconciliation rows per AWREF (planned, posted, delta, status) + summary counts and planned/posted/delta totals.",
+      "endpoint": "/api/reconciliation",
+      "args": {
+        "year": { "type": "int", "default": null },
+        "periodFrom": { "type": "str", "default": null },
+        "periodTo": { "type": "str", "default": null }
+      },
+      "summary_keys": [],
+      "scenario_capable": true
+    },
+    {
+      "id": "forecast",
+      "name": "Latest-Estimate forecast",
+      "type": "derivation",
+      "process_id": "OTP-24",
+      "owner": "Priya Natarajan",
+      "status": "active",
+      "version": "1",
+      "description": "Full-year Latest Estimate per tested party: segment_pl actuals-to-date projected by run-rate for the unposted months, with the resulting full-year margin tested against each entity's arm's-length band from entity_roles.",
+      "formula": "run_rate = actuals_to_date / months_posted; LE = actuals_to_date + run_rate × months_remaining; status = band(LE margin vs OM_LOW_PCT..OM_HIGH_PCT)",
+      "inputs": {
+        "catalog": ["warehouse:segment_pl", "warehouse:entity_roles"],
+        "parameters": []
+      },
+      "output": "Per-party LE workpaper: actuals, forecast remainder, full-year revenue/profit/margin, target band and projected in/watch/out status.",
+      "endpoint": "/api/forecast",
+      "args": { "year": { "type": "int", "default": 2026 } },
+      "summary_keys": ["year", "fullYearMonths"],
+      "scenario_capable": false
+    },
+    {
+      "id": "stewardship",
+      "name": "Stewardship cost exclusion",
+      "type": "derivation",
+      "process_id": "OTP-15",
+      "owner": "Daniel Okafor",
+      "status": "active",
+      "version": "1",
+      "description": "Shareholder/stewardship review of the parent (1000/3100) G&A cost base: the real opex_ga base from segment_pl screened against the fabricated candidate-line register; lines flagged stewardship are excluded from the chargeable base (OECD TPG 7.9-7.10).",
+      "formula": "cost_base = Σ parent opex_ga (segment_pl); excluded = Σ candidate lines flagged stewardship; adjusted_cost_base = cost_base − excluded",
+      "inputs": {
+        "catalog": ["warehouse:segment_pl", "seed:stewardship"],
+        "parameters": []
+      },
+      "output": "Cost base per parent, excluded stewardship total and the adjusted chargeable cost base, with the screened candidate lines.",
+      "endpoint": "/api/stewardship",
+      "args": { "year": { "type": "int", "default": 2026 } },
+      "summary_keys": ["cost_base", "excluded", "adjusted_cost_base", "candidate_total"],
+      "scenario_capable": false
+    },
+    {
+      "id": "flows",
+      "name": "IC transaction flow rollup",
+      "type": "aggregate",
+      "process_id": "OTP-27",
+      "owner": "Sam Rodriguez",
+      "status": "active",
+      "version": "1",
+      "description": "The IC flow universe: supply_chain grouped by material type, seller/buyer role and TP method into policy rows with YTD volume, chain counts and APA/challenged status.",
+      "formula": "GROUP supply_chain BY (MATERIAL_TYPE, SELLER_ROLE, BUYER_ROLE, TP_METHOD): ytd_volume = Σ TOTAL_LEGAL_PRICE; status = out-of-range if challenged, watch if APA, else in-range",
+      "inputs": {
+        "catalog": ["warehouse:supply_chain"],
+        "parameters": []
+      },
+      "output": "One row per flow family (type, roles, method, YTD volume, status).",
+      "endpoint": "/api/transactions/flows",
+      "args": {
+        "year": { "type": "int", "default": null },
+        "periodFrom": { "type": "str", "default": null },
+        "periodTo": { "type": "str", "default": null }
+      },
+      "summary_keys": [],
+      "scenario_capable": false
+    },
+    {
+      "id": "royalties",
+      "name": "Royalty register",
+      "type": "aggregate",
+      "process_id": "OTP-3",
+      "owner": "Priya Natarajan",
+      "status": "active",
+      "version": "1",
+      "description": "Per-licence royalty register: ROYALTY rows in supply_chain grouped by licensor/licensee/IP, with the average rate, YTD fees and a benchmark-range check.",
+      "formula": "GROUP supply_chain WHERE MATERIAL_TYPE='ROYALTY' BY (IP_OWNER, SELLING_COMPANY, BUYING_COMPANY, MATNR, TP_METHOD): rate = AVG(MARKUP_RATE) × 100; ytd_fees = Σ TOTAL_LEGAL_PRICE; band = rate ± 1.5pp",
+      "inputs": {
+        "catalog": ["warehouse:supply_chain"],
+        "parameters": []
+      },
+      "output": "One row per licence (licensor, licensee, IP category, rate %, YTD fees, benchmark range).",
+      "endpoint": "/api/transactions/royalties",
+      "args": {
+        "year": { "type": "int", "default": null },
+        "periodFrom": { "type": "str", "default": null },
+        "periodTo": { "type": "str", "default": null }
+      },
+      "summary_keys": [],
+      "scenario_capable": false
+    },
+    {
+      "id": "pricing",
+      "name": "Price-setting rows vs benchmark bands",
+      "type": "band-test",
+      "process_id": "OTP-1",
+      "owner": "Sam Rodriguez",
+      "status": "active",
+      "version": "1",
+      "description": "Settable per-material price rows for the goods & services price-setting wizards (OTP-1/2/4): supply_chain aggregated per chain + material with standard cost, cost-plus markup and the benchmarking band the row tests against (BM-SVC / BM-LRD / BM-TOLL).",
+      "formula": "GROUP supply_chain BY (CHAIN_ID, MATERIAL_TYPE): markup = AVG(MARKUP_RATE) × 100; band = BM-SVC if SERVICE else BM-LRD if buyer is LRD else BM-TOLL; within = band.lower ≤ markup ≤ band.upper",
+      "inputs": {
+        "catalog": ["warehouse:supply_chain", "seed:benchmarks"],
+        "parameters": []
+      },
+      "output": "One settable price row per chain + material (cost, markup %, total legal price, benchmark band + within flag).",
+      "endpoint": "/api/transactions/pricing",
+      "args": {
+        "year": { "type": "int", "default": null },
+        "periodFrom": { "type": "str", "default": null },
+        "periodTo": { "type": "str", "default": null }
+      },
+      "summary_keys": [],
+      "scenario_capable": false
+    },
+    {
+      "id": "invoices",
+      "name": "IC invoice synthesis",
+      "type": "aggregate",
+      "process_id": "OTP-42",
+      "owner": "Daniel Okafor",
+      "status": "active",
+      "version": "1",
+      "description": "Synthesized IC invoices: one invoice per (seller, buyer, period, material type) bucket of supply_chain, with amount, cost base, implied blended markup and a period-bucketed status; submitted TP adjustments are prepended from app state.",
+      "formula": "GROUP supply_chain BY (SELLING_COMPANY, BUYING_COMPANY, GJAHR, POPER, MATERIAL_TYPE): amount = Σ TOTAL_LEGAL_PRICE; cost_base = Σ STANDARD_COST × TOTAL_VOLUME; markup = (amount − cost_base) / cost_base",
+      "inputs": {
+        "catalog": ["warehouse:supply_chain", "state:adjustments"],
+        "parameters": []
+      },
+      "output": "Invoice list (payor, payee, type, amount, status per period bucket) including submitted adjustments.",
+      "endpoint": "/api/invoices",
+      "args": {
+        "year": { "type": "int", "default": null },
+        "periodFrom": { "type": "str", "default": null },
+        "periodTo": { "type": "str", "default": null },
+        "material_type": { "type": "str", "default": null }
+      },
+      "summary_keys": [],
+      "scenario_capable": false
+    },
+    {
+      "id": "segments_pl",
+      "name": "Segmented P&L extract",
+      "type": "aggregate",
+      "process_id": "OTP-21",
+      "owner": "Priya Natarajan",
+      "status": "active",
+      "version": "1",
+      "description": "The segmented monthly P&L rows behind OTP-20/21 and the dashboard: segment_pl per entity/segment/period with the full cost-line breakdown, optionally filtered by entity/period/year.",
+      "formula": "SELECT segment_pl rows (revenue, cogs, opex_*, ic_charges, depreciation, operating_profit, operating_margin) WHERE entity/period/year filters ORDER BY RBUKRS, GJAHR, POPER",
+      "inputs": {
+        "catalog": ["warehouse:segment_pl"],
+        "parameters": []
+      },
+      "output": "Monthly segmented P&L rows per entity (the aggregation base most calcs reconcile against).",
+      "endpoint": "/api/segments/pl",
+      "args": {
+        "entity": { "type": "str", "default": null },
+        "period": { "type": "str", "default": null },
+        "year": { "type": "int", "default": null }
+      },
+      "summary_keys": [],
+      "scenario_capable": false
+    },
+    {
+      "id": "berry",
+      "name": "Berry ratio trend",
+      "type": "band-test",
+      "process_id": "OTP-20",
+      "owner": "Sam Rodriguez",
+      "status": "active",
+      "version": "1",
+      "description": "Monthly Berry ratio (gross profit / operating expenses) for an entity or the LRD aggregate (3200/3300/3800), plotted against the target ratio band line.",
+      "formula": "per month: gp = revenue − cogs − opex_production − ic_charges; opex = opex_rd + opex_sm + opex_ga + opex_dist; berry = gp / opex vs target",
+      "inputs": {
+        "catalog": ["warehouse:segment_pl"],
+        "parameters": []
+      },
+      "output": "Monthly rows (revenue, gp, opex, berry, target) for the trend chart.",
+      "endpoint": "/api/berry",
+      "args": {
+        "entity": { "type": "str", "default": null },
+        "target": { "type": "float", "default": 1.2 },
+        "year": { "type": "int", "default": null },
+        "periodFrom": { "type": "str", "default": null },
+        "periodTo": { "type": "str", "default": null }
+      },
+      "summary_keys": [],
+      "scenario_capable": false
+    }
+  ]
+}
