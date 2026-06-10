@@ -27,6 +27,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
 
+import services.allocation_runner as allocation_runner
 import services.catalog as catalog
 import state.audit as audit
 import state.calc_runs as calc_runs
@@ -66,6 +67,13 @@ _RUNNERS: dict[str, tuple[Callable[..., Any], dict[str, Any]]] = {
     "invoices": (list_invoices, {**_PERIOD, "material_type": None}),
     "segments_pl": (segment_pl, {"entity": None, "period": None, "year": None}),
     "berry": (berry_trend, {"entity": None, "target": 1.20, **_PERIOD}),
+    # The allocation engine's POST-equivalent run (actual, latest demo period;
+    # M6). Not a GET handler: the run WRITES the allocation ledgers, so the
+    # registry golden-equivalence is asserted on the run's output hash, not on
+    # byte-identical bodies (tests/allocation/test_m6_demo_endtoend.py).
+    "service_allocation": (allocation_runner.run_for_registry,
+                           {"period": None, "run_type": "actual",
+                            "actor": "calc-studio"}),
 }
 
 

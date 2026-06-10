@@ -1,10 +1,10 @@
-"""Composable validation rules — SPEC §7 catalogue, M2/M3/M4/M5 subset.
+"""Composable validation rules — the full SPEC §7 catalogue.
 
 Implements the referential & schema rules (V-R1, V-R2, V-R3), the pooling &
 mapping rules (V-P1..V-P5), the benefit-test rules (V-B1..V-B3), the key
-rules (V-K1..V-K4), the markup rules (V-M1..V-M4) and the cascade/reciprocal
-rules (V-C1..V-C3) as pure, composable functions. The reconciliation family
-(V-X*) lands with Stage 7 in M6.
+rules (V-K1..V-K4), the markup rules (V-M1..V-M4), the cascade/reciprocal
+rules (V-C1..V-C3) and the reconciliation rules (V-X1..V-X4) as pure,
+composable functions.
 
 Every fired rule is a plain dict::
 
@@ -61,6 +61,10 @@ SEVERITY: dict[str, str] = {
     "V-C1": BLOCK,  # cycle detected and reciprocal solver disabled/unconverged
     "V-C2": WARN,   # perTier cascade margin policy in effect (every run)
     "V-C3": BLOCK,  # upstream charge lineage missing on a received-charge cost line
+    "V-X1": BLOCK,  # unallocated_residual != 0 (v1 hard zero)
+    "V-X2": BLOCK,  # Σ charges out (cost component) per pool == chargeable base exactly
+    "V-X3": WARN,   # true-up exceeds trueUpWarnThreshold
+    "V-X4": BLOCK,  # historic re-run hash mismatch (same inputs => identical outputs)
 }
 
 #: V-K3 — ratios sum to 1 within 1e-12 before apportionment (SPEC §7).
@@ -831,3 +835,93 @@ def v_c3_received_charge_lineage(
             objects=[lid], pool_id=pool_id,
         ))
     return excs
+
+
+# ------------------------------------------------------------ reconciliation --
+
+
+def v_x1_unallocated_residual(pool_id: str, residual: Decimal) -> list[dict]:
+    """V-X1 BLOCK — ``unallocated_residual != 0`` (SPEC §7; v1 hard zero,
+    ``unallocatedResidualTolerance: 0`` per SPEC §6).
+
+    A nonzero residual after largest-remainder apportionment is a logic or
+    participation gap, never rounding (SPEC §4 Stage 7).
+    """
+    if residual == ZERO:
+        return []
+    return [exception(
+        "V-X1",
+        f"pool {pool_id}: unallocated residual {residual} != 0 — pool cost "
+        "neither charged nor excluded (trapped stewardship or pooling gap)",
+        objects=[str(residual)], pool_id=pool_id,
+    )]
+
+
+def v_x2_charges_out_equal_chargeable_base(
+    pool_ids: Sequence[str],
+    chargeable_base: Decimal,
+    charged_cost: Decimal,
+) -> list[dict]:
+    """V-X2 BLOCK — Σ charges out (cost component) per pool == chargeable base
+    EXACTLY (SPEC §7).
+
+    Evaluated per pool for acyclic pools and at SCC grain for reciprocal
+    groups (inside a cycle the per-pool ledger total differs from the pool's
+    own base by design — the group sums tie exactly; DECISIONS.md M5 #54).
+    One exception per member pool, V-C1 style, so the standard blocked-pool
+    accounting applies.
+    """
+    if charged_cost == chargeable_base:
+        return []
+    members = sorted(pool_ids)
+    scope = f"reciprocal group {members}" if len(members) > 1 else f"pool {members[0]}"
+    return [exception(
+        "V-X2",
+        f"pool {pid}: Σ charged-out cost {charged_cost} != chargeable base "
+        f"{chargeable_base} for {scope} — the ledger does not tie to the "
+        "pooled cost",
+        objects=members, pool_id=pid,
+    ) for pid in members]
+
+
+def v_x3_true_up_exceeds_threshold(
+    pool_id: str,
+    delta: Decimal,
+    actual_full_year: Decimal,
+    threshold: Decimal,
+) -> list[dict]:
+    """V-X3 WARN — true-up exceeds ``trueUpWarnThreshold`` (SPEC §7):
+    |delta| / actual_full_year > threshold flags the pool as a KPI exception
+    (SPEC §5.4). A zero actual year has no ratio — nothing fires."""
+    if actual_full_year <= ZERO:
+        return []
+    ratio = abs(delta) / actual_full_year
+    if ratio <= threshold:
+        return []
+    return [exception(
+        "V-X3",
+        f"pool {pool_id}: true-up delta {delta} is {ratio:.4f} of the actual "
+        f"full year {actual_full_year} — exceeds the trueUpWarnThreshold "
+        f"{threshold} (budget-vs-actual divergence KPI)",
+        objects=[str(delta), str(actual_full_year)], pool_id=pool_id,
+    )]
+
+
+def v_x4_reproducibility_failure(
+    context: str, detail: str, *,
+    objects: Iterable[Any] = (), pool_id: str | None = None,
+) -> list[dict]:
+    """V-X4 BLOCK — historic re-run hash mismatch: the same inputs must yield
+    identical outputs (SPEC §7).
+
+    Two facets share the rule (DECISIONS.md M6): (a) a run whose input
+    snapshot hash matches a prior succeeded run must reproduce that run's
+    output hash; (b) the true-up's booked Budget ledger rows must be exactly
+    reproduced by the deterministic budget recompute (a booked charge that
+    cannot be rebuilt from the inputs is a reproducibility break).
+    """
+    return [exception(
+        "V-X4",
+        f"{context}: {detail} — same inputs must yield identical outputs",
+        objects=objects, pool_id=pool_id,
+    )]

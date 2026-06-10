@@ -326,6 +326,40 @@
       },
       "summary_keys": [],
       "scenario_capable": false
+    },
+    {
+      "id": "service_allocation",
+      "name": "Intercompany service cost allocation",
+      "type": "allocation",
+      "process_id": "OTP-10",
+      "owner": "Sam Rodriguez",
+      "status": "active",
+      "version": "1",
+      "description": "The deterministic cost-to-charge allocation engine (docs/allocation/SPEC.md): GL cost lines are classified, pooled, gated for the benefit test, apportioned by allocation keys (largest remainder; cascade/reciprocal aware), marked up per pool-and-jurisdiction policy, charged out and reconciled to a zero residual. A registry run launches the POST-equivalent actual run for the latest demo period; outputs land on the append-only allocation ledgers with a per-run documentation pack.",
+      "formula": "capture/classify → pool → benefit-test gate → allocate (largest remainder over key ratios) → cost base + markup (per pool × jurisdiction regime) → charge-out (FX logged) → reconcile: pooled − exclusions − recovered = 0",
+      "inputs": {
+        "catalog": [
+          "seed:allocation_cost_lines",
+          "seed:allocation_cc_mapping",
+          "seed:allocation_pools",
+          "seed:allocation_exclusions",
+          "seed:allocation_participation",
+          "seed:allocation_key_defs",
+          "seed:allocation_key_values",
+          "seed:allocation_markup_policies",
+          "seed:allocation_entities"
+        ],
+        "parameters": []
+      },
+      "output": "Run summary (run_id, charges, recon Balanced/Break, output hash) + the 7 stage summaries; charge ledger / recon rows / doc pack persist on the allocation run itself.",
+      "endpoint": "/api/allocation/runs",
+      "args": {
+        "period": { "type": "str", "default": null },
+        "run_type": { "type": "str", "default": "actual" },
+        "actor": { "type": "str", "default": "calc-studio" }
+      },
+      "summary_keys": ["run_id", "period", "run_type", "status", "charges", "recon_balanced", "total_charged_out"],
+      "scenario_capable": false
     }
   ]
 }

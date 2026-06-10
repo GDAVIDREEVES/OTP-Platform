@@ -1,10 +1,13 @@
 """TDD for the calculation registry + runner (services/calc_registry.py, CS-a).
 
-The keystone is golden equivalence: for ALL 14 registered calculations, a
+The keystone is golden equivalence: for every GET-backed calculation, a
 registry run's output is byte-identical (canonical-JSON equal) to the HTTP
 response of the calculation's own endpoint — proving direct handler invocation
 == the API and that the hand-written default kwargs are right (including the
-FastAPI Query-default gotcha on segments_pl/berry).
+FastAPI Query-default gotcha on segments_pl/berry). service_allocation (M6)
+is POST-backed and WRITES the allocation ledgers, so its registry↔API
+equivalence is asserted on the run's deterministic output hash instead
+(tests/allocation/test_m6_demo_endtoend.py).
 
 Seed integrity: every inputs.catalog id resolves via services/catalog.py and
 every inputs.parameters key exists in the seeded governed parameter store.
@@ -32,8 +35,13 @@ ALL_IDS = [d["id"] for d in calc_registry.defs()]
 EXPECTED_IDS = [
     "csa", "profit_split", "beat", "treasury", "wht", "reconciliation",
     "forecast", "stewardship", "flows", "royalties", "pricing", "invoices",
-    "segments_pl", "berry",
+    "segments_pl", "berry", "service_allocation",
 ]
+
+# GET-backed calculations: registry run == HTTP body, byte-identical.
+# service_allocation launches a run (POST, ledger writes) — excluded here,
+# hash-equivalence asserted in tests/allocation/test_m6_demo_endtoend.py.
+GET_BACKED_IDS = [i for i in EXPECTED_IDS if i != "service_allocation"]
 
 
 def _canonical(obj) -> str:
@@ -55,9 +63,9 @@ def _normalise(calc_id: str, body):
 
 # --- Registry seed integrity ---------------------------------------------------
 
-def test_registry_has_all_14_calcs():
+def test_registry_has_all_15_calcs():
     assert ALL_IDS == EXPECTED_IDS
-    assert len(set(ALL_IDS)) == 14
+    assert len(set(ALL_IDS)) == 15
 
 
 def test_every_calc_has_a_runner():
@@ -108,9 +116,9 @@ def test_csa_summary_keys_exist_in_output(state_db):
         assert k in out, f"summary key {k} missing from csa output"
 
 
-# --- THE KEYSTONE: registry run == HTTP, byte-identical, for all 14 ------------
+# --- THE KEYSTONE: registry run == HTTP, byte-identical, for every GET calc ----
 
-@pytest.mark.parametrize("calc_id", ALL_IDS)
+@pytest.mark.parametrize("calc_id", GET_BACKED_IDS)
 def test_run_output_byte_identical_to_endpoint(state_db, calc_id):
     parameters.seed_if_empty()
     d = calc_registry.get_def(calc_id)

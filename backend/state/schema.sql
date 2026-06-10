@@ -336,3 +336,18 @@ CREATE INDEX IF NOT EXISTS ix_charge_ledger_run ON charge_ledger (run_id);
 CREATE INDEX IF NOT EXISTS ix_charge_ledger_pool_period ON charge_ledger (pool_id, period);
 CREATE INDEX IF NOT EXISTS ix_recon_run ON recon (run_id);
 -- ==== END GENERATED ALLOCATION DDL ====
+
+-- Allocation run artifacts (SPEC §8 outputs; M6, ADAPTATION D1). The
+-- orchestrator persists each run's documentation pack (Markdown per pool),
+-- exception report, posting files, charge->cost-line lineage index, output
+-- hash and summary as rows here — SQLite text, not loose files, so a demo
+-- reset wipes them with everything else (DECISIONS.md M6). NOT generated:
+-- this table is orchestrator infrastructure, not a schema.json sheet.
+CREATE TABLE IF NOT EXISTS allocation_run_artifacts (
+  run_id       TEXT NOT NULL,
+  name         TEXT NOT NULL,     -- 'docs/{pool}.md', 'exceptions.json', ...
+  content_type TEXT NOT NULL,     -- 'text/markdown' | 'application/json' | ...
+  content      TEXT NOT NULL,
+  created_at   TEXT NOT NULL,
+  PRIMARY KEY (run_id, name)
+);

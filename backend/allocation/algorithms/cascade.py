@@ -486,6 +486,12 @@ def cascade_allocate(
         for j in members:
             pool4 = s4_by_id[j]
             out = dict(work[j])
+            # The member's PURE own cost: its chargeable base minus any
+            # upstream received component injected before the solve — that
+            # component is already marked up and must not be re-margined
+            # under "single" (SPEC §5.2; DECISIONS.md M6).
+            pure_own = own_cost[j] - (work[j].get("markup_exempt_component") or ZERO)
+            assert pure_own >= ZERO
             allocations: list[dict] = []
             for recipient, ratio in sorted(ratios_by_pool[j].items()):
                 if recipient in member_entities:
@@ -504,9 +510,11 @@ def cascade_allocate(
                     "allocated_cost": cost,
                 }
                 if policy == POLICY_SINGLE:
-                    # Markup once on the OWN cost component C_j × share_j(r)
-                    # (SPEC §5.3, consistent with §5.2 "single").
-                    allocation["markup_exempt_cost"] = cost - own_cost[j] * ratio
+                    # Markup once on the PURE own cost component
+                    # (C_j − received_j) × share_j(r) (SPEC §5.3, consistent
+                    # with §5.2 "single"; the internal SCC component AND any
+                    # upstream injection both pass through unmarked).
+                    allocation["markup_exempt_cost"] = cost - pure_own * ratio
                 allocations.append(allocation)
             total_allocated = sum((a["allocated_cost"] for a in allocations), ZERO)
             scc_allocated += total_allocated

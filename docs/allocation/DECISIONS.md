@@ -430,3 +430,133 @@ auditable/conservative interpretation, record it here, and continue.
     routing rule). Stage-7 recon (M6) must read SCC pools at SCC grain:
     per-pool `total_allocated` ≠ `chargeable_base` inside a cycle by design;
     the SCC-level sums tie exactly (V-X2 needs the group view).
+
+## M6 — Stage 7 recon, true-up, doc pack, orchestrator/API/registry (2026-06-10)
+
+55. **Recon runs at the Stage-5 pre-FX level (provider booking currency).**
+    V-X2's "Σ charges out (cost component) per pool = chargeable base
+    EXACTLY" is only meaningful before conversion, and a per-(pool, provider)
+    recon row must sum a single currency regardless of the run's
+    `chargeCurrency` mode (recipient-currency rows mix EUR/JPY/USD). Sheet-11
+    amounts are therefore provider-currency; the charge ledger carries the
+    converted amounts.
+
+56. **Recon covers the POOLED stream only.** Direct-charge and pass-through
+    legs never enter pool totals (Stage 2 routes them around the pool) and
+    recharge their traceable cost 1:1 — they cannot create residual by
+    construction. Stage 7 recomputes recovered/markup/charged-out from the
+    pools' ALLOCATED legs (never trusting pool-level totals); direct/PT legs
+    appear on the ledger and posting files but not in the pool tie-out.
+
+57. **SCC recon semantics (extends #54).** V-X2 evaluates at GROUP grain for
+    reciprocal members (one exception per member pool when the group does not
+    tie, V-C1 style). When the group ties, each member's
+    `total_cost_recovered` reports its own chargeable base — true by the
+    solver's conservation (asserted at solve time): nothing of the member's
+    cost is stranded, so the row's residual is the genuine zero. The member's
+    ledger-keyed sums remain visible as `total_markup`/`total_charged_out`,
+    and `solved_cost`/`internal_consumption` on the stage outputs explain the
+    difference.
+
+58. **Stage 7 emits rows WITHOUT run identity** (`recon_id`/`run_id`/
+    `run_timestamp` are stamped by the orchestrator at persistence — the
+    M4 #41 contract extended to sheet 11; `recon_id = RECON-{run_id}-{pool}`
+    keeps the PK unique across runs). Recon rows for pools that fail V-X1/
+    V-X2 are still EMITTED (status Break, break_amount set) — the row is the
+    evidence of the break; the orchestrator then fails the run.
+
+59. **True-up mechanics (SPEC §5.4).** (a) Deltas are computed per (pool,
+    provider, recipient, year) in the PROVIDER's booking currency at the
+    Stage-5 pre-FX level: in-year monthly FX never drives the true-up — the
+    configured `trueUpFxRateType` converts the delta ONCE (cost and markup
+    separately, boundary 3; gross exact sum), which is the only reading that
+    makes the config meaningful. (b) "Σ booked Budget charges" is anchored to
+    the LEDGER: every booked row must be exactly reproduced by the
+    deterministic budget recompute (matched by engine charge id; amounts
+    re-derived with the row's own logged fx_rate) — any mismatch, duplicate
+    or orphan booking is V-X4 BLOCK; a recompute leg that was never booked is
+    EXCLUDED from the subtrahend (only booked charges are subtracted) and
+    logged. (c) Parent = the latest-period verified booked charge, tie-break
+    ascending charge_id; a triple without booked rows emits its delta with no
+    parent (Conditional field). (d) Zero-delta triples emit no row.
+    (e) Negative deltas are legitimate: True-up rows are the append-only
+    ledger's sanctioned correction (reversing) rows — the V-R3
+    explicit-reversal reading, with `true_up_parent_charge_id` as the
+    explicit link. (f) `markup_pct_applied` (Mandatory) on a delta row = the
+    year's single distinct policy rate when determinate, else the blended
+    markup/cost delta ratio, else "0". (g) The schema `fx_rate_type`
+    enumeration has no year-end/annual-average member: rows map
+    year_end_closing → "Spot" (the year-end rate_date pins the closing
+    semantics) and annual_average → "Monthly average". (h) V-X3 fires per
+    (pool, provider) on |Σ delta_gross| / actual-year gross > threshold
+    (threshold read as `Decimal(str(config value))` — a config scalar, not
+    money).
+
+60. **V-X4 has two facets.** (a) Run reproducibility: the output hash is
+    computed over the PRE-stamped engine outputs (charges, true-up rows,
+    recon minus run identity, exceptions) and persisted as the
+    `output.sha256` artifact; a new run whose input snapshot hash matches a
+    prior succeeded run must reproduce that run's output hash or it fails.
+    (b) Booked-budget reproducibility inside the true-up (#59b). Both are
+    "same inputs must yield identical outputs".
+
+61. **Run/persistence mechanics (ADAPTATION D1).** `run_id =
+    RUN-{seq:04d}-{run_type}-{period}` (lexical order = insertion order);
+    persisted ledger ids are namespaced `{run_id}:{engine_charge_id}` so the
+    deterministic engine ids (M4 #35) stay unique on the append-only ledger
+    (`documentation_ref` = the run id, pointing at its doc pack). ANY BLOCK
+    exception fails the WHOLE run — nothing reaches the ledgers; only the
+    exception report + output hash persist with status `failed` (the
+    conservative reading of SPEC §4 "atomic, all-or-nothing per run").
+    Success persists charges + recon + artifacts + the status transition in
+    ONE SQLite transaction. **Artifacts live in SQLite**
+    (`allocation_run_artifacts`: doc pack Markdown, exceptions.json,
+    posting/{provider}.json+.csv, lineage.json, output.sha256, summary.json)
+    rather than files under state/runs/ — a demo reset wipes them with
+    everything else and the API serves them without filesystem coupling. The
+    table is orchestrator infrastructure (NOT schema.json-derived), so it
+    sits OUTSIDE the generated DDL markers. "The booked Budget charges" for a
+    period = the rows of the LATEST succeeded budget run covering it (earlier
+    same-period budget runs are superseded by recency; the ledger itself
+    stays append-only).
+
+62. **SCC "single" margin fix.** M5 #51 exempted only the INTERNAL reciprocal
+    component (`markup_exempt_cost = cost − own_cost × ratio`); an upstream
+    charge injected into a cycle member would have been re-margined. The
+    markable base is now `(own_cost − markup_exempt_component) × ratio` — the
+    member's PURE own cost share — so upstream injections pass through
+    cycles unmarked exactly as they do through acyclic tiers (SPEC §5.2
+    "no further markup on that component"). Test-pinned: a member's external
+    markup is identical with and without the upstream injection.
+
+63. **A run period's FX snapshot = the dataset rows whose `rate_date` falls
+    inside the period** (the runner filters before Stage 6, which requires
+    exactly one row per pair). The true-up snapshot (`trueup_fx_rates`) is
+    keyed by the config-level type and passed as-is.
+
+64. **Golden fixture topology (ADAPTATION D3).** SPEC §9.2 names a reciprocal
+    PAIR (LE-UK ⇄ LE-NL) AND an SCM US-leg recipient. Because LE-US (an IT
+    beneficiary) provides POOL-MGMT, ANY management charge to LE-NL or LE-UK
+    closes a second cycle through LE-US and collapses the pair into a
+    3-member SCC. POOL-MGMT therefore charges the three OpCos only; the
+    Finance-SSC charge to the hub cascades INSIDE the reciprocal solve
+    (internal flows are implicit, M5 #51), and the EXPLICIT received-cost-
+    line cascade (SPEC §5.2) is exercised by IT's SCM charge to LE-US joining
+    POOL-MGMT (markup-exempt, post-gate). Cascade-path entities (LE-US,
+    LE-NL, LE-UK) book USD (M5 #49 currency homogeneity); the golden runs use
+    the SPEC-default `chargeCurrency: "recipient"` (EUR + zero-decimal JPY
+    legs at flat monthly rates; true-up at the year-end closing rate). The
+    builder (`tests/allocation/golden/build_fixture.py`) is the committed
+    INDEPENDENT hand-computation — it never imports the engine — and key
+    figures are re-hard-coded as literals in the test.
+
+65. **Calc Studio registration.** `service_allocation` is POST-backed and
+    writes ledgers, so the CS-a byte-identical registry↔HTTP gate does not
+    apply; its golden equivalence is the deterministic OUTPUT HASH (registry
+    run == POST run for the same inputs — V-X4's own guarantee), asserted in
+    tests/allocation/test_m6_demo_endtoend.py. Registry runs audit twice by
+    design: the standard `calc:service_allocation` event plus the
+    orchestrator's `allocation:{run_id}` event (every allocation run is
+    audited regardless of how it was launched). The shaped trace is the
+    seven SPEC §4 stage summaries, emitted as "stage" trace events so
+    historical runs shape retroactively.
