@@ -20,6 +20,8 @@ def run() -> None:
     master_data.seed_if_empty()
     from state import cases
     cases.seed_if_empty()
+    from state import parameters
+    parameters.seed_if_empty()
 
 
 def reset() -> None:

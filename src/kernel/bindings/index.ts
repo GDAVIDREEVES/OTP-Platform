@@ -38,6 +38,7 @@ import { otp15 } from './marquee/otp15';
 import { otp18 } from './marquee/otp18';
 import { otp19 } from './marquee/otp19';
 import { otp47 } from './marquee/otp47';
+import { otp49 } from './marquee/otp49';
 import { caseWorkspace } from './marquee/caseWorkspace';
 
 /** Rich per-process bindings, keyed by OTP id. Marquee processes are registered
@@ -95,6 +96,7 @@ const MARQUEE: Record<string, ProcessBinding> = {
   'OTP-18': otp18, // customs revaluation reconciliation (planned TP price vs customs declared value, duty deltas, by AWREF)
   'OTP-19': otp19, // VAT / indirect-tax impact analysis (per-jurisdiction VAT over supply_chain royalty + service + goods legs; recoverable vs net leakage)
   'OTP-47': otp47, // FX / hedging on IC positions (monitor + calc over the fabricated fx seed; exposure base from treasury, hedged vs unhedged, hedge MTM)
+  'OTP-49': otp49, // data & calculation management console — governed parameter store + data catalog + real/assumed/fabricated provenance dashboard (completes 50/50)
 };
 
 export function getBinding(def: ProcessDef): ProcessBinding {

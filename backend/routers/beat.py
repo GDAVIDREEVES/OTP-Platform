@@ -28,11 +28,16 @@ from typing import Any
 
 from fastapi import APIRouter
 
+import state.parameters as parameters
+from calc import warehouse
 from db import q
 
 router = APIRouter()
 
-# --- Config constants (locked in the design spec) ----------------------------
+# --- Config (governed parameter store; see state/parameters.py) ---------------
+# Each is read at handler top via parameters.get_param(...), with the module
+# constant below as the fallback literal — so an unseeded store reproduces the
+# original responses byte-for-byte.
 US_PAYER = "1000"  # US IP Principal Co. — the §59A applicable-taxpayer candidate
 BEAT_THRESHOLD_PCT = 3.0  # §59A(e)(1)(C) base-erosion percentage threshold
 BEAT_RATE_PCT = 10.0  # §59A(b) BEAT rate on modified taxable income (post-2018)
@@ -58,8 +63,8 @@ _PAYMENT_TYPES = ("royalties", "services", "interest", "cogs", "other")
 _DIM = Path(__file__).parent.parent / "dim" / "entity_dim.json"
 
 
-def _classify(racct: str) -> str:
-    return _RACCT_TYPE.get(racct, "other")
+def _classify(racct: str, racct_type: dict[str, str]) -> str:
+    return racct_type.get(racct, "other")
 
 
 @lru_cache(maxsize=1)
@@ -68,39 +73,39 @@ def _names() -> dict[str, str]:
     return {e["rbukrs"]: e["display_name"] for e in entities}
 
 
-def _us_related_party_deductions(year: int) -> list[dict[str, Any]]:
+def _us_related_party_deductions(year: int, us_payer: str) -> list[dict[str, Any]]:
     """US payer deductible related-party lines, by RACCT (HSL < 0 = expense).
 
     REAL: aggregated straight from ``journal`` for RBUKRS = US payer where the
-    affiliate trading partner RASSC is set (and is not the US payer itself)."""
-    return q(
-        "SELECT RACCT, SUM(HSL) AS hsl, COUNT(*) AS n "
-        "FROM journal "
-        "WHERE RBUKRS = ? AND GJAHR = ? "
-        "AND RASSC IS NOT NULL AND RASSC <> '' AND RASSC <> ? "
-        "AND HSL < 0 "
-        "GROUP BY RACCT",
-        [US_PAYER, year, US_PAYER],
+    affiliate trading partner RASSC is set (and is not the US payer itself).
+    Routed through the shared aggregation kernel (calc.warehouse)."""
+    return warehouse.aggregate(
+        "journal",
+        ["RACCT"],
+        [("SUM(HSL)", "hsl"), ("COUNT(*)", "n")],
+        year=year,
+        where="RBUKRS = ? AND RASSC IS NOT NULL AND RASSC <> '' AND RASSC <> ? AND HSL < 0",
+        params=[us_payer, us_payer],
     )
 
 
-def _us_total_deductions(year: int) -> float:
+def _us_total_deductions(year: int, us_payer: str) -> float:
     """All US payer deductions for the year (every expense line, HSL < 0). The
     §59A base-erosion-percentage denominator."""
     rows = q(
         "SELECT SUM(HSL) AS hsl FROM journal WHERE RBUKRS = ? AND GJAHR = ? AND HSL < 0",
-        [US_PAYER, year],
+        [us_payer, year],
     )
     h = rows[0]["hsl"] if rows else None
     return -float(h) if h is not None else 0.0
 
 
-def _us_gross_receipts(year: int) -> float:
+def _us_gross_receipts(year: int, us_payer: str) -> float:
     """US payer gross receipts proxy (segment_pl revenue) — the $500M
     gross-receipts test input."""
     rows = q(
         "SELECT SUM(revenue) AS r FROM segment_pl WHERE RBUKRS = ? AND GJAHR = ?",
-        [US_PAYER, year],
+        [us_payer, year],
     )
     r = rows[0]["r"] if rows else None
     return float(r) if r is not None else 0.0
@@ -116,21 +121,27 @@ def beat(year: int = 2026) -> dict[str, Any]:
     against the 3% threshold; modified taxable income (MTI) adds the base-eroding
     payments back to the regular taxable income base. Returns a graceful zero
     model when the year has no US data."""
+    us_payer = parameters.get_param("beat.us_payer", US_PAYER)
+    threshold_pct = parameters.get_param("beat.threshold_pct", BEAT_THRESHOLD_PCT)
+    rate_pct = parameters.get_param("beat.rate_pct", BEAT_RATE_PCT)
+    racct_type = parameters.get_param("beat.racct_type", _RACCT_TYPE)
+    non_base_eroding = set(parameters.get_param("beat.non_base_eroding", list(_NON_BASE_ERODING)))
+    payment_type_order = tuple(parameters.get_param("beat.payment_types", list(_PAYMENT_TYPES)))
     names = _names()
 
     # --- OTP-36: classify the real related-party deductible base by type -------
-    by_type: dict[str, float] = {t: 0.0 for t in _PAYMENT_TYPES}
+    by_type: dict[str, float] = {t: 0.0 for t in payment_type_order}
     by_account: list[dict[str, Any]] = []
-    for r in _us_related_party_deductions(year):
+    for r in _us_related_party_deductions(year, us_payer):
         racct = str(r["RACCT"])
         amount = -float(r["hsl"])  # deduction magnitude (positive)
-        ptype = _classify(racct)
+        ptype = _classify(racct, racct_type)
         by_type[ptype] += amount
         by_account.append(
             {
                 "racct": racct,
                 "payment_type": ptype,
-                "base_eroding": ptype not in _NON_BASE_ERODING,
+                "base_eroding": ptype not in non_base_eroding,
                 "amount": round(amount, 2),
                 "postings": int(r["n"]),
             }
@@ -139,42 +150,42 @@ def beat(year: int = 2026) -> dict[str, Any]:
 
     related_party_deductions = sum(by_type.values())
     base_eroding_payments = sum(
-        v for t, v in by_type.items() if t not in _NON_BASE_ERODING
+        v for t, v in by_type.items() if t not in non_base_eroding
     )
     cogs_excluded = by_type["cogs"]
-    total_deductions = _us_total_deductions(year)
-    gross_receipts = _us_gross_receipts(year)
+    total_deductions = _us_total_deductions(year, us_payer)
+    gross_receipts = _us_gross_receipts(year, us_payer)
 
     base_erosion_pct = (
         100.0 * base_eroding_payments / total_deductions if total_deductions else 0.0
     )
-    threshold_met = base_erosion_pct >= BEAT_THRESHOLD_PCT
+    threshold_met = base_erosion_pct >= threshold_pct
 
     # Modified taxable income = regular taxable income + base-eroding tax benefits.
     # Regular taxable income proxy = gross receipts − total deductions.
     regular_taxable_income = gross_receipts - total_deductions
     modified_taxable_income = regular_taxable_income + base_eroding_payments
-    beat_base_tax = round(modified_taxable_income * BEAT_RATE_PCT / 100.0, 2)
+    beat_base_tax = round(modified_taxable_income * rate_pct / 100.0, 2)
 
     payment_types = [
         {
             "type": t,
             "label": t.capitalize() if t != "cogs" else "COGS",
             "amount": round(by_type[t], 2),
-            "base_eroding": t not in _NON_BASE_ERODING,
+            "base_eroding": t not in non_base_eroding,
         }
-        for t in _PAYMENT_TYPES
+        for t in payment_type_order
     ]
 
     # --- OTP-38: per-CFC Schedule M rollup (US RASSC postings by counterparty) --
-    schedule_m = _schedule_m(year, names)
+    schedule_m = _schedule_m(year, names, us_payer)
 
     return {
         "year": year,
-        "us_payer": US_PAYER,
-        "us_payer_name": names.get(US_PAYER, US_PAYER),
-        "threshold_pct": BEAT_THRESHOLD_PCT,
-        "beat_rate_pct": BEAT_RATE_PCT,
+        "us_payer": us_payer,
+        "us_payer_name": names.get(us_payer, us_payer),
+        "threshold_pct": threshold_pct,
+        "beat_rate_pct": rate_pct,
         "gross_receipts": round(gross_receipts, 2),
         "total_deductions": round(total_deductions, 2),
         "related_party_deductions": round(related_party_deductions, 2),
@@ -191,7 +202,7 @@ def beat(year: int = 2026) -> dict[str, Any]:
     }
 
 
-def _schedule_m(year: int, names: dict[str, str]) -> list[dict[str, Any]]:
+def _schedule_m(year: int, names: dict[str, str], us_payer: str) -> list[dict[str, Any]]:
     """Per-CFC Form 5471 Schedule M rollup of the US payer's RASSC postings.
 
     For each affiliate counterparty (RASSC) of the US payer, split the journal
@@ -208,7 +219,7 @@ def _schedule_m(year: int, names: dict[str, str]) -> list[dict[str, Any]]:
         "WHERE RBUKRS = ? AND GJAHR = ? "
         "AND RASSC IS NOT NULL AND RASSC <> '' AND RASSC <> ? "
         "GROUP BY RASSC ORDER BY RASSC",
-        [US_PAYER, year, US_PAYER],
+        [us_payer, year, us_payer],
     )
     out: list[dict[str, Any]] = []
     for r in rows:

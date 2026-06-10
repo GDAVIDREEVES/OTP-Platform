@@ -151,3 +151,26 @@ CREATE TABLE IF NOT EXISTS cases (
   updated_at     TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_cases_process ON cases (process_id);
+
+-- Governed parameter store (OTP-49 console / Phase 2a). One row per calc
+-- parameter pulled out of router code into a single auditable registry. `value`
+-- and `default_value` are JSON-encoded so a row can hold a scalar, a list, or a
+-- dict. Every edit is hash-chained at record_ref="param:{key}" (see
+-- state/parameters.py:set_param) — so each parameter's Audit tab + evidence
+-- packet light up with no extra wiring.
+CREATE TABLE IF NOT EXISTS parameters (
+  key           TEXT PRIMARY KEY,
+  value         TEXT NOT NULL,    -- JSON-encoded current value (scalar|list|dict)
+  type          TEXT,             -- declared value type: number|string|list|dict|bool
+  default_value TEXT,             -- JSON-encoded governed default (for reset)
+  min_value     REAL,
+  max_value     REAL,
+  category      TEXT,
+  process_id    TEXT,
+  provenance    TEXT,             -- real|assumed|fabricated
+  rationale     TEXT,
+  unit          TEXT,
+  updated_at    TEXT,
+  updated_by    TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_parameters_category ON parameters (category);
