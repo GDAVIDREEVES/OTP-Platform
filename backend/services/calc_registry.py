@@ -27,6 +27,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
 
+import services.catalog as catalog
 import state.audit as audit
 import state.calc_runs as calc_runs
 import state.parameters as parameters
@@ -81,6 +82,47 @@ def defs() -> list[dict[str, Any]]:
 def get_def(calc_id: str) -> dict[str, Any] | None:
     """One calculation definition by id, or ``None`` if unknown."""
     return next((d for d in defs() if d["id"] == calc_id), None)
+
+
+def graph() -> dict[str, list[dict[str, Any]]]:
+    """The 4-column dependency DAG behind the Lineage tab (CS-d).
+
+    Assembled entirely from the seed defs: catalog sources (column 0) and
+    governed parameters (column 1) feed calculations (column 2), which serve
+    their process (column 3). Edges are ``inputs.catalog → calc``,
+    ``inputs.parameters → calc`` and ``calc → process_id``. Provenance comes
+    from ``services/catalog.py`` / the parameter store, so the graph colours
+    match the ProvenanceChip semantics used everywhere else.
+    """
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, str]] = []
+    seen: set[str] = set()
+
+    def _add(node: dict[str, Any]) -> None:
+        if node["id"] not in seen:
+            seen.add(node["id"])
+            nodes.append(node)
+
+    for d in defs():
+        _add({"id": d["id"], "kind": "calculation", "label": d["name"],
+              "provenance": None, "column": 2})
+        _add({"id": d["process_id"], "kind": "process", "label": d["process_id"],
+              "provenance": None, "column": 3})
+        edges.append({"from": d["id"], "to": d["process_id"]})
+        for cid in d["inputs"]["catalog"]:
+            entry = catalog.entry(cid)
+            _add({"id": cid, "kind": "source",
+                  "label": entry["name"] if entry else cid,
+                  "provenance": entry.get("provenance") if entry else None,
+                  "column": 0})
+            edges.append({"from": cid, "to": d["id"]})
+        for key in d["inputs"]["parameters"]:
+            row = parameters.get_param_row(key)
+            _add({"id": f"parameter:{key}", "kind": "parameter", "label": key,
+                  "provenance": row.get("provenance") if row else None,
+                  "column": 1})
+            edges.append({"from": f"parameter:{key}", "to": d["id"]})
+    return {"nodes": nodes, "edges": edges}
 
 
 def _digest(output: Any) -> str:

@@ -1,17 +1,17 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Tabs, Tab, Typography } from '@mui/material';
 import AppShell from '@/shared/components/layout/AppShell';
-import EmptyTabState from '@/kernel/shell/EmptyTabState';
 import CalculationsTab from './tabs/CalculationsTab';
 import DriversTab from './tabs/DriversTab';
 import ScenariosTab from './tabs/ScenariosTab';
 import RunsTab from './tabs/RunsTab';
+import LineageTab from './tabs/LineageTab';
 import DataCatalogTab from './tabs/DataCatalogTab';
 import ProvenanceTab from './tabs/ProvenanceTab';
 
 /** Calc Studio — the first-class calculation-management module (Phase 3).
  *  Mirrors enterprise FP&A/EPM platforms: the calculation registry, the
- *  governed drivers, what-if scenarios, the run console, lineage (CS-d), the
+ *  governed drivers, what-if scenarios, the run console, the lineage DAG, the
  *  data catalog and the provenance rollup — one module over the governed
  *  subsystem the OTP-49 console (now a thin pointer binding) introduced. */
 
@@ -49,12 +49,7 @@ export default function CalcStudioWorkspace() {
       {active === 'drivers' && <DriversTab />}
       {active === 'scenarios' && <ScenariosTab />}
       {active === 'runs' && <RunsTab />}
-      {active === 'lineage' && (
-        <EmptyTabState
-          label="Lineage"
-          hint="The dependency graph — sources → parameters → calculations → processes — arrives with CS-d."
-        />
-      )}
+      {active === 'lineage' && <LineageTab />}
       {active === 'catalog' && <DataCatalogTab />}
       {active === 'provenance' && <ProvenanceTab />}
     </AppShell>

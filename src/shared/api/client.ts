@@ -64,6 +64,8 @@ import type {
   CalcDefResolved,
   CalcRun,
   CalcRunResult,
+  CalcRunShaped,
+  CalcGraph,
   Scenario,
   ScenarioCompare,
 } from './types';
@@ -374,6 +376,14 @@ export const api = {
 
   /** One run by id (404 if unknown). */
   run: (runId: number) => getJSON<CalcRun>(`/api/runs/${runId}`),
+
+  /** One run with its shaped explain-steps attached (CS-d) — historical runs
+   *  shape retroactively from the persisted summary + raw trace. */
+  shapedRun: (runId: number) => getJSON<CalcRunShaped>(`/api/runs/${runId}`, { shaped: true }),
+
+  /** The dependency DAG — sources | parameters | calculations | processes —
+   *  assembled from the calculation registry seed (CS-d Lineage tab). */
+  calcsGraph: () => getJSON<CalcGraph>('/api/calcs/graph'),
 
   // ------------ What-if scenarios (Calc Studio — CS-c) ------------
 

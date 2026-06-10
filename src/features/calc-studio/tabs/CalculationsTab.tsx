@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Alert, Box, Chip, CircularProgress, Paper, Stack, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Typography,
@@ -10,15 +11,32 @@ import CalcDetailDrawer from '../components/CalcDetailDrawer';
 /** Calculations — the registry of every computed endpoint the platform serves
  *  (seeds/calculations/calculations.v1.json), each with its most recent run.
  *  Row click opens the detail drawer: definition, resolved inputs, run history
- *  and "Run now". No figures are invented here — every row is read from
- *  GET /api/calcs. */
+ *  and "Run now". A `?calc={id}` query param auto-opens the drawer (the
+ *  Lineage graph deep-links here). No figures are invented here — every row
+ *  is read from GET /api/calcs. */
 
 export default function CalculationsTab() {
   const [defs, setDefs] = useState<CalcDef[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const refresh = () => api.calcs().then(setDefs).catch(() => setDefs([]));
   useEffect(() => { void refresh(); }, []);
+
+  // Deep link from the Lineage graph: ?calc={id} auto-opens the drawer.
+  const deepLink = searchParams.get('calc');
+  useEffect(() => {
+    if (deepLink) setSelected(deepLink);
+  }, [deepLink]);
+
+  const closeDrawer = () => {
+    setSelected(null);
+    if (searchParams.has('calc')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('calc');
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   if (defs === null) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
 
@@ -87,7 +105,7 @@ export default function CalculationsTab() {
       <CalcDetailDrawer
         open={selected !== null}
         calcId={selected}
-        onClose={() => setSelected(null)}
+        onClose={closeDrawer}
         onChanged={() => void refresh()}
       />
     </Stack>

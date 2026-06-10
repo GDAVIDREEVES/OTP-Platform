@@ -23,9 +23,11 @@ import CloseIcon from '@mui/icons-material/Close';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { api } from '@/shared/api/client';
-import type { CalcDefResolved, CalcRun, CalcRunResult } from '@/shared/api/types';
+import type { CalcDefResolved, CalcRun, CalcRunResult, ShapedStep } from '@/shared/api/types';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
 import { provKind, valueText, PROV_META } from '../lib';
+import TraceTree from './TraceTree';
+import RuleCard from './RuleCard';
 
 const ACTOR = 'u_demo';
 
@@ -42,11 +44,13 @@ function Meta({ label, value }: { label: string; value: string }) {
 }
 
 /** Calculation detail drawer (shell cloned from CaseDrawer): the registry
- *  definition (description + formula), its resolved inputs (catalog entries
- *  with provenance + governed parameters with current values), the per-calc
- *  run history, and a "Run now" action. Every run persists to calc_runs and
- *  hash-chains a "run" event at record_ref="calc:{id}", so the evidence
- *  packet lights up automatically. The trace tree arrives with CS-d. */
+ *  definition (description + formula + rule cards), its resolved inputs
+ *  (catalog entries with provenance + governed parameters with current
+ *  values), the per-calc run history, a "Run now" action and the shaped
+ *  trace tree (CS-d) — fresh runs show the richest trace straight from the
+ *  POST response; "View trace" shapes any past run retroactively. Every run
+ *  persists to calc_runs and hash-chains a "run" event at
+ *  record_ref="calc:{id}", so the evidence packet lights up automatically. */
 export default function CalcDetailDrawer({
   open,
   onClose,
@@ -64,12 +68,14 @@ export default function CalcDetailDrawer({
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<CalcRunResult | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [trace, setTrace] = useState<{ label: string; steps: ShapedStep[] } | null>(null);
 
   useEffect(() => {
     setDetail(null);
     setRuns(null);
     setResult(null);
     setRunError(null);
+    setTrace(null);
     if (!calcId) return;
     api.calc(calcId).then(setDetail).catch(() => setDetail(null));
     api.calcRuns(calcId).then(setRuns).catch(() => setRuns([]));
@@ -83,6 +89,7 @@ export default function CalcDetailDrawer({
     try {
       const res = await api.runCalc(calcId, { actor: ACTOR });
       setResult(res);
+      setTrace({ label: `Run #${res.id} — just now`, steps: res.shaped_trace ?? [] });
       const fresh = await api.calcRuns(calcId);
       setRuns(fresh);
       onChanged();
@@ -90,6 +97,19 @@ export default function CalcDetailDrawer({
       setRunError(String(e));
     } finally {
       setRunning(false);
+    }
+  };
+
+  const viewTrace = async (r: CalcRun) => {
+    setRunError(null);
+    try {
+      const shaped = await api.shapedRun(r.id);
+      setTrace({
+        label: `Run #${r.id} — ${new Date(r.ts).toLocaleString()}`,
+        steps: shaped.shaped_trace,
+      });
+    } catch (e) {
+      setRunError(String(e));
     }
   };
 
@@ -163,6 +183,8 @@ export default function CalcDetailDrawer({
               <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>
                 {detail.output}
               </Typography>
+              {/* Structured rule cards for the parameter-backed rules (CS-d). */}
+              <RuleCard parameters={detail.resolved_inputs.parameters} />
             </Box>
 
             <Divider />
@@ -264,6 +286,7 @@ export default function CalcDetailDrawer({
                         <TableCell>Status</TableCell>
                         <TableCell align="right">Duration</TableCell>
                         <TableCell>Digest</TableCell>
+                        <TableCell align="right">Trace</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -285,6 +308,11 @@ export default function CalcDetailDrawer({
                           <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>
                             {r.output_digest ? r.output_digest.slice(0, 12) : '—'}
                           </TableCell>
+                          <TableCell align="right">
+                            <Button size="small" onClick={() => void viewTrace(r)}>
+                              View trace
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -295,16 +323,24 @@ export default function CalcDetailDrawer({
 
             <Divider />
 
-            {/* Trace — shaped tree arrives with CS-d */}
+            {/* Trace — the shaped explain-steps (CS-d) */}
             <Box>
               <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
                 Trace
               </Typography>
-              <Alert severity="info" variant="outlined">
-                Trace view arrives with CS-d. Every run already persists its raw trace steps (parameters
-                read, aggregates, allocations, band tests), so historical runs gain the shaped trace
-                retroactively.
-              </Alert>
+              {trace === null ? (
+                <Alert severity="info" variant="outlined">
+                  Press “Run now” for the freshest trace (per-participant figures) or “View trace” on a
+                  past run — every run persists its raw steps, so historical runs shape retroactively.
+                </Alert>
+              ) : (
+                <Stack spacing={1}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    {trace.label}
+                  </Typography>
+                  <TraceTree steps={trace.steps} />
+                </Stack>
+              )}
             </Box>
 
             <Divider />

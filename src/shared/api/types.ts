@@ -882,9 +882,12 @@ export interface CalcRun {
   scenario_sensitive: boolean;
 }
 
-/** POST /api/calcs/{id}/run — the persisted run row plus the (unstored) output body. */
+/** POST /api/calcs/{id}/run — the persisted run row plus the (unstored) output
+ *  body and the shaped explain-steps (CS-d — fresh runs shape with the full
+ *  output, the richest trace). */
 export interface CalcRunResult extends CalcRun {
   output: unknown;
+  shaped_trace: ShapedStep[];
 }
 
 /** One registry entry (seeds/calculations/calculations.v1.json) — what the
@@ -918,6 +921,59 @@ export interface CalcDefResolved extends CalcDef {
     parameters: Parameter[];
   };
   last_run: CalcRun | null;
+}
+
+// ----------------- Shaped traces + lineage graph (Calc Studio CS-d) -----------------
+
+/** One governed parameter read inside a shaped trace step (the `overridden`
+ *  flag marks a scenario-overlay value). */
+export interface ShapedStepParam {
+  key: string;
+  value: unknown;
+  overridden: boolean;
+}
+
+/** One explain-step of a shaped trace (services/calc_traces.py) — curated for
+ *  csa/profit_split/beat, generic Inputs → Output for the rest. `sources` are
+ *  catalog ids from the definition's inputs (always resolvable). */
+export interface ShapedStep {
+  id: string;
+  label: string;
+  formula: string;
+  params: ShapedStepParam[];
+  values: Record<string, unknown>;
+  sources: string[];
+}
+
+/** GET /api/runs/{id}?shaped=true — the persisted run plus its shaped trace
+ *  (historical runs shape retroactively from summary + raw trace). */
+export interface CalcRunShaped extends CalcRun {
+  shaped_trace: ShapedStep[];
+}
+
+export type CalcGraphNodeKind = 'source' | 'parameter' | 'calculation' | 'process';
+
+/** One node of the dependency DAG (GET /api/calcs/graph): column 0 sources,
+ *  1 parameters, 2 calculations, 3 processes. Provenance is null for the
+ *  calculation/process columns. */
+export interface CalcGraphNode {
+  id: string;
+  kind: CalcGraphNodeKind;
+  label: string;
+  provenance: Provenance | null;
+  column: number;
+}
+
+export interface CalcGraphEdge {
+  from: string;
+  to: string;
+}
+
+/** The dependency DAG assembled from the registry seed — sources |
+ *  parameters | calculations | processes. */
+export interface CalcGraph {
+  nodes: CalcGraphNode[];
+  edges: CalcGraphEdge[];
 }
 
 // ----------------- What-if scenarios (Calc Studio CS-c) -----------------

@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Alert, Box, Button, Chip, CircularProgress, Paper, Stack, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Typography,
+  Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
+  DialogTitle, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead,
+  TableRow, Typography,
 } from '@mui/material';
 import { api } from '@/shared/api/client';
-import type { CalcRun } from '@/shared/api/types';
+import type { CalcRun, ShapedStep } from '@/shared/api/types';
 import { valueText } from '../lib';
+import TraceTree from '../components/TraceTree';
 
 /** Runs — the global job console over GET /api/runs, newest first. Each run
  *  persists its digest, summary and trace (never the output body) and is
  *  hash-chained at record_ref="calc:{id}", so the Evidence link resolves to
- *  the full audited run history. */
+ *  the full audited run history. "Trace" loads the run shaped
+ *  (GET /api/runs/{id}?shaped=true) into a dialog — retroactive for every
+ *  historical run. */
 
 /** Compact "k=v · k=v" line from a run's summary extract, '' when empty. */
 function summaryText(summary: Record<string, unknown> | null): string {
@@ -25,6 +29,8 @@ export default function RunsTab() {
   const navigate = useNavigate();
   const [runs, setRuns] = useState<CalcRun[] | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
+  const [trace, setTrace] = useState<{ run: CalcRun; steps: ShapedStep[] } | null>(null);
+  const [traceLoading, setTraceLoading] = useState<number | null>(null);
 
   useEffect(() => {
     api.runs().then(setRuns).catch(() => setRuns([]));
@@ -32,6 +38,18 @@ export default function RunsTab() {
       .then((ds) => setNames(Object.fromEntries(ds.map((d) => [d.id, d.name]))))
       .catch(() => {});
   }, []);
+
+  const openTrace = async (r: CalcRun) => {
+    setTraceLoading(r.id);
+    try {
+      const shaped = await api.shapedRun(r.id);
+      setTrace({ run: r, steps: shaped.shaped_trace });
+    } catch {
+      // load failure: leave the dialog closed
+    } finally {
+      setTraceLoading(null);
+    }
+  };
 
   if (runs === null) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
 
@@ -61,6 +79,7 @@ export default function RunsTab() {
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Duration</TableCell>
                 <TableCell>Digest</TableCell>
+                <TableCell align="right">Trace</TableCell>
                 <TableCell align="right">Evidence</TableCell>
               </TableRow>
             </TableHead>
@@ -101,6 +120,15 @@ export default function RunsTab() {
                   <TableCell align="right">
                     <Button
                       size="small"
+                      disabled={traceLoading === r.id}
+                      onClick={() => void openTrace(r)}
+                    >
+                      Trace
+                    </Button>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Button
+                      size="small"
                       onClick={() => navigate(`/evidence/${encodeURIComponent(`calc:${r.calc_id}`)}`)}
                     >
                       Evidence
@@ -112,6 +140,21 @@ export default function RunsTab() {
           </Table>
         </TableContainer>
       )}
+      {/* Shaped trace dialog — historical runs shape retroactively. */}
+      <Dialog open={trace !== null} onClose={() => setTrace(null)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Trace — {trace ? (names[trace.run.calc_id] ?? trace.run.calc_id) : ''}
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+            Run #{trace?.run.id} · {trace ? new Date(trace.run.ts).toLocaleString() : ''}
+          </Typography>
+        </DialogTitle>
+        <DialogContent dividers>
+          {trace && <TraceTree steps={trace.steps} />}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTrace(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
