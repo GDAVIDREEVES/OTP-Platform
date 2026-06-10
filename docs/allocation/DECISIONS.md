@@ -88,3 +88,65 @@ auditable/conservative interpretation, record it here, and continue.
     flat demo. Stage 4 (M2/M3) resolves beneficiaries from `9_Participation`,
     so the generator will gain a participation emitter then (schema sheet and
     generated TypedDict already exist).
+
+## M2 — Stages 1–3: capture/classify, pooling, benefit-test gate (2026-06-10)
+
+15. **Schema-gate error classification.** `validation.validate_row` failures
+    map to V-R1 when the message is an FK "does not resolve", and to V-R2 for
+    everything else (enums, floats on amounts, missing mandatory fields,
+    malformed decimals/dates). V-R2 is read as "rows validate against the
+    generated schema" — enums being the SPEC-named case — so the exception
+    report stays within the SPEC §7 catalogue without inventing IDs.
+
+16. **V-R3 reversal identification is explicit, never heuristic.**
+    schema.json has no reversal flag, so a negative amount passes V-R3 only
+    when the row's `source_document_ref` is registered in
+    `config["reversal_document_refs"]`. Anything else is a BLOCK — a silent
+    "looks like a reversal" convention would be a silent default.
+
+17. **Stage-1 split mechanics.** Children are floored at the cent (toward
+    zero, so reversal rows split symmetrically) and the entire remainder goes
+    to the largest split, tie-break ascending `mapping_id` (SPEC §4 Stage 1
+    "remainder cent assigned to the largest split" + §5.1 determinism). A
+    single mapping row with absent `allocation_split_pct` means 100% (the
+    schema marks the field Conditional — only impure cost centers split), but
+    a lone row with pct ≠ 100%, a non-positive split, or a missing pct on a
+    multi-row mapping fires V-P2.
+
+18. **V-P1 covers every "not exactly one destination" failure:** unmapped
+    cost center as-of the period (the undated FK V-R1 catches cost centers
+    absent from the mapping entirely; V-P1 catches expired mappings), a cost
+    center mapping the same pool twice, a pre-assigned `pool_id`
+    contradicting the mapping (or pre-assignment on a split cost center), a
+    pool_id that is not in the active 3_Pool catalogue as-of the period, and
+    a Direct line with no `traceable_recipient_id`.
+
+19. **BLOCK scope at stage granularity.** Line-level blocks hold the line
+    (`held_line_ids`, the exception queue); pool-attributable blocks (V-P5,
+    V-B1, V-B3, duplicate catalogue rows) withhold that pool's outputs —
+    "BLOCK halts the run for the affected pool" (SPEC §7). Run-level
+    escalation (a held line whose target pool is unknowable) is the M6
+    orchestrator's job.
+
+20. **Stage-3 pct carve-outs are line-pro-rata; fixed amounts are
+    pool-level.** A percentage exclusion's amount is defined as
+    Σ(line_amount × pct) over the pool's constituent lines so the lineage
+    adds up exactly; fixed amounts deduct at pool level with their documented
+    basis (no per-line attribution, per the SPEC §4 Stage 3 contract).
+    Exclusion math is full-precision Decimal — it is not one of SPEC §5.6's
+    three rounding boundaries, so the chargeable base is never quantized.
+
+21. **V-B3 also blocks "Use pct OR amount" violations** (both or neither set
+    = indeterminate basis), and **V-B1 also bounds each pct to [0, 1] and the
+    combined amount to [0, pool total]** — a negative carve-out would inflate
+    the base. Negative `exclusion_amount` is V-R3.
+
+22. **V-B2 skips zero-cost pools.** With nothing pooled there is no
+    carve-out to miss; otherwise every Management pool outside its billing
+    months would warn on every scoped run.
+
+23. **Stage outputs carry Decimal amounts** (engine-internal, full
+    precision); schema-shaped rows keep exact decimal strings. Adapters
+    serialize at the persistence boundary (M6). Stage 2 emits zero-total rows
+    for in-scope active pools with no lines (the SPEC §9.1 zero-cost pool
+    flows through to a zero chargeable base).
