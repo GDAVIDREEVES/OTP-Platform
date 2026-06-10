@@ -25,6 +25,16 @@ _FILES = {
     "guarantee": "finance/guarantee.v1.json",
     "captive": "finance/captive.v1.json",
     "customs": "finance/customs.v1.json",
+    # Allocation engine reference sheets (docs/allocation/SPEC.md §3; emitted by
+    # seeds/allocation/generate_seeds.py — re-run the generator, never hand-edit).
+    "allocation_entities": "allocation/entities.v1.json",
+    "allocation_cc_mapping": "allocation/cc_mapping.v1.json",
+    "allocation_pools": "allocation/pools.v1.json",
+    "allocation_markup_policies": "allocation/markup_policies.v1.json",
+    "allocation_exclusions": "allocation/exclusions.v1.json",
+    "allocation_key_defs": "allocation/key_defs.v1.json",
+    "allocation_key_values": "allocation/key_values.v1.json",
+    "allocation_cost_lines": "allocation/cost_lines.v1.json",
 }
 
 
