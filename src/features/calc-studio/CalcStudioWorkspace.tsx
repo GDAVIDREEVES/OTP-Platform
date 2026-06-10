@@ -5,21 +5,24 @@ import CalculationsTab from './tabs/CalculationsTab';
 import DriversTab from './tabs/DriversTab';
 import ScenariosTab from './tabs/ScenariosTab';
 import RunsTab from './tabs/RunsTab';
+import AllocationsTab from './tabs/AllocationsTab';
 import LineageTab from './tabs/LineageTab';
 import DataCatalogTab from './tabs/DataCatalogTab';
 import ProvenanceTab from './tabs/ProvenanceTab';
 
 /** Calc Studio — the first-class calculation-management module (Phase 3).
  *  Mirrors enterprise FP&A/EPM platforms: the calculation registry, the
- *  governed drivers, what-if scenarios, the run console, the lineage DAG, the
- *  data catalog and the provenance rollup — one module over the governed
- *  subsystem the OTP-49 console (now a thin pointer binding) introduced. */
+ *  governed drivers, what-if scenarios, the run console, the allocation-engine
+ *  workbench (M7), the lineage DAG, the data catalog and the provenance
+ *  rollup — one module over the governed subsystem the OTP-49 console (now a
+ *  thin pointer binding) introduced. */
 
 const TABS = [
   { key: 'calculations', label: 'Calculations' },
   { key: 'drivers', label: 'Drivers & Assumptions' },
   { key: 'scenarios', label: 'Scenarios' },
   { key: 'runs', label: 'Runs' },
+  { key: 'allocations', label: 'Allocations' },
   { key: 'lineage', label: 'Lineage' },
   { key: 'catalog', label: 'Data Catalog' },
   { key: 'provenance', label: 'Provenance' },
@@ -40,7 +43,15 @@ export default function CalcStudioWorkspace() {
           provenance in one place.
         </Typography>
       </Box>
-      <Tabs value={active} onChange={(_, v) => navigate(`/calc-studio/${v}`)} sx={{ mb: 2 }}>
+      {/* 8 tabs — scrollable so the row never overflows on narrow viewports. */}
+      <Tabs
+        value={active}
+        onChange={(_, v) => navigate(`/calc-studio/${v}`)}
+        sx={{ mb: 2 }}
+        variant="scrollable"
+        scrollButtons="auto"
+        allowScrollButtonsMobile
+      >
         {TABS.map((t) => (
           <Tab key={t.key} value={t.key} label={t.label} />
         ))}
@@ -49,6 +60,7 @@ export default function CalcStudioWorkspace() {
       {active === 'drivers' && <DriversTab />}
       {active === 'scenarios' && <ScenariosTab />}
       {active === 'runs' && <RunsTab />}
+      {active === 'allocations' && <AllocationsTab />}
       {active === 'lineage' && <LineageTab />}
       {active === 'catalog' && <DataCatalogTab />}
       {active === 'provenance' && <ProvenanceTab />}

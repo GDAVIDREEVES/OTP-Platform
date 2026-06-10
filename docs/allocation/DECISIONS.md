@@ -560,3 +560,47 @@ auditable/conservative interpretation, record it here, and continue.
     audited regardless of how it was launched). The shaped trace is the
     seven SPEC §4 stage summaries, emitted as "stage" trace events so
     historical runs shape retroactively.
+
+## M7 — Calc Studio Allocations workbench + OTP-10/15 wiring (2026-06-10)
+
+66. **The no-float-on-amounts rule extends to the UI.** The workbench never
+    parses a ledger amount into an IEEE number: decimal strings are formatted
+    lexically (digit grouping on the string), percent display shifts the
+    decimal point on the string (4-dp display truncation of the
+    full-precision rate, which stays in the chip tooltip — the ADAPTATION D2
+    "DE 5.6133%" convention), and the only client-side aggregation (the recon
+    KPIs' Σ charged-out / Σ true-up delta) sums exact cents via BigInt
+    (`src/features/calc-studio/allocationLib.ts`). Balanced/Break status is
+    always the ENGINE's verdict — the UI renders the recon columns, it never
+    re-derives the tie-out.
+
+67. **Run-row Evidence links to `calc:service_allocation`** (per the build
+    brief — the engine's registry-level audit ref); the per-run hash chain at
+    `allocation:{run_id}` (every run is audited there regardless of launch
+    path, M6 #65) is linked from the selected-run panel as "Run audit". Both
+    packets resolve through the standard /evidence/:ref page.
+
+68. **Launch-period choices are derived from data, never hardcoded:** the
+    period Select offers the Stage-3 exclusion register's effective months ∪
+    the recorded runs' monthly periods (the dataset's billing periods, M1 #6).
+    True-up launches post the selected period's YEAR (SPEC §5.4/§6).
+
+69. **No new backend surface for M7.** The Pools & policies section reads the
+    engine's reference sheets through the existing read-only
+    `/api/reference/allocation_*` seeds endpoint; runs/recon/exceptions/
+    charges/doc-packs/lineage use the M6 router as-is. The frontend
+    interfaces in `src/shared/api/types.ts` are documented DISPLAY
+    projections of the schema.json sheets (the house hand-typed API-client
+    convention) — schema.json + the generated backend types remain the only
+    authoritative shapes.
+
+70. **Failed runs stay first-class in the workbench.** POST returns 200 with
+    status `failed` (a domain outcome, M6 router contract); the console
+    surfaces the BLOCK/WARN counts and deep-links the Exceptions section,
+    while the run-scoped Recon/Charges/Doc-packs sections explain the
+    all-or-nothing emptiness rather than erroring.
+
+71. **Sub-nav state rides `?view=`** (ToggleButtonGroup synced to the search
+    params) so OTP-15 can deep-link the Pools & policies section
+    (`/calc-studio/allocations?view=pools`) — mirrors the Calculations tab's
+    `?calc=` deep-link convention.

@@ -87,12 +87,29 @@ const BatchTable: FC = () => {
   );
 };
 
-const Outputs: FC<BindingCtx> = () => (
-  <Stack spacing={2}>
-    <Alert severity="info" variant="outlined">The staged service cost-allocation charge & invoice batch. Each line carries its cost base and applied markup; exceptions surface here.</Alert>
-    <BatchTable />
-  </Stack>
-);
+const Outputs: FC<BindingCtx> = () => {
+  const navigate = useNavigate();
+  return (
+    <Stack spacing={2}>
+      {/* M7 wiring: the charge batch's engine-grade twin lives in Calc Studio. */}
+      <Alert
+        severity="info"
+        variant="outlined"
+        action={
+          <Button color="inherit" size="small" onClick={() => navigate('/calc-studio/allocations')}>
+            Open Allocations workbench
+          </Button>
+        }
+      >
+        These service charges are produced by the <b>allocation engine</b> — pool → benefit-test gate →
+        allocate → markup → charge-out, reconciled to a zero residual with full charge-to-cost-line
+        lineage.
+      </Alert>
+      <Alert severity="info" variant="outlined">The staged service cost-allocation charge & invoice batch. Each line carries its cost base and applied markup; exceptions surface here.</Alert>
+      <BatchTable />
+    </Stack>
+  );
+};
 
 const Wizard: FC<BindingCtx> = () => {
   const navigate = useNavigate();
