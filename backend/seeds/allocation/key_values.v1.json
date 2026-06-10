@@ -1,0 +1,200 @@
+{
+  "version": "1",
+  "note": "FABRICATED allocation key values (7_KeyValue): consumption units proportional to the warehouse pair cost base per period (cb/1000), so Stage-4 allocation reproduces the pair split exactly. Derived at authoring time from warehouse supply_chain SERVICE pairs by seeds/allocation/generate_seeds.py (ADAPTATION D2) \u2014 do not hand-edit; re-run the generator. Budget keys forecast the actual mix.",
+  "actual": [
+    {
+      "key_value_id": "KV-POOL-IT-US-3000-2026-05",
+      "key_id": "KEY-IT-CONS",
+      "pool_id": "POOL-IT-US",
+      "recipient_entity_id": "3000",
+      "period": "2026-05",
+      "factor_value": "3522.1500000",
+      "total_factor_value": "3522.1500000",
+      "allocation_ratio": "1",
+      "as_of_date": "2026-05-31",
+      "source_ref": "supply_chain:SERVICE:1000->3000:2026-05"
+    },
+    {
+      "key_value_id": "KV-POOL-IT-US-3000-2026-11",
+      "key_id": "KEY-IT-CONS",
+      "pool_id": "POOL-IT-US",
+      "recipient_entity_id": "3000",
+      "period": "2026-11",
+      "factor_value": "3271.0500000",
+      "total_factor_value": "3271.0500000",
+      "allocation_ratio": "1",
+      "as_of_date": "2026-11-30",
+      "source_ref": "supply_chain:SERVICE:1000->3000:2026-11"
+    },
+    {
+      "key_value_id": "KV-POOL-RSS-CH-3200-2026-04",
+      "key_id": "KEY-RSS-CONS",
+      "pool_id": "POOL-RSS-CH",
+      "recipient_entity_id": "3200",
+      "period": "2026-04",
+      "factor_value": "1174.0504500",
+      "total_factor_value": "3522.1513500",
+      "allocation_ratio": "0.3333333333333333333333333333",
+      "as_of_date": "2026-04-30",
+      "source_ref": "supply_chain:SERVICE:3100->3200:2026-04"
+    },
+    {
+      "key_value_id": "KV-POOL-RSS-CH-3200-2026-10",
+      "key_id": "KEY-RSS-CONS",
+      "pool_id": "POOL-RSS-CH",
+      "recipient_entity_id": "3200",
+      "period": "2026-10",
+      "factor_value": "1090.3504500",
+      "total_factor_value": "3271.0513500",
+      "allocation_ratio": "0.3333333333333333333333333333",
+      "as_of_date": "2026-10-31",
+      "source_ref": "supply_chain:SERVICE:3100->3200:2026-10"
+    },
+    {
+      "key_value_id": "KV-POOL-RSS-CH-3300-2026-04",
+      "key_id": "KEY-RSS-CONS",
+      "pool_id": "POOL-RSS-CH",
+      "recipient_entity_id": "3300",
+      "period": "2026-04",
+      "factor_value": "1174.0504500",
+      "total_factor_value": "3522.1513500",
+      "allocation_ratio": "0.3333333333333333333333333333",
+      "as_of_date": "2026-04-30",
+      "source_ref": "supply_chain:SERVICE:3100->3300:2026-04"
+    },
+    {
+      "key_value_id": "KV-POOL-RSS-CH-3300-2026-10",
+      "key_id": "KEY-RSS-CONS",
+      "pool_id": "POOL-RSS-CH",
+      "recipient_entity_id": "3300",
+      "period": "2026-10",
+      "factor_value": "1090.3504500",
+      "total_factor_value": "3271.0513500",
+      "allocation_ratio": "0.3333333333333333333333333333",
+      "as_of_date": "2026-10-31",
+      "source_ref": "supply_chain:SERVICE:3100->3300:2026-10"
+    },
+    {
+      "key_value_id": "KV-POOL-RSS-CH-3800-2026-04",
+      "key_id": "KEY-RSS-CONS",
+      "pool_id": "POOL-RSS-CH",
+      "recipient_entity_id": "3800",
+      "period": "2026-04",
+      "factor_value": "1174.0504500",
+      "total_factor_value": "3522.1513500",
+      "allocation_ratio": "0.3333333333333333333333333333",
+      "as_of_date": "2026-04-30",
+      "source_ref": "supply_chain:SERVICE:3100->3800:2026-04"
+    },
+    {
+      "key_value_id": "KV-POOL-RSS-CH-3800-2026-10",
+      "key_id": "KEY-RSS-CONS",
+      "pool_id": "POOL-RSS-CH",
+      "recipient_entity_id": "3800",
+      "period": "2026-10",
+      "factor_value": "1090.3504500",
+      "total_factor_value": "3271.0513500",
+      "allocation_ratio": "0.3333333333333333333333333333",
+      "as_of_date": "2026-10-31",
+      "source_ref": "supply_chain:SERVICE:3100->3800:2026-10"
+    }
+  ],
+  "budget": [
+    {
+      "key_value_id": "KV-B-POOL-IT-US-3000-2026-05",
+      "key_id": "KEY-IT-CONS",
+      "pool_id": "POOL-IT-US",
+      "recipient_entity_id": "3000",
+      "period": "2026-05",
+      "factor_value": "3522.1500000",
+      "total_factor_value": "3522.1500000",
+      "allocation_ratio": "1",
+      "as_of_date": "2026-05-31",
+      "source_ref": "supply_chain:SERVICE:1000->3000:2026-05"
+    },
+    {
+      "key_value_id": "KV-B-POOL-IT-US-3000-2026-11",
+      "key_id": "KEY-IT-CONS",
+      "pool_id": "POOL-IT-US",
+      "recipient_entity_id": "3000",
+      "period": "2026-11",
+      "factor_value": "3271.0500000",
+      "total_factor_value": "3271.0500000",
+      "allocation_ratio": "1",
+      "as_of_date": "2026-11-30",
+      "source_ref": "supply_chain:SERVICE:1000->3000:2026-11"
+    },
+    {
+      "key_value_id": "KV-B-POOL-RSS-CH-3200-2026-04",
+      "key_id": "KEY-RSS-CONS",
+      "pool_id": "POOL-RSS-CH",
+      "recipient_entity_id": "3200",
+      "period": "2026-04",
+      "factor_value": "1174.0504500",
+      "total_factor_value": "3522.1513500",
+      "allocation_ratio": "0.3333333333333333333333333333",
+      "as_of_date": "2026-04-30",
+      "source_ref": "supply_chain:SERVICE:3100->3200:2026-04"
+    },
+    {
+      "key_value_id": "KV-B-POOL-RSS-CH-3200-2026-10",
+      "key_id": "KEY-RSS-CONS",
+      "pool_id": "POOL-RSS-CH",
+      "recipient_entity_id": "3200",
+      "period": "2026-10",
+      "factor_value": "1090.3504500",
+      "total_factor_value": "3271.0513500",
+      "allocation_ratio": "0.3333333333333333333333333333",
+      "as_of_date": "2026-10-31",
+      "source_ref": "supply_chain:SERVICE:3100->3200:2026-10"
+    },
+    {
+      "key_value_id": "KV-B-POOL-RSS-CH-3300-2026-04",
+      "key_id": "KEY-RSS-CONS",
+      "pool_id": "POOL-RSS-CH",
+      "recipient_entity_id": "3300",
+      "period": "2026-04",
+      "factor_value": "1174.0504500",
+      "total_factor_value": "3522.1513500",
+      "allocation_ratio": "0.3333333333333333333333333333",
+      "as_of_date": "2026-04-30",
+      "source_ref": "supply_chain:SERVICE:3100->3300:2026-04"
+    },
+    {
+      "key_value_id": "KV-B-POOL-RSS-CH-3300-2026-10",
+      "key_id": "KEY-RSS-CONS",
+      "pool_id": "POOL-RSS-CH",
+      "recipient_entity_id": "3300",
+      "period": "2026-10",
+      "factor_value": "1090.3504500",
+      "total_factor_value": "3271.0513500",
+      "allocation_ratio": "0.3333333333333333333333333333",
+      "as_of_date": "2026-10-31",
+      "source_ref": "supply_chain:SERVICE:3100->3300:2026-10"
+    },
+    {
+      "key_value_id": "KV-B-POOL-RSS-CH-3800-2026-04",
+      "key_id": "KEY-RSS-CONS",
+      "pool_id": "POOL-RSS-CH",
+      "recipient_entity_id": "3800",
+      "period": "2026-04",
+      "factor_value": "1174.0504500",
+      "total_factor_value": "3522.1513500",
+      "allocation_ratio": "0.3333333333333333333333333333",
+      "as_of_date": "2026-04-30",
+      "source_ref": "supply_chain:SERVICE:3100->3800:2026-04"
+    },
+    {
+      "key_value_id": "KV-B-POOL-RSS-CH-3800-2026-10",
+      "key_id": "KEY-RSS-CONS",
+      "pool_id": "POOL-RSS-CH",
+      "recipient_entity_id": "3800",
+      "period": "2026-10",
+      "factor_value": "1090.3504500",
+      "total_factor_value": "3271.0513500",
+      "allocation_ratio": "0.3333333333333333333333333333",
+      "as_of_date": "2026-10-31",
+      "source_ref": "supply_chain:SERVICE:3100->3800:2026-10"
+    }
+  ]
+}

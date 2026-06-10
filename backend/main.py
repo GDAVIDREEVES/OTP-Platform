@@ -19,6 +19,7 @@ from db import close_db, db
 from state import migrate
 from routers import (
     adjustments,
+    allocation,
     audit,
     beat,
     berry,
@@ -96,6 +97,7 @@ for r in (
     journal_entries.router,
     years.router,
     audit.router,
+    allocation.router,
     drafts.router,
     review.router,
     lineage.router,

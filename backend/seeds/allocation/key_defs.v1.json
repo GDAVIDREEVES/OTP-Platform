@@ -1,0 +1,35 @@
+{
+  "version": "1",
+  "note": "Allocation key definitions (6_KeyDef). Derived at authoring time from warehouse supply_chain SERVICE pairs by seeds/allocation/generate_seeds.py (ADAPTATION D2) \u2014 do not hand-edit; re-run the generator.",
+  "rows": [
+    {
+      "key_id": "KEY-IT-CONS",
+      "key_name": "IT consumption units per entity",
+      "key_factor": "Transactions",
+      "source_system": "Warehouse supply_chain (SERVICE billing extract)",
+      "static_or_dynamic": "Dynamic",
+      "recompute_frequency": "Monthly",
+      "description": "Metered IT consumption units per beneficiary; tracks the support and hosting effort each entity actually draws.",
+      "owner": "TP Ops Lead"
+    },
+    {
+      "key_id": "KEY-RSS-CONS",
+      "key_name": "Shared-services transaction volume per entity",
+      "key_factor": "Transactions",
+      "source_system": "Warehouse supply_chain (SERVICE billing extract)",
+      "static_or_dynamic": "Dynamic",
+      "recompute_frequency": "Monthly",
+      "description": "Processed AP/AR transaction volume per beneficiary; proxies the benefit each distributor derives from the shared-service center.",
+      "owner": "TP Ops Lead"
+    },
+    {
+      "key_id": "KEY-MGMT-HC",
+      "key_name": "Headcount per entity",
+      "key_factor": "Headcount",
+      "source_system": "HR master",
+      "static_or_dynamic": "Static",
+      "description": "Annual headcount; default key for the management pools (fully stewardship-excluded in this dataset, so it never apportions).",
+      "owner": "TP Ops Lead"
+    }
+  ]
+}

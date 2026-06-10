@@ -1,0 +1,77 @@
+{
+  "version": "1",
+  "note": "Legal-entity master for the allocation engine. Derived at authoring time from warehouse supply_chain SERVICE pairs by seeds/allocation/generate_seeds.py (ADAPTATION D2) \u2014 do not hand-edit; re-run the generator. Legal names illustrative; jurisdictions from the warehouse; providers book in USD (group currency).",
+  "rows": [
+    {
+      "entity_id": "1000",
+      "legal_entity_name": "US IP Principal Inc.",
+      "company_code": "1000",
+      "jurisdiction": "US",
+      "functional_currency": "USD",
+      "entity_role": "Provider",
+      "tier": 1,
+      "effective_from": "2026-01-01",
+      "status": "Active"
+    },
+    {
+      "entity_id": "3000",
+      "legal_entity_name": "DE Full-Risk Manufacturer GmbH",
+      "company_code": "3000",
+      "jurisdiction": "DE",
+      "functional_currency": "EUR",
+      "entity_role": "Recipient",
+      "tier": 2,
+      "parent_entity_id": "1000",
+      "effective_from": "2026-01-01",
+      "status": "Active"
+    },
+    {
+      "entity_id": "3100",
+      "legal_entity_name": "CH Regional Headquarters AG",
+      "company_code": "3100",
+      "jurisdiction": "CH",
+      "functional_currency": "USD",
+      "entity_role": "Provider",
+      "tier": 1,
+      "parent_entity_id": "1000",
+      "effective_from": "2026-01-01",
+      "status": "Active"
+    },
+    {
+      "entity_id": "3200",
+      "legal_entity_name": "FR Limited-Risk Distributor SARL",
+      "company_code": "3200",
+      "jurisdiction": "FR",
+      "functional_currency": "EUR",
+      "entity_role": "Recipient",
+      "tier": 2,
+      "parent_entity_id": "3100",
+      "effective_from": "2026-01-01",
+      "status": "Active"
+    },
+    {
+      "entity_id": "3300",
+      "legal_entity_name": "GB Limited-Risk Distributor Ltd",
+      "company_code": "3300",
+      "jurisdiction": "GB",
+      "functional_currency": "GBP",
+      "entity_role": "Recipient",
+      "tier": 2,
+      "parent_entity_id": "3100",
+      "effective_from": "2026-01-01",
+      "status": "Active"
+    },
+    {
+      "entity_id": "3800",
+      "legal_entity_name": "NL Limited-Risk Distributor BV",
+      "company_code": "3800",
+      "jurisdiction": "NL",
+      "functional_currency": "EUR",
+      "entity_role": "Recipient",
+      "tier": 2,
+      "parent_entity_id": "3100",
+      "effective_from": "2026-01-01",
+      "status": "Active"
+    }
+  ]
+}

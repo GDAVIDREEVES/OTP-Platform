@@ -10,8 +10,10 @@ from the definition's inputs (they always resolve via ``services/catalog.py``
 — test-enforced in tests/test_calc_traces.py).
 
 csa / profit_split / beat get curated decompositions mirroring the handlers'
-actual arithmetic; the other calculations fall back to the generic two-step
-shape (Inputs → Output). A FRESH run can pass the full output body for
+actual arithmetic; service_allocation (M6) shapes the allocation engine's
+SEVEN pipeline stages (SPEC §4) from the "stage" trace events the orchestrator
+emits; the other calculations fall back to the generic two-step shape
+(Inputs → Output). A FRESH run can pass the full output body for
 per-participant figures; historical runs (the output body is never persisted)
 shape from the stored summary/trace alone, so they gain the tree retroactively.
 """
@@ -221,6 +223,75 @@ def _shape_beat(run: dict[str, Any], d: dict[str, Any], output: Any) -> list[dic
     ]
 
 
+#: The allocation engine's seven pipeline stages (SPEC §4), in run order —
+#: step ids match services/allocation_runner.py STAGE_IDS, formulas are the
+#: SPEC stage contracts, sources the registry def's allocation seeds.
+_ALLOCATION_STAGES: list[tuple[str, str, str, list[str]]] = [
+    ("capture", "Capture & classify (Stage 1)",
+     "validate (V-R*, V-P1/P2) → derive function/pool via 2_CCMapping splits "
+     "→ route non-Service flows out",
+     ["seed:allocation_cost_lines", "seed:allocation_cc_mapping"]),
+    ("pool", "Pool (Stage 2)",
+     "group classified lines into pools per 3_Pool; split direct-charge / "
+     "pass-through / poolable streams",
+     ["seed:allocation_pools"]),
+    ("benefit_gate", "Benefit-test gate (Stage 3)",
+     "chargeable_base = total_pooled_cost − exclusions (5_Exclusions: pct "
+     "carve-outs pro-rata, fixed amounts at pool level)",
+     ["seed:allocation_exclusions"]),
+    ("allocate", "Allocate (Stage 4, cascade-aware)",
+     "allocation_ratio = factor / Σ factor over the resolved beneficiaries; "
+     "largest-remainder apportionment; cascade topological, reciprocal SCCs "
+     "solved S = C + AᵀS",
+     ["seed:allocation_participation", "seed:allocation_key_defs",
+      "seed:allocation_key_values"]),
+    ("markup", "Cost base & markup (Stage 5)",
+     "markup = (cost − received component) × policy pct per (pool, recipient "
+     "jurisdiction); LVAIGS 5% / SCM 0% / Benchmarked / Pass-through 0%",
+     ["seed:allocation_markup_policies"]),
+    ("chargeout", "Charge-out (Stage 6)",
+     "10_ChargeLedger rows: FX to the charge currency (rate + date logged), "
+     "VAT/WHT attributes, posting file per provider",
+     ["seed:allocation_entities"]),
+    ("reconcile", "Reconcile & true-up (Stage 7)",
+     "pooled − exclusions − recovered = 0 (V-X1/V-X2); true-up deltas vs "
+     "booked Budget charges (V-X3/V-X4)",
+     []),
+]
+
+
+def _shape_service_allocation(
+    run: dict[str, Any], d: dict[str, Any], output: Any
+) -> list[dict[str, Any]]:
+    """services/allocation_runner.py — the seven SPEC §4 stages, with each
+    stage's run-time figures from the orchestrator's "stage" trace events
+    (persisted on the run) or the fresh output's stage_summaries."""
+    values_by_stage: dict[str, dict[str, Any]] = {}
+    labels_by_stage: dict[str, str] = {}
+    for s in run.get("trace") or []:
+        if s.get("step") == "stage" and s.get("stage"):
+            values_by_stage[s["stage"]] = dict(s.get("values") or {})
+            if s.get("label"):
+                labels_by_stage[s["stage"]] = s["label"]
+    if isinstance(output, dict):
+        for s in output.get("stage_summaries") or []:
+            values_by_stage.setdefault(s["id"], dict(s.get("values") or {}))
+            labels_by_stage.setdefault(s["id"], s.get("label", ""))
+    summary = run.get("summary") or {}
+    steps = []
+    for stage_id, label, formula, sources in _ALLOCATION_STAGES:
+        values = dict(values_by_stage.get(stage_id) or {})
+        if stage_id == "reconcile":
+            for key in ("recon_balanced", "output_hash"):
+                if key in summary:
+                    values.setdefault(key, summary[key])
+        steps.append(_step(
+            stage_id, labels_by_stage.get(stage_id) or label, formula,
+            values=values, sources=sources,
+        ))
+    return steps
+
+
 def _shape_generic(run: dict[str, Any], d: dict[str, Any], output: Any) -> list[dict[str, Any]]:
     """Fallback for the calculations without a curated decomposition: the
     inputs actually read (params_read + the def's catalog sources), then the
@@ -250,6 +321,7 @@ _SHAPERS = {
     "csa": _shape_csa,
     "profit_split": _shape_profit_split,
     "beat": _shape_beat,
+    "service_allocation": _shape_service_allocation,
 }
 
 

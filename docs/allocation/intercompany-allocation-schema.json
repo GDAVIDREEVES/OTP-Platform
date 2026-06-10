@@ -1,0 +1,2100 @@
+{
+  "name": "Intercompany Cost Allocation - Data Element Inventory",
+  "purpose": "Field-level data dictionary for an operational transfer pricing (OTP) cost-to-charge engine. Covers OECD Chapter VII intra-group services and US Treas. Reg. 1.482-9. Entities link via the PK/FK relationships noted per field.",
+  "pipeline": [
+    "1 Capture",
+    "2 Pool",
+    "3 Benefit test / exclude",
+    "4 Allocate via key",
+    "5 Cost base + markup",
+    "6 Charge-out",
+    "7 True-up / reconcile"
+  ],
+  "entities": [
+    {
+      "sheet": "1_CostLine",
+      "title": "1. Cost Line (source GL / ACDOCA)",
+      "description": "Stage 1 capture. The atomic input: each cost the provider entity incurred, tagged so the rest of the pipeline can pool, gate, and allocate it.",
+      "fields": [
+        {
+          "data_element": "cost_line_id",
+          "data_type": "String/UUID",
+          "required": "Mandatory",
+          "source": "ETL (generated)",
+          "definition": "Unique identifier for the source cost line.",
+          "relevance": "Audit lineage: every charge must trace back to its constituent cost lines.",
+          "example": "CL-2026-0098231",
+          "primary_key": true,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "provider_entity_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Entity master",
+          "definition": "Legal entity that bore the cost.",
+          "relevance": "Determines who is providing the service and recovering the cost.",
+          "example": "LE-US-001",
+          "primary_key": false,
+          "references": {
+            "entity": "8_Entity",
+            "field": "entity_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "company_code",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "SAP / GL",
+          "definition": "Source ledger company code.",
+          "relevance": "Primary join key to the universal journal / ACDOCA.",
+          "example": "1000",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "cost_center",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "SAP / GL",
+          "definition": "Cost center the cost posted to.",
+          "relevance": "Drives the cost-center -> service-line mapping (function derivation).",
+          "example": "CC-IT-4400",
+          "primary_key": false,
+          "references": {
+            "entity": "2_CCMapping",
+            "field": "cost_center"
+          },
+          "key_notes": "Joins on natural key (company_code + cost_center), as-of period"
+        },
+        {
+          "data_element": "profit_center",
+          "data_type": "String",
+          "required": "Optional",
+          "source": "SAP / GL",
+          "definition": "Profit center, where used.",
+          "relevance": "Secondary segmentation / reconciliation.",
+          "example": "PC-CORP-01",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "cost_element",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "SAP / GL",
+          "definition": "GL account / cost element (nature of cost).",
+          "relevance": "Distinguishes payroll, depreciation, third-party fees, etc. for cost-base composition.",
+          "example": "6500-Salaries",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "cost_nature",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Derived / mapping",
+          "definition": "Classified nature (payroll, depreciation, third-party fee, travel, software...).",
+          "relevance": "Needed to identify pass-throughs and to define what is loaded into the cost base.",
+          "example": "Payroll",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "function",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Derived (mapping)",
+          "definition": "Service function the cost supports (IT, HR, Finance, Legal...).",
+          "relevance": "Routes the cost to the correct pool; usually carried by cost-center mapping not by account.",
+          "example": "IT",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "amount_local",
+          "data_type": "Decimal",
+          "required": "Mandatory",
+          "source": "SAP / GL",
+          "definition": "Cost amount in the provider's local/booking currency.",
+          "relevance": "The raw value that becomes the cost base.",
+          "example": "125000.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "currency_local",
+          "data_type": "Currency",
+          "required": "Mandatory",
+          "source": "SAP / GL",
+          "definition": "Currency of amount_local (ISO 4217).",
+          "relevance": "Needed before any FX conversion at charge-out.",
+          "example": "USD",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "posting_date",
+          "data_type": "Date",
+          "required": "Mandatory",
+          "source": "SAP / GL",
+          "definition": "GL posting date.",
+          "relevance": "Period assignment and close-cycle alignment.",
+          "example": "2026-03-31",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "fiscal_period",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "SAP / GL",
+          "definition": "Fiscal period (e.g., 2026-03).",
+          "relevance": "Pooling and charging cadence; budget vs. actual matching.",
+          "example": "2026-03",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "fiscal_year",
+          "data_type": "Text",
+          "required": "Mandatory",
+          "source": "SAP / GL",
+          "definition": "Fiscal year (stored as text to avoid numeric formatting).",
+          "relevance": "Year-end true-up grouping.",
+          "example": "2026",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "flow_type",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Tagging rule",
+          "definition": "Classifies the flow: service / goods / royalty / CSA / financing.",
+          "relevance": "Gate at Stage 1 - only 'service' flows enter this pipeline.",
+          "example": "Service",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "charge_method",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Pooling rule",
+          "definition": "Direct charge vs. indirect (allocation).",
+          "relevance": "Routes traceable costs around the allocation key.",
+          "example": "Indirect",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: Direct/Indirect"
+        },
+        {
+          "data_element": "traceable_recipient_id",
+          "data_type": "String",
+          "required": "Conditional",
+          "source": "Source doc / project",
+          "definition": "Recipient entity when the cost is directly traceable (direct charge).",
+          "relevance": "Populated only for direct charges; bypasses the key.",
+          "example": "LE-DE-007",
+          "primary_key": false,
+          "references": {
+            "entity": "8_Entity",
+            "field": "entity_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "pass_through_flag",
+          "data_type": "Boolean",
+          "required": "Mandatory",
+          "source": "Tagging rule",
+          "definition": "TRUE if cost is a disbursement advanced for a recipient.",
+          "relevance": "Pass-throughs recharge at cost with NO markup and must not dilute the pool.",
+          "example": "FALSE",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "pool_id",
+          "data_type": "String",
+          "required": "Conditional",
+          "source": "Pooling step",
+          "definition": "Pool the line is assigned to (Stage 2).",
+          "relevance": "Links the line to its homogeneous pool.",
+          "example": "POOL-IT-INFRA",
+          "primary_key": false,
+          "references": {
+            "entity": "3_Pool",
+            "field": "pool_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "source_document_ref",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "SAP / GL",
+          "definition": "Reference to the source GL document.",
+          "relevance": "Immutable lineage for audit reconstruction.",
+          "example": "DOC-4500091234",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        }
+      ]
+    },
+    {
+      "sheet": "2_CCMapping",
+      "title": "2. Cost Center -> Service Line Mapping (reference data)",
+      "description": "Versioned, effective-dated reference data. The single biggest determinant of data quality - keep it first-class, not a hard-coded lookup.",
+      "fields": [
+        {
+          "data_element": "mapping_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Unique mapping row identifier.",
+          "relevance": "-",
+          "example": "MAP-00231",
+          "primary_key": true,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "company_code",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Company code scope of the mapping.",
+          "relevance": "Mapping is company-code + cost-center specific.",
+          "example": "1000",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "cost_center",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Cost center being mapped.",
+          "relevance": "Join target from cost lines.",
+          "example": "CC-IT-4400",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Natural key joined FROM 1_CostLine.cost_center (with company_code), as-of period"
+        },
+        {
+          "data_element": "service_line_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Service line / pool the cost center feeds.",
+          "relevance": "Assigns function and downstream pool.",
+          "example": "SL-IT-INFRA",
+          "primary_key": false,
+          "references": {
+            "entity": "3_Pool",
+            "field": "pool_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "function",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Function classification.",
+          "relevance": "Used where service_line is not 1:1 with function.",
+          "example": "IT",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "allocation_split_pct",
+          "data_type": "Percent",
+          "required": "Conditional",
+          "source": "Maintained ref",
+          "definition": "Split % when a cost center serves multiple functions/pools.",
+          "relevance": "Supports impure cost centers by splitting them into homogeneous pools.",
+          "example": "60%",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Sum of splits per CC = 100%"
+        },
+        {
+          "data_element": "effective_from",
+          "data_type": "Date",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Start of validity.",
+          "relevance": "Effective-dating so historic charges remain reproducible.",
+          "example": "2026-01-01",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "effective_to",
+          "data_type": "Date",
+          "required": "Optional",
+          "source": "Maintained ref",
+          "definition": "End of validity (null = open).",
+          "relevance": "Closes a mapping version.",
+          "example": "2026-12-31",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "version",
+          "data_type": "Integer",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Version number of the mapping.",
+          "relevance": "Change control / audit.",
+          "example": "3",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "owner",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Governance",
+          "definition": "Person/role accountable for the mapping.",
+          "relevance": "Accountability for reference data.",
+          "example": "TP Ops Lead",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "rationale",
+          "data_type": "Text",
+          "required": "Recommended",
+          "source": "Governance",
+          "definition": "Why the cost center maps as it does.",
+          "relevance": "Documentation byproduct for the local file.",
+          "example": "Helpdesk supports all OpCos",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        }
+      ]
+    },
+    {
+      "sheet": "3_Pool",
+      "title": "3. Service Pool / Catalogue",
+      "description": "Stage 2-5 definition object. One pool ~ one service line ~ one beneficiary population ~ one key. Carries characterization driving markup policy.",
+      "fields": [
+        {
+          "data_element": "pool_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Unique pool identifier.",
+          "relevance": "-",
+          "example": "POOL-IT-INFRA",
+          "primary_key": true,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "pool_name",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Human-readable pool name.",
+          "relevance": "-",
+          "example": "Global IT Infrastructure",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "service_line",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Service category (IT, HR, Finance, Procurement, Mgmt...).",
+          "relevance": "Drives key catalogue and benchmarking comparables.",
+          "example": "IT",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "service_description",
+          "data_type": "Text",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Description of what the pool delivers.",
+          "relevance": "Benefit-test evidence and documentation.",
+          "example": "Network, hosting, end-user support",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "provider_entity_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Entity master",
+          "definition": "Entity providing the pooled service.",
+          "relevance": "Recovers cost + markup; revenue side of the charge.",
+          "example": "LE-US-001",
+          "primary_key": false,
+          "references": {
+            "entity": "8_Entity",
+            "field": "entity_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "characterization",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "TP analysis",
+          "definition": "Routine-benchmarked / LVAIGS / SCM / pass-through.",
+          "relevance": "Selects which markup regime applies (5% / 0% / benchmarked).",
+          "example": "LVAIGS",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "core_or_support",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "TP analysis",
+          "definition": "Core business vs. supportive activity.",
+          "relevance": "LVAIGS and SCM both require non-core; feeds business-judgment rule.",
+          "example": "Support",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: Core/Support"
+        },
+        {
+          "data_element": "unique_intangible_flag",
+          "data_type": "Boolean",
+          "required": "Mandatory",
+          "source": "TP analysis",
+          "definition": "TRUE if pool uses/creates unique & valuable intangibles.",
+          "relevance": "Disqualifies LVAIGS treatment if TRUE.",
+          "example": "FALSE",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "significant_risk_flag",
+          "data_type": "Boolean",
+          "required": "Mandatory",
+          "source": "TP analysis",
+          "definition": "TRUE if pool involves assumption of significant risk.",
+          "relevance": "Disqualifies LVAIGS treatment if TRUE.",
+          "example": "FALSE",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "cost_base_definition",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "TP policy",
+          "definition": "Full cost / total services cost / marginal.",
+          "relevance": "Defines what the markup is applied to; frequent audit target.",
+          "example": "Total services cost",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "default_key_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Default allocation key for the pool.",
+          "relevance": "Used unless direct charge applies.",
+          "example": "KEY-IT-SEATS",
+          "primary_key": false,
+          "references": {
+            "entity": "6_KeyDef",
+            "field": "key_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "direct_charge_flag",
+          "data_type": "Boolean",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "TRUE if pool is charged directly (no key).",
+          "relevance": "Routing logic at Stage 4.",
+          "example": "FALSE",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "documentation_ref",
+          "data_type": "String",
+          "required": "Recommended",
+          "source": "Governance",
+          "definition": "Link to supporting TP documentation.",
+          "relevance": "Local file / Master File support.",
+          "example": "DOC/TP/IT-2026",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "effective_from",
+          "data_type": "Date",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Pool validity start.",
+          "relevance": "Effective-dating.",
+          "example": "2026-01-01",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "effective_to",
+          "data_type": "Date",
+          "required": "Optional",
+          "source": "Maintained ref",
+          "definition": "Pool validity end.",
+          "relevance": "-",
+          "example": "",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "status",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Active / inactive.",
+          "relevance": "Run inclusion.",
+          "example": "Active",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: Active/Inactive"
+        }
+      ]
+    },
+    {
+      "sheet": "4_MarkupPolicy",
+      "title": "4. Markup Policy (per pool, per jurisdiction)",
+      "description": "Stage 5. Markup is a per-pool, per-jurisdiction attribute - the same pool can be LVAIGS 5% for an OECD leg and SCM 0% for the US leg.",
+      "fields": [
+        {
+          "data_element": "markup_policy_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Unique policy row.",
+          "relevance": "-",
+          "example": "MP-IT-DE",
+          "primary_key": true,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "pool_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Pool the policy applies to.",
+          "relevance": "-",
+          "example": "POOL-IT-INFRA",
+          "primary_key": false,
+          "references": {
+            "entity": "3_Pool",
+            "field": "pool_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "jurisdiction",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "TP policy",
+          "definition": "Recipient jurisdiction the policy governs.",
+          "relevance": "Allows divergent treatment by country.",
+          "example": "DE",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "regime",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "TP policy",
+          "definition": "LVAIGS / SCM / Benchmarked / Pass-through.",
+          "relevance": "Determines markup mechanics.",
+          "example": "LVAIGS",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "markup_pct",
+          "data_type": "Percent",
+          "required": "Mandatory",
+          "source": "TP policy",
+          "definition": "Markup applied to the cost base.",
+          "relevance": "5% LVAIGS, 0% SCM/pass-through, benchmarked otherwise.",
+          "example": "5.0%",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "scm_eligibility_basis",
+          "data_type": "Enum",
+          "required": "Conditional",
+          "source": "TP analysis",
+          "definition": "Specified-covered-service list / low-margin <=7% / n/a.",
+          "relevance": "Required to support a US SCM (0%) position.",
+          "example": "n/a",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "business_judgment_conclusion",
+          "data_type": "Text",
+          "required": "Conditional",
+          "source": "TP analysis",
+          "definition": "Conclusion that service is not core/key-advantage/fundamental-risk.",
+          "relevance": "Mandatory support for SCM eligibility.",
+          "example": "Support only; no key advantage",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "benchmark_study_ref",
+          "data_type": "String",
+          "required": "Conditional",
+          "source": "TP analysis",
+          "definition": "Reference to the benchmarking study.",
+          "relevance": "Supports a benchmarked markup.",
+          "example": "BM-IT-2025-EU",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "effective_from",
+          "data_type": "Date",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Policy validity start.",
+          "relevance": "-",
+          "example": "2026-01-01",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "effective_to",
+          "data_type": "Date",
+          "required": "Optional",
+          "source": "Maintained ref",
+          "definition": "Policy validity end.",
+          "relevance": "-",
+          "example": "",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        }
+      ]
+    },
+    {
+      "sheet": "5_Exclusions",
+      "title": "5. Exclusion Rules (benefit-test gating)",
+      "description": "Stage 3. The gating filter that strips non-chargeable cost from the pool. Supports partial (percentage) carve-outs - stewardship is rarely a clean cost center.",
+      "fields": [
+        {
+          "data_element": "exclusion_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Unique exclusion row.",
+          "relevance": "-",
+          "example": "EX-MGMT-STW",
+          "primary_key": true,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "pool_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Pool the exclusion applies to.",
+          "relevance": "-",
+          "example": "POOL-MGMT",
+          "primary_key": false,
+          "references": {
+            "entity": "3_Pool",
+            "field": "pool_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "exclusion_type",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "TP analysis",
+          "definition": "Stewardship / duplicative / incidental / on-call.",
+          "relevance": "Categorizes why the cost is not chargeable.",
+          "example": "Stewardship",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "exclusion_pct",
+          "data_type": "Percent",
+          "required": "Conditional",
+          "source": "TP analysis",
+          "definition": "% of pool removed (for partial carve-outs).",
+          "relevance": "Enables stewardship carve-out from an otherwise chargeable pool.",
+          "example": "30%",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Use pct OR amount"
+        },
+        {
+          "data_element": "exclusion_amount",
+          "data_type": "Decimal",
+          "required": "Conditional",
+          "source": "TP analysis",
+          "definition": "Fixed amount removed (alternative to %).",
+          "relevance": "For specifically identified non-chargeable costs.",
+          "example": "250000.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Use pct OR amount"
+        },
+        {
+          "data_element": "basis_rationale",
+          "data_type": "Text",
+          "required": "Mandatory",
+          "source": "TP analysis",
+          "definition": "Justification for the exclusion.",
+          "relevance": "Documentation; the most litigated area of services TP.",
+          "example": "Group consolidation = shareholder activity",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "effective_from",
+          "data_type": "Date",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Validity start.",
+          "relevance": "-",
+          "example": "2026-01-01",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "effective_to",
+          "data_type": "Date",
+          "required": "Optional",
+          "source": "Maintained ref",
+          "definition": "Validity end.",
+          "relevance": "-",
+          "example": "",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "owner",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Governance",
+          "definition": "Accountable owner.",
+          "relevance": "-",
+          "example": "TP Manager",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        }
+      ]
+    },
+    {
+      "sheet": "6_KeyDef",
+      "title": "6. Allocation Key Definition",
+      "description": "Stage 4 metadata. Defines the apportionment factor and where its data comes from. Separate from the period key values (sheet 7).",
+      "fields": [
+        {
+          "data_element": "key_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Unique key identifier.",
+          "relevance": "-",
+          "example": "KEY-IT-SEATS",
+          "primary_key": true,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "key_name",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Human-readable key name.",
+          "relevance": "-",
+          "example": "IT seats per entity",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "key_factor",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Driver: headcount / revenue / seats / transactions / floor area / spend / multi-factor.",
+          "relevance": "Should proxy the benefit derived from the specific service.",
+          "example": "Seats",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "factor_components",
+          "data_type": "Text",
+          "required": "Conditional",
+          "source": "Maintained ref",
+          "definition": "Component factors and weights (multi-factor keys).",
+          "relevance": "Defines composite keys for diffuse-benefit pools.",
+          "example": "Revenue 40 / HC 40 / Assets 20",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "source_system",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Governance",
+          "definition": "Authoritative source for the factor data.",
+          "relevance": "Key integrity = second most common audit failure after impure pools.",
+          "example": "ITSM / ServiceNow",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "static_or_dynamic",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Set annually (static) vs. recomputed each period (dynamic).",
+          "relevance": "Trades stability against accuracy; document the choice.",
+          "example": "Static",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: Static/Dynamic"
+        },
+        {
+          "data_element": "recompute_frequency",
+          "data_type": "Enum",
+          "required": "Conditional",
+          "source": "Maintained ref",
+          "definition": "Annual / quarterly / monthly (if dynamic).",
+          "relevance": "Cadence of key refresh.",
+          "example": "Annual",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "description",
+          "data_type": "Text",
+          "required": "Recommended",
+          "source": "Maintained ref",
+          "definition": "How the key reflects benefit.",
+          "relevance": "Benefit-reflection rationale for documentation.",
+          "example": "Seats track support effort",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "owner",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Governance",
+          "definition": "Accountable owner.",
+          "relevance": "-",
+          "example": "TP Ops Lead",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        }
+      ]
+    },
+    {
+      "sheet": "7_KeyValue",
+      "title": "7. Allocation Key Value (per recipient, per period)",
+      "description": "Stage 4 data. The actual factor values that produce each recipient's apportionment ratio. Auditable, period-stamped, sourced.",
+      "fields": [
+        {
+          "data_element": "key_value_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "ETL",
+          "definition": "Unique value row.",
+          "relevance": "-",
+          "example": "KV-IT-DE-2026-03",
+          "primary_key": true,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "key_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Key def",
+          "definition": "Key the value belongs to.",
+          "relevance": "-",
+          "example": "KEY-IT-SEATS",
+          "primary_key": false,
+          "references": {
+            "entity": "6_KeyDef",
+            "field": "key_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "pool_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Run scope",
+          "definition": "Pool/beneficiary population the ratio is computed within.",
+          "relevance": "Denominator is scoped to the pool's beneficiaries.",
+          "example": "POOL-IT-INFRA",
+          "primary_key": false,
+          "references": {
+            "entity": "3_Pool",
+            "field": "pool_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "recipient_entity_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Entity master",
+          "definition": "Beneficiary entity.",
+          "relevance": "Numerator owner.",
+          "example": "LE-DE-007",
+          "primary_key": false,
+          "references": {
+            "entity": "8_Entity",
+            "field": "entity_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "period",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Run scope",
+          "definition": "Period the value applies to.",
+          "relevance": "Aligns key to the charge period.",
+          "example": "2026-03",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "factor_value",
+          "data_type": "Decimal",
+          "required": "Mandatory",
+          "source": "Source system",
+          "definition": "Recipient's value of the factor.",
+          "relevance": "Numerator of the allocation ratio.",
+          "example": "320",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "total_factor_value",
+          "data_type": "Decimal",
+          "required": "Mandatory",
+          "source": "Computed",
+          "definition": "Sum of factor across all pool beneficiaries.",
+          "relevance": "Denominator of the allocation ratio.",
+          "example": "5000",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "allocation_ratio",
+          "data_type": "Percent",
+          "required": "Mandatory",
+          "source": "Computed",
+          "definition": "factor_value / total_factor_value.",
+          "relevance": "Share of pool allocated to this recipient.",
+          "example": "6.4%",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Derived"
+        },
+        {
+          "data_element": "as_of_date",
+          "data_type": "Date",
+          "required": "Mandatory",
+          "source": "Source system",
+          "definition": "Snapshot date of the factor data.",
+          "relevance": "Freshness/lineage; supports reproducibility.",
+          "example": "2026-03-31",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "source_ref",
+          "data_type": "String",
+          "required": "Recommended",
+          "source": "Source system",
+          "definition": "Reference to the underlying data extract.",
+          "relevance": "Audit lineage for the key data.",
+          "example": "ITSM-EXT-202603",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        }
+      ]
+    },
+    {
+      "sheet": "8_Entity",
+      "title": "8. Legal Entity Master",
+      "description": "Reference data for providers and recipients. Effective-dated to handle incorporations, disposals, and restructurings mid-year.",
+      "fields": [
+        {
+          "data_element": "entity_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Unique entity identifier.",
+          "relevance": "-",
+          "example": "LE-DE-007",
+          "primary_key": true,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "legal_entity_name",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Registered legal name.",
+          "relevance": "Invoicing / documentation.",
+          "example": "Group GmbH",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "company_code",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "SAP",
+          "definition": "Mapped SAP company code(s).",
+          "relevance": "Join to GL.",
+          "example": "2000",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "jurisdiction",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Country of tax residence.",
+          "relevance": "Drives markup policy and WHT/VAT treatment.",
+          "example": "DE",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "functional_currency",
+          "data_type": "Currency",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Entity functional currency.",
+          "relevance": "Target currency for inbound charges.",
+          "example": "EUR",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "tax_registration_id",
+          "data_type": "String",
+          "required": "Recommended",
+          "source": "Maintained ref",
+          "definition": "Tax / VAT registration number.",
+          "relevance": "Invoicing and indirect-tax compliance.",
+          "example": "DE123456789",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "entity_role",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Provider / Recipient / Both.",
+          "relevance": "Pipeline routing.",
+          "example": "Both",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "tier",
+          "data_type": "Integer",
+          "required": "Conditional",
+          "source": "Maintained ref",
+          "definition": "Tier in any cascading allocation.",
+          "relevance": "Sets topological order of allocation runs.",
+          "example": "2",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "parent_entity_id",
+          "data_type": "String",
+          "required": "Optional",
+          "source": "Maintained ref",
+          "definition": "Immediate parent.",
+          "relevance": "Cascade structure / reciprocal detection.",
+          "example": "LE-US-001",
+          "primary_key": false,
+          "references": {
+            "entity": "8_Entity",
+            "field": "entity_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "effective_from",
+          "data_type": "Date",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Existence start (incorporation/entry).",
+          "relevance": "Mid-year onboarding.",
+          "example": "2026-01-01",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "effective_to",
+          "data_type": "Date",
+          "required": "Optional",
+          "source": "Maintained ref",
+          "definition": "Existence end (disposal/exit).",
+          "relevance": "Mid-year disposal handling.",
+          "example": "",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "status",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Active / inactive.",
+          "relevance": "Run inclusion.",
+          "example": "Active",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: Active/Inactive"
+        }
+      ]
+    },
+    {
+      "sheet": "9_Participation",
+      "title": "9. Pool Participation (entity <-> pool)",
+      "description": "Associative entity defining the beneficiary population of each pool and provider role, effective-dated. Scopes the allocation denominator.",
+      "fields": [
+        {
+          "data_element": "participation_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Unique participation row.",
+          "relevance": "-",
+          "example": "PP-ITINFRA-DE",
+          "primary_key": true,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "pool_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Pool.",
+          "relevance": "-",
+          "example": "POOL-IT-INFRA",
+          "primary_key": false,
+          "references": {
+            "entity": "3_Pool",
+            "field": "pool_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "entity_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Participating entity.",
+          "relevance": "-",
+          "example": "LE-DE-007",
+          "primary_key": false,
+          "references": {
+            "entity": "8_Entity",
+            "field": "entity_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "role",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Provider / Beneficiary.",
+          "relevance": "Defines who pays vs. who recovers.",
+          "example": "Beneficiary",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: Provider/Beneficiary"
+        },
+        {
+          "data_element": "benefit_rationale",
+          "data_type": "Text",
+          "required": "Recommended",
+          "source": "TP analysis",
+          "definition": "Why the entity benefits from the pool.",
+          "relevance": "Benefit-test evidence per recipient.",
+          "example": "Consumes hosted apps",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "effective_from",
+          "data_type": "Date",
+          "required": "Mandatory",
+          "source": "Maintained ref",
+          "definition": "Participation start.",
+          "relevance": "Handles mid-year entry/exit from a pool.",
+          "example": "2026-01-01",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "effective_to",
+          "data_type": "Date",
+          "required": "Optional",
+          "source": "Maintained ref",
+          "definition": "Participation end.",
+          "relevance": "-",
+          "example": "",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        }
+      ]
+    },
+    {
+      "sheet": "10_ChargeLedger",
+      "title": "10. Charge Ledger (output)",
+      "description": "Stage 6 output. The intercompany charge produced for each provider/recipient/pool/period, with markup, FX, and indirect-tax attributes.",
+      "fields": [
+        {
+          "data_element": "charge_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Unique charge row.",
+          "relevance": "-",
+          "example": "CHG-2026-03-00912",
+          "primary_key": true,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "pool_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Source pool.",
+          "relevance": "-",
+          "example": "POOL-IT-INFRA",
+          "primary_key": false,
+          "references": {
+            "entity": "3_Pool",
+            "field": "pool_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "provider_entity_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Charging entity.",
+          "relevance": "Revenue side.",
+          "example": "LE-US-001",
+          "primary_key": false,
+          "references": {
+            "entity": "8_Entity",
+            "field": "entity_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "recipient_entity_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Charged entity.",
+          "relevance": "Cost side.",
+          "example": "LE-DE-007",
+          "primary_key": false,
+          "references": {
+            "entity": "8_Entity",
+            "field": "entity_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "period",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Charge period.",
+          "relevance": "Cadence / close alignment.",
+          "example": "2026-03",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "fiscal_year",
+          "data_type": "Text",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Fiscal year.",
+          "relevance": "True-up grouping.",
+          "example": "2026",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "budget_or_actual",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Budget / Actual / True-up.",
+          "relevance": "In-year vs. year-end recompute; true-up tracking.",
+          "example": "Budget",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "allocation_key_id",
+          "data_type": "String",
+          "required": "Conditional",
+          "source": "Engine",
+          "definition": "Key used (null if direct charge).",
+          "relevance": "Reproducibility of the apportionment.",
+          "example": "KEY-IT-SEATS",
+          "primary_key": false,
+          "references": {
+            "entity": "6_KeyDef",
+            "field": "key_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "allocation_ratio_applied",
+          "data_type": "Percent",
+          "required": "Conditional",
+          "source": "Engine",
+          "definition": "Ratio applied to the pool.",
+          "relevance": "Audit reconstruction.",
+          "example": "6.4%",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "cost_recovered_amount",
+          "data_type": "Decimal",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Allocated cost (pre-markup).",
+          "relevance": "Ties back to pooled GL cost.",
+          "example": "380000.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "markup_pct_applied",
+          "data_type": "Percent",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Markup rate applied.",
+          "relevance": "Links to markup policy.",
+          "example": "5.0%",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "markup_amount",
+          "data_type": "Decimal",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Markup value.",
+          "relevance": "Provider's service margin.",
+          "example": "19000.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "gross_charge_amount",
+          "data_type": "Decimal",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Cost recovered + markup.",
+          "relevance": "Invoiced/posted amount.",
+          "example": "399000.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "charge_currency",
+          "data_type": "Currency",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Currency of the charge.",
+          "relevance": "Recipient functional/transaction currency.",
+          "example": "EUR",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "fx_rate",
+          "data_type": "Decimal",
+          "required": "Conditional",
+          "source": "FX policy",
+          "definition": "Rate used for conversion.",
+          "relevance": "FX policy must be fixed and logged.",
+          "example": "0.92",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "fx_rate_type",
+          "data_type": "Enum",
+          "required": "Conditional",
+          "source": "FX policy",
+          "definition": "Spot / monthly average / fixed.",
+          "relevance": "Reproducibility of conversion.",
+          "example": "Monthly avg",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "fx_rate_date",
+          "data_type": "Date",
+          "required": "Conditional",
+          "source": "FX policy",
+          "definition": "Date of the rate.",
+          "relevance": "Lineage.",
+          "example": "2026-03-31",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "vat_gst_treatment",
+          "data_type": "Enum",
+          "required": "Recommended",
+          "source": "Tax engine",
+          "definition": "Reverse charge / standard / exempt.",
+          "relevance": "Cross-border services frequently trigger VAT/GST.",
+          "example": "Reverse charge",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: see Ref"
+        },
+        {
+          "data_element": "vat_amount",
+          "data_type": "Decimal",
+          "required": "Conditional",
+          "source": "Tax engine",
+          "definition": "VAT/GST amount where applicable.",
+          "relevance": "Net cash impact.",
+          "example": "0.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "wht_rate",
+          "data_type": "Percent",
+          "required": "Conditional",
+          "source": "Tax engine",
+          "definition": "Withholding tax rate on the gross charge.",
+          "relevance": "Some jurisdictions levy WHT on service charges.",
+          "example": "0.0%",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "wht_amount",
+          "data_type": "Decimal",
+          "required": "Conditional",
+          "source": "Tax engine",
+          "definition": "Withholding tax amount.",
+          "relevance": "Affects net settlement / gross-up.",
+          "example": "0.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "invoice_ref",
+          "data_type": "String",
+          "required": "Conditional",
+          "source": "AR/AP",
+          "definition": "Intercompany invoice reference.",
+          "relevance": "Required for VAT/customs in many jurisdictions.",
+          "example": "INV-IC-88231",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "journal_entry_ref",
+          "data_type": "String",
+          "required": "Conditional",
+          "source": "GL",
+          "definition": "Journal posting reference.",
+          "relevance": "GL lineage.",
+          "example": "JE-IC-44120",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "settlement_ref",
+          "data_type": "String",
+          "required": "Optional",
+          "source": "In-house bank",
+          "definition": "Netting/settlement reference.",
+          "relevance": "Cash settlement tracking.",
+          "example": "NET-2026Q1",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "true_up_parent_charge_id",
+          "data_type": "String",
+          "required": "Conditional",
+          "source": "Engine",
+          "definition": "Original charge a true-up adjusts.",
+          "relevance": "Links true-up deltas to in-year charges.",
+          "example": "CHG-2026-03-00912",
+          "primary_key": false,
+          "references": {
+            "entity": "10_ChargeLedger",
+            "field": "charge_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "posting_date",
+          "data_type": "Date",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Date posted.",
+          "relevance": "Period alignment.",
+          "example": "2026-04-05",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "documentation_ref",
+          "data_type": "String",
+          "required": "Recommended",
+          "source": "Engine",
+          "definition": "Generated support package reference.",
+          "relevance": "Documentation as a byproduct of the run.",
+          "example": "RUN-202603-IT",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        }
+      ]
+    },
+    {
+      "sheet": "11_Recon",
+      "title": "11. Reconciliation & Audit Log",
+      "description": "Stage 7. Per pool/provider/period tie-out of pooled cost to charges, with the unallocated residual as a control metric and full run lineage.",
+      "fields": [
+        {
+          "data_element": "recon_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Unique reconciliation row.",
+          "relevance": "-",
+          "example": "RECON-202603-IT",
+          "primary_key": true,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "run_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Allocation run identifier.",
+          "relevance": "Lineage for the whole run.",
+          "example": "RUN-202603-IT",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "run_timestamp",
+          "data_type": "DateTime",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "When the run executed.",
+          "relevance": "Audit trail.",
+          "example": "2026-04-05T02:10Z",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "period",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Period reconciled.",
+          "relevance": "-",
+          "example": "2026-03",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "pool_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Pool reconciled.",
+          "relevance": "-",
+          "example": "POOL-IT-INFRA",
+          "primary_key": false,
+          "references": {
+            "entity": "3_Pool",
+            "field": "pool_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "provider_entity_id",
+          "data_type": "String",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Provider reconciled.",
+          "relevance": "-",
+          "example": "LE-US-001",
+          "primary_key": false,
+          "references": {
+            "entity": "8_Entity",
+            "field": "entity_id"
+          },
+          "key_notes": null
+        },
+        {
+          "data_element": "total_pooled_cost",
+          "data_type": "Decimal",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Gross cost captured in the pool.",
+          "relevance": "Starting point of tie-out.",
+          "example": "1500000.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "total_exclusions",
+          "data_type": "Decimal",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Cost removed by benefit-test gate.",
+          "relevance": "Stewardship/duplicative/incidental removed.",
+          "example": "100000.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "total_cost_recovered",
+          "data_type": "Decimal",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Cost charged out across recipients.",
+          "relevance": "Should equal pooled cost less exclusions less residual.",
+          "example": "1380000.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "total_markup",
+          "data_type": "Decimal",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Total markup charged.",
+          "relevance": "Provider margin recognized.",
+          "example": "69000.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "total_charged_out",
+          "data_type": "Decimal",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Total gross charges.",
+          "relevance": "Revenue recognized by provider.",
+          "example": "1449000.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "unallocated_residual",
+          "data_type": "Decimal",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Pool cost neither charged nor excluded.",
+          "relevance": "Red-flag KPI: trapped stewardship or pooling gap.",
+          "example": "20000.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "true_up_delta",
+          "data_type": "Decimal",
+          "required": "Conditional",
+          "source": "Engine",
+          "definition": "Year-end actual-vs-budget adjustment.",
+          "relevance": "Magnitude is a monitoring KPI.",
+          "example": "0.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        },
+        {
+          "data_element": "recon_status",
+          "data_type": "Enum",
+          "required": "Mandatory",
+          "source": "Engine",
+          "definition": "Balanced / Break.",
+          "relevance": "Control gate before posting.",
+          "example": "Balanced",
+          "primary_key": false,
+          "references": null,
+          "key_notes": "Enum: Balanced/Break"
+        },
+        {
+          "data_element": "break_amount",
+          "data_type": "Decimal",
+          "required": "Conditional",
+          "source": "Engine",
+          "definition": "Size of any reconciliation break.",
+          "relevance": "Exception handling.",
+          "example": "0.00",
+          "primary_key": false,
+          "references": null,
+          "key_notes": null
+        }
+      ]
+    }
+  ],
+  "enumerations": [
+    {
+      "enumeration": "flow_type",
+      "allowed_values": [
+        "Service",
+        "Goods",
+        "Royalty",
+        "CSA",
+        "Financing"
+      ],
+      "used_in": "1_CostLine"
+    },
+    {
+      "enumeration": "cost_nature",
+      "allowed_values": [
+        "Payroll",
+        "Depreciation",
+        "Third-party fee",
+        "Travel",
+        "Software",
+        "Facilities",
+        "Intercompany charge received",
+        "Other"
+      ],
+      "used_in": "1_CostLine"
+    },
+    {
+      "enumeration": "function / service_line",
+      "allowed_values": [
+        "IT",
+        "HR",
+        "Finance",
+        "Legal",
+        "Procurement",
+        "Marketing (support)",
+        "Management",
+        "Facilities",
+        "R&D support"
+      ],
+      "used_in": "1,2,3"
+    },
+    {
+      "enumeration": "charge_method",
+      "allowed_values": [
+        "Direct",
+        "Indirect"
+      ],
+      "used_in": "1_CostLine, 3_Pool"
+    },
+    {
+      "enumeration": "characterization",
+      "allowed_values": [
+        "Routine-benchmarked",
+        "LVAIGS",
+        "SCM",
+        "Pass-through"
+      ],
+      "used_in": "3_Pool"
+    },
+    {
+      "enumeration": "core_or_support",
+      "allowed_values": [
+        "Core",
+        "Support"
+      ],
+      "used_in": "3_Pool"
+    },
+    {
+      "enumeration": "cost_base_definition",
+      "allowed_values": [
+        "Full cost",
+        "Total services cost",
+        "Marginal cost"
+      ],
+      "used_in": "3_Pool"
+    },
+    {
+      "enumeration": "regime",
+      "allowed_values": [
+        "LVAIGS (5%)",
+        "SCM (0%)",
+        "Benchmarked",
+        "Pass-through (0%)"
+      ],
+      "used_in": "4_MarkupPolicy"
+    },
+    {
+      "enumeration": "scm_eligibility_basis",
+      "allowed_values": [
+        "Specified covered service (IRS list)",
+        "Low-margin <=7%",
+        "n/a"
+      ],
+      "used_in": "4_MarkupPolicy"
+    },
+    {
+      "enumeration": "exclusion_type",
+      "allowed_values": [
+        "Stewardship",
+        "Duplicative",
+        "Incidental/passive association",
+        "On-call"
+      ],
+      "used_in": "5_Exclusions"
+    },
+    {
+      "enumeration": "key_factor",
+      "allowed_values": [
+        "Headcount",
+        "Revenue",
+        "Total cost",
+        "Seats",
+        "Devices",
+        "Transactions",
+        "Floor area",
+        "Spend",
+        "Multi-factor"
+      ],
+      "used_in": "6_KeyDef"
+    },
+    {
+      "enumeration": "static_or_dynamic",
+      "allowed_values": [
+        "Static",
+        "Dynamic"
+      ],
+      "used_in": "6_KeyDef"
+    },
+    {
+      "enumeration": "entity_role",
+      "allowed_values": [
+        "Provider",
+        "Recipient",
+        "Both"
+      ],
+      "used_in": "8_Entity"
+    },
+    {
+      "enumeration": "participation_role",
+      "allowed_values": [
+        "Provider",
+        "Beneficiary"
+      ],
+      "used_in": "9_Participation"
+    },
+    {
+      "enumeration": "budget_or_actual",
+      "allowed_values": [
+        "Budget",
+        "Actual",
+        "True-up"
+      ],
+      "used_in": "10_ChargeLedger"
+    },
+    {
+      "enumeration": "fx_rate_type",
+      "allowed_values": [
+        "Spot",
+        "Monthly average",
+        "Fixed/budget"
+      ],
+      "used_in": "10_ChargeLedger"
+    },
+    {
+      "enumeration": "vat_gst_treatment",
+      "allowed_values": [
+        "Reverse charge",
+        "Standard-rated",
+        "Exempt",
+        "Out-of-scope"
+      ],
+      "used_in": "10_ChargeLedger"
+    },
+    {
+      "enumeration": "recon_status",
+      "allowed_values": [
+        "Balanced",
+        "Break"
+      ],
+      "used_in": "11_Recon"
+    },
+    {
+      "enumeration": "status",
+      "allowed_values": [
+        "Active",
+        "Inactive"
+      ],
+      "used_in": "3_Pool, 8_Entity"
+    }
+  ],
+  "conventions": {
+    "field_naming": "snake_case; data_element values are usable directly as column names",
+    "required_values": [
+      "Mandatory",
+      "Optional",
+      "Conditional",
+      "Recommended"
+    ],
+    "enum_validation": "Every field with data_type 'Enum' validates against the enumerations array",
+    "effective_dating": "Reference entities carry effective_from/effective_to; runs must resolve reference data as-of the run period",
+    "source_of_truth": "This JSON is the source of truth for codegen; the .md is the human-readable rendering"
+  }
+}

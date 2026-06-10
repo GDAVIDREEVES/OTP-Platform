@@ -1,0 +1,106 @@
+{
+  "version": "1",
+  "note": "FABRICATED benefit-test exclusions (5_Exclusions) carried over from the OTP-15 stewardship register's flagged lines (1000: $4,250,000; 3100: $2,700,000), split evenly across each provider's two billing periods. Derived at authoring time from warehouse supply_chain SERVICE pairs by seeds/allocation/generate_seeds.py (ADAPTATION D2) \u2014 do not hand-edit; re-run the generator.",
+  "rows": [
+    {
+      "exclusion_id": "EX-STW-1-2026-05",
+      "pool_id": "POOL-MGMT-US",
+      "exclusion_type": "Stewardship",
+      "exclusion_amount": "925000.00",
+      "basis_rationale": "[OTP-15 STW-1 \u2014 Board & corporate governance] Costs of the parent acting as shareholder/owner; no benefit to affiliates (OECD TPG 7.10(a) - costs relating to the juridical structure of the parent).",
+      "effective_from": "2026-05-01",
+      "effective_to": "2026-05-31",
+      "owner": "TP Manager"
+    },
+    {
+      "exclusion_id": "EX-STW-1-2026-11",
+      "pool_id": "POOL-MGMT-US",
+      "exclusion_type": "Stewardship",
+      "exclusion_amount": "925000.00",
+      "basis_rationale": "[OTP-15 STW-1 \u2014 Board & corporate governance] Costs of the parent acting as shareholder/owner; no benefit to affiliates (OECD TPG 7.10(a) - costs relating to the juridical structure of the parent).",
+      "effective_from": "2026-11-01",
+      "effective_to": "2026-11-30",
+      "owner": "TP Manager"
+    },
+    {
+      "exclusion_id": "EX-STW-2-2026-05",
+      "pool_id": "POOL-MGMT-US",
+      "exclusion_type": "Stewardship",
+      "exclusion_amount": "710000.00",
+      "basis_rationale": "[OTP-15 STW-2 \u2014 Investor relations] Costs of reporting to the parent's own shareholders/markets; a shareholder activity (OECD TPG 7.10(b) - reporting requirements of the parent).",
+      "effective_from": "2026-05-01",
+      "effective_to": "2026-05-31",
+      "owner": "TP Manager"
+    },
+    {
+      "exclusion_id": "EX-STW-2-2026-11",
+      "pool_id": "POOL-MGMT-US",
+      "exclusion_type": "Stewardship",
+      "exclusion_amount": "710000.00",
+      "basis_rationale": "[OTP-15 STW-2 \u2014 Investor relations] Costs of reporting to the parent's own shareholders/markets; a shareholder activity (OECD TPG 7.10(b) - reporting requirements of the parent).",
+      "effective_from": "2026-11-01",
+      "effective_to": "2026-11-30",
+      "owner": "TP Manager"
+    },
+    {
+      "exclusion_id": "EX-STW-3-2026-04",
+      "pool_id": "POOL-MGMT-CH",
+      "exclusion_type": "Stewardship",
+      "exclusion_amount": "580000.00",
+      "basis_rationale": "[OTP-15 STW-3 \u2014 Group audit] Cost of the consolidated group audit driven by the parent's reporting obligations, not a service to subsidiaries (OECD TPG 7.10(b)).",
+      "effective_from": "2026-04-01",
+      "effective_to": "2026-04-30",
+      "owner": "TP Manager"
+    },
+    {
+      "exclusion_id": "EX-STW-3-2026-10",
+      "pool_id": "POOL-MGMT-CH",
+      "exclusion_type": "Stewardship",
+      "exclusion_amount": "580000.00",
+      "basis_rationale": "[OTP-15 STW-3 \u2014 Group audit] Cost of the consolidated group audit driven by the parent's reporting obligations, not a service to subsidiaries (OECD TPG 7.10(b)).",
+      "effective_from": "2026-10-01",
+      "effective_to": "2026-10-31",
+      "owner": "TP Manager"
+    },
+    {
+      "exclusion_id": "EX-STW-4-2026-05",
+      "pool_id": "POOL-MGMT-US",
+      "exclusion_type": "Stewardship",
+      "exclusion_amount": "490000.00",
+      "basis_rationale": "[OTP-15 STW-4 \u2014 Parent legal] Legal costs of the parent's listing/securities and shareholder relationships; shareholder activity (OECD TPG 7.10).",
+      "effective_from": "2026-05-01",
+      "effective_to": "2026-05-31",
+      "owner": "TP Manager"
+    },
+    {
+      "exclusion_id": "EX-STW-4-2026-11",
+      "pool_id": "POOL-MGMT-US",
+      "exclusion_type": "Stewardship",
+      "exclusion_amount": "490000.00",
+      "basis_rationale": "[OTP-15 STW-4 \u2014 Parent legal] Legal costs of the parent's listing/securities and shareholder relationships; shareholder activity (OECD TPG 7.10).",
+      "effective_from": "2026-11-01",
+      "effective_to": "2026-11-30",
+      "owner": "TP Manager"
+    },
+    {
+      "exclusion_id": "EX-STW-5-2026-04",
+      "pool_id": "POOL-MGMT-CH",
+      "exclusion_type": "Stewardship",
+      "exclusion_amount": "770000.00",
+      "basis_rationale": "[OTP-15 STW-5 \u2014 M&A / strategic] Cost of acquiring participations for the parent's own portfolio; a shareholder activity unless a specific affiliate benefits (OECD TPG 7.10(c)).",
+      "effective_from": "2026-04-01",
+      "effective_to": "2026-04-30",
+      "owner": "TP Manager"
+    },
+    {
+      "exclusion_id": "EX-STW-5-2026-10",
+      "pool_id": "POOL-MGMT-CH",
+      "exclusion_type": "Stewardship",
+      "exclusion_amount": "770000.00",
+      "basis_rationale": "[OTP-15 STW-5 \u2014 M&A / strategic] Cost of acquiring participations for the parent's own portfolio; a shareholder activity unless a specific affiliate benefits (OECD TPG 7.10(c)).",
+      "effective_from": "2026-10-01",
+      "effective_to": "2026-10-31",
+      "owner": "TP Manager"
+    }
+  ]
+}
