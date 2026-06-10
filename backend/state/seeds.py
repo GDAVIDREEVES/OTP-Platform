@@ -33,6 +33,7 @@ _FILES = {
     "allocation_markup_policies": "allocation/markup_policies.v1.json",
     "allocation_exclusions": "allocation/exclusions.v1.json",
     "allocation_key_defs": "allocation/key_defs.v1.json",
+    "allocation_participation": "allocation/participation.v1.json",
     "allocation_key_values": "allocation/key_values.v1.json",
     "allocation_cost_lines": "allocation/cost_lines.v1.json",
 }

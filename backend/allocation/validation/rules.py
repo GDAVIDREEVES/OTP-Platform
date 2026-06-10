@@ -1,9 +1,9 @@
-"""Composable validation rules — SPEC §7 catalogue, M2 subset.
+"""Composable validation rules — SPEC §7 catalogue, M2/M3 subset.
 
 Implements the referential & schema rules (V-R1, V-R2, V-R3), the pooling &
-mapping rules (V-P1..V-P5) and the benefit-test rules (V-B1..V-B3) as pure,
-composable functions. The key/markup/cascade/recon families (V-K*, V-M*,
-V-C*, V-X*) land with their stages in M3+.
+mapping rules (V-P1..V-P5), the benefit-test rules (V-B1..V-B3) and the key
+rules (V-K1..V-K4) as pure, composable functions. The markup/cascade/recon
+families (V-M*, V-C*, V-X*) land with their stages in M4+.
 
 Every fired rule is a plain dict::
 
@@ -22,10 +22,12 @@ Judgment calls are recorded in docs/allocation/DECISIONS.md (M2 section).
 
 from __future__ import annotations
 
+import calendar
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable, Mapping, Sequence
 
 from allocation import validation
+from allocation.algorithms.effective_dating import period_bounds
 from allocation.generated import types as gen
 
 BLOCK = "BLOCK"
@@ -47,7 +49,14 @@ SEVERITY: dict[str, str] = {
     "V-B1": BLOCK,  # combined exclusions on a pool <= 100% of pool
     "V-B2": WARN,   # Management pool without a stewardship exclusion row
     "V-B3": BLOCK,  # every exclusion row has a non-empty, determinate basis
+    "V-K1": BLOCK,  # key values exist for every resolved beneficiary (no silent zeroes)
+    "V-K2": BLOCK,  # key value as_of_date within the freshness window
+    "V-K3": BLOCK,  # engine-recomputed total_factor_value; ratios sum to 1 within 1e-12
+    "V-K4": WARN,   # key changed vs. prior year for the same pool
 }
+
+#: V-K3 — ratios sum to 1 within 1e-12 before apportionment (SPEC §7).
+RATIO_TOLERANCE = Decimal("1E-12")
 
 
 def exception(rule_id: str, message: str, *,
@@ -427,3 +436,165 @@ def v_b3_exclusion_basis(row: Mapping[str, Any]) -> list[dict]:
             objects=[rid], pool_id=pool_id,
         ))
     return excs
+
+
+# -------------------------------------------------------------------- keys --
+
+
+def _months_before(iso_date: str, months: int) -> str:
+    """ISO date ``months`` months before ``iso_date`` (day clamped to the
+    target month's length — e.g. 2026-03-31 minus 1 month = 2026-02-28)."""
+    y, m, d = (int(part) for part in iso_date.split("-"))
+    idx = y * 12 + (m - 1) - months
+    y2, m2 = divmod(idx, 12)
+    m2 += 1
+    d2 = min(d, calendar.monthrange(y2, m2)[1])
+    return f"{y2:04d}-{m2:02d}-{d2:02d}"
+
+
+def v_k1_key_values_exist(
+    pool_id: str,
+    key_id: str,
+    period: str,
+    beneficiaries: Sequence[str],
+    rows_by_recipient: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> list[dict]:
+    """V-K1 BLOCK — key values exist for every beneficiary in the resolved
+    population for the period (no silent zeroes, SPEC §7).
+
+    Fires on: an empty resolved population for a chargeable pool (a
+    participation gap — allocating nothing would strand the base as residual);
+    a beneficiary with NO 7_KeyValue row for (key, pool, period) — a missing
+    value must never be silently read as zero; and a beneficiary with MORE
+    than one row (not exactly one determinate value). An explicit zero
+    ``factor_value`` row is a measured zero and passes — that beneficiary is
+    simply allocated nothing (SPEC §9.1 edge case; DECISIONS.md M3).
+    """
+    if not beneficiaries:
+        return [exception(
+            "V-K1",
+            f"pool {pool_id}: resolved beneficiary population is empty for "
+            f"{period} — a chargeable base cannot be apportioned "
+            "(participation gap)",
+            objects=[pool_id], pool_id=pool_id,
+        )]
+    excs: list[dict] = []
+    missing = [b for b in beneficiaries if not rows_by_recipient.get(b)]
+    if missing:
+        excs.append(exception(
+            "V-K1",
+            f"pool {pool_id}: no {key_id} key value for beneficiar"
+            f"{'y' if len(missing) == 1 else 'ies'} {missing} in {period} — "
+            "a missing key value is not a silent zero",
+            objects=missing, pool_id=pool_id,
+        ))
+    duplicated = [b for b in beneficiaries if len(rows_by_recipient.get(b, ())) > 1]
+    if duplicated:
+        excs.append(exception(
+            "V-K1",
+            f"pool {pool_id}: more than one {key_id} key value row for "
+            f"{duplicated} in {period} — not exactly one determinate value",
+            objects=duplicated, pool_id=pool_id,
+        ))
+    return excs
+
+
+def v_k2_key_freshness(
+    pool_id: str,
+    key_def: Mapping[str, Any],
+    period: str,
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    static_months: int = 12,
+) -> list[dict]:
+    """V-K2 BLOCK — ``as_of_date`` within the freshness window (SPEC §7).
+
+    Default windows (config ``keyFreshnessStaticMonths`` feeds
+    ``static_months``): Dynamic keys must be snapshotted within the run
+    period; Static keys within the ``static_months`` months ending at
+    period_end. Anything not explicitly Static gets the tighter dynamic
+    window (conservative — DECISIONS.md M3).
+    """
+    period_start, period_end = period_bounds(period)
+    if key_def.get("static_or_dynamic") == "Static":
+        window_start, kind = _months_before(period_end, static_months), "static"
+    else:
+        window_start, kind = period_start, "dynamic"
+    stale = [r for r in rows
+             if not window_start <= str(r.get("as_of_date")) <= period_end]
+    if not stale:
+        return []
+    ids = [r.get("key_value_id") for r in stale]
+    return [exception(
+        "V-K2",
+        f"pool {pool_id}: key value as_of_date outside the {kind} freshness "
+        f"window [{window_start}, {period_end}] for {ids} "
+        f"(as_of {[str(r.get('as_of_date')) for r in stale]})",
+        objects=ids, pool_id=pool_id,
+    )]
+
+
+def v_k3_total_factor_and_ratio_sum(
+    pool_id: str,
+    key_id: str,
+    rows: Sequence[Mapping[str, Any]],
+    recomputed_total: Decimal,
+    ratios: Mapping[str, Decimal],
+) -> list[dict]:
+    """V-K3 BLOCK — engine-recomputed ``total_factor_value`` equals
+    Σ ``factor_value`` over the resolved population; ratios sum to 1 within
+    1e-12 before apportionment (SPEC §7).
+
+    ``recomputed_total`` is the ENGINE's sum over the resolved beneficiary
+    set — never trusted from input; every supplied ``total_factor_value``
+    must equal it exactly. A non-positive total on a chargeable pool cannot
+    form ratios and blocks. Supplied ``allocation_ratio`` values are ignored
+    by design (the engine recomputes them — DECISIONS.md M3).
+    """
+    excs: list[dict] = []
+    mismatched = [r.get("key_value_id") for r in rows
+                  if Decimal(str(r["total_factor_value"])) != recomputed_total]
+    if mismatched:
+        excs.append(exception(
+            "V-K3",
+            f"pool {pool_id}: supplied total_factor_value differs from the "
+            f"engine-recomputed Σ factor_value {recomputed_total} over the "
+            f"resolved population on {mismatched}",
+            objects=mismatched, pool_id=pool_id,
+        ))
+    if recomputed_total <= ZERO:
+        excs.append(exception(
+            "V-K3",
+            f"pool {pool_id}: engine-recomputed total factor value "
+            f"{recomputed_total} for {key_id} cannot form allocation ratios",
+            objects=[key_id], pool_id=pool_id,
+        ))
+        return excs
+    ratio_sum = sum(ratios.values(), ZERO)
+    if abs(ONE - ratio_sum) > RATIO_TOLERANCE:
+        excs.append(exception(
+            "V-K3",
+            f"pool {pool_id}: allocation ratios sum to {ratio_sum}, not 1 "
+            f"within {RATIO_TOLERANCE}",
+            objects=[str(ratio_sum)], pool_id=pool_id,
+        ))
+    return excs
+
+
+def v_k4_key_changed_vs_prior_year(
+    pool_id: str,
+    key_id: str,
+    prior_year_key_id: str | None,
+) -> list[dict]:
+    """V-K4 WARN — key changed vs. prior year for the same pool (consistency
+    scrutiny, SPEC §7). ``prior_year_key_id`` comes from optional ref data
+    (``prior_year_keys``); absent prior data means nothing to compare
+    (DECISIONS.md M3)."""
+    if prior_year_key_id is None or prior_year_key_id == key_id:
+        return []
+    return [exception(
+        "V-K4",
+        f"pool {pool_id}: allocation key changed from {prior_year_key_id!r} "
+        f"(prior year) to {key_id!r} — consistency scrutiny",
+        objects=[prior_year_key_id, key_id], pool_id=pool_id,
+    )]

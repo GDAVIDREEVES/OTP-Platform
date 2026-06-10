@@ -150,3 +150,69 @@ auditable/conservative interpretation, record it here, and continue.
     serialize at the persistence boundary (M6). Stage 2 emits zero-total rows
     for in-scope active pools with no lines (the SPEC §9.1 zero-cost pool
     flows through to a zero chargeable base).
+
+## M3 — Stage 4 flat apportionment, largest remainder (2026-06-10)
+
+24. **Zero chargeable base short-circuits Stage 4 before key resolution.**
+    The SPEC §9.1 zero-cost pool (and the demo's 100%-excluded management
+    pools, which have no key values by design — M1 #2) flows through with no
+    allocations and `key_id = None`. No key support is required where nothing
+    is charged: the V-K rules guard charges, not silence. A pool emerges with
+    `total_allocated = 0`, so Stage-7 recon still ties (pooled = exclusions).
+
+25. **V-K1 reading ("no silent zeroes").** A beneficiary with NO 7_KeyValue
+    row for (key, pool, period) BLOCKs — a missing value is never read as
+    zero. A beneficiary with an EXPLICIT `factor_value = 0` row is a measured
+    zero and allocates 0.00 (the SPEC §9.1 "beneficiary with zero key value"
+    edge case). V-K1 also fires on more than one row per beneficiary (not
+    exactly one determinate value) and on an EMPTY resolved population for a
+    chargeable pool — a participation gap that would strand the whole base as
+    V-X1 residual is blocked at the stage that detects it.
+
+26. **V-K2 freshness windows.** Dynamic keys: `as_of_date` within the run
+    period. Static keys: within the N months ending at period_end
+    (config `keyFreshnessStaticMonths`, default 12 per SPEC §7); a snapshot
+    dated after period_end is stale in both modes (a later snapshot cannot
+    have been the period's key). A `static_or_dynamic` value that is not
+    exactly "Static" gets the tighter dynamic window (conservative; the value
+    is enum-gated upstream anyway).
+
+27. **V-K3 recomputation discipline.** The engine recomputes
+    `total_factor_value` as Σ `factor_value` over the RESOLVED population;
+    every supplied total must equal it exactly (so stale denominators after a
+    population change are caught). A non-positive recomputed total on a
+    chargeable pool cannot form ratios → BLOCK. The supplied
+    `allocation_ratio` ("Derived" in the schema) is ignored entirely — the
+    engine recomputes ratios at full precision and validates Σ = 1 within
+    1e-12.
+
+28. **V-K4 prior-year key source.** Optional `ref_data["prior_year_keys"]`
+    (`{pool_id: key_id}`, e.g. lifted from the prior year's charge ledger by
+    the orchestrator). Absent data means nothing to compare — no warning; a
+    WARN-level consistency probe must not invent history.
+
+29. **`apportion` caller contract (ValueError, not V-rules).** The base must
+    be non-negative and an exact multiple of the minor unit — SPEC §5.1's
+    "assert sum(result) == base exactly" is unsatisfiable otherwise (all demo
+    and golden bases are cent-grain: GL cents and fixed-amount exclusions).
+    Ratios must be non-negative and sum to 1 within 1e-12 (V-K3 gates before
+    the call; the function re-asserts in depth). Residual cents are handed
+    out one at a time, cycling defensively if they ever exceed one per
+    recipient. Stage-level rules emit V-rule exceptions; the algorithm
+    crashes loud on contract breaches rather than rounding silently.
+
+30. **Pool-level `direct_charge_flag` does not bypass Stage 4 in M3.**
+    Direct routing is line-level (Stage 2 streams `charge_method = Direct`
+    lines around apportionment). If a direct-charge pool still ends up with a
+    poolable chargeable base, it apportions by its mandatory
+    `default_key_id` — dropping the cost silently would be a silent default.
+
+31. **Participation seed (supersedes M1 #14).** The generator now emits
+    `participation.v1.json`: beneficiary populations per pool = the
+    provider's actual SERVICE pair recipients (1000→3000;
+    3100→3200/3300/3800) plus one Provider row per pool. The fully excluded
+    management pools carry the same populations ("LVAIGS where charged",
+    M1 #2) — harmless under #24 since their chargeable base is zero. Stage 4
+    also re-runs the generated schema gate + V-R3 over the key value rows it
+    actually uses (a negative or float factor would corrupt the
+    apportionment), even though the M1 seed gate already validates seeds.

@@ -1,0 +1,98 @@
+{
+  "version": "1",
+  "note": "Pool participation (9_Participation): beneficiary populations per pool = the provider's actual SERVICE pair recipients (1000->3000; 3100->3200/3300/3800), plus one Provider row per pool. Derived at authoring time from warehouse supply_chain SERVICE pairs by seeds/allocation/generate_seeds.py (ADAPTATION D2) \u2014 do not hand-edit; re-run the generator. The fully stewardship-excluded management pools carry the same populations ('LVAIGS where charged') and never apportion while their chargeable base is zero.",
+  "rows": [
+    {
+      "participation_id": "PP-POOL-IT-US-1000",
+      "pool_id": "POOL-IT-US",
+      "entity_id": "1000",
+      "role": "Provider",
+      "effective_from": "2026-01-01"
+    },
+    {
+      "participation_id": "PP-POOL-IT-US-3000",
+      "pool_id": "POOL-IT-US",
+      "entity_id": "3000",
+      "role": "Beneficiary",
+      "benefit_rationale": "Consumes hosted ERP/applications, network and end-user support delivered group-wide from the US parent.",
+      "effective_from": "2026-01-01"
+    },
+    {
+      "participation_id": "PP-POOL-MGMT-CH-3100",
+      "pool_id": "POOL-MGMT-CH",
+      "entity_id": "3100",
+      "role": "Provider",
+      "effective_from": "2026-01-01"
+    },
+    {
+      "participation_id": "PP-POOL-MGMT-CH-3200",
+      "pool_id": "POOL-MGMT-CH",
+      "entity_id": "3200",
+      "role": "Beneficiary",
+      "benefit_rationale": "In scope for chargeable regional management where performed (LVAIGS); the seeded stewardship carve-out currently excludes the full pool.",
+      "effective_from": "2026-01-01"
+    },
+    {
+      "participation_id": "PP-POOL-MGMT-CH-3300",
+      "pool_id": "POOL-MGMT-CH",
+      "entity_id": "3300",
+      "role": "Beneficiary",
+      "benefit_rationale": "In scope for chargeable regional management where performed (LVAIGS); the seeded stewardship carve-out currently excludes the full pool.",
+      "effective_from": "2026-01-01"
+    },
+    {
+      "participation_id": "PP-POOL-MGMT-CH-3800",
+      "pool_id": "POOL-MGMT-CH",
+      "entity_id": "3800",
+      "role": "Beneficiary",
+      "benefit_rationale": "In scope for chargeable regional management where performed (LVAIGS); the seeded stewardship carve-out currently excludes the full pool.",
+      "effective_from": "2026-01-01"
+    },
+    {
+      "participation_id": "PP-POOL-MGMT-US-1000",
+      "pool_id": "POOL-MGMT-US",
+      "entity_id": "1000",
+      "role": "Provider",
+      "effective_from": "2026-01-01"
+    },
+    {
+      "participation_id": "PP-POOL-MGMT-US-3000",
+      "pool_id": "POOL-MGMT-US",
+      "entity_id": "3000",
+      "role": "Beneficiary",
+      "benefit_rationale": "In scope for chargeable group management where performed (LVAIGS); the seeded stewardship carve-out currently excludes the full pool.",
+      "effective_from": "2026-01-01"
+    },
+    {
+      "participation_id": "PP-POOL-RSS-CH-3100",
+      "pool_id": "POOL-RSS-CH",
+      "entity_id": "3100",
+      "role": "Provider",
+      "effective_from": "2026-01-01"
+    },
+    {
+      "participation_id": "PP-POOL-RSS-CH-3200",
+      "pool_id": "POOL-RSS-CH",
+      "entity_id": "3200",
+      "role": "Beneficiary",
+      "benefit_rationale": "AP/AR processing, statutory bookkeeping and finance systems run for the distributor by the Swiss RHQ shared-service center.",
+      "effective_from": "2026-01-01"
+    },
+    {
+      "participation_id": "PP-POOL-RSS-CH-3300",
+      "pool_id": "POOL-RSS-CH",
+      "entity_id": "3300",
+      "role": "Beneficiary",
+      "benefit_rationale": "AP/AR processing, statutory bookkeeping and finance systems run for the distributor by the Swiss RHQ shared-service center.",
+      "effective_from": "2026-01-01"
+    },
+    {
+      "participation_id": "PP-POOL-RSS-CH-3800",
+      "pool_id": "POOL-RSS-CH",
+      "entity_id": "3800",
+      "role": "Beneficiary",
+      "benefit_rationale": "AP/AR processing, statutory bookkeeping and finance systems run for the distributor by the Swiss RHQ shared-service center.",
+      "effective_from": "2026-01-01"
+    }
+  ]
+}

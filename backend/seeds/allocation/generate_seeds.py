@@ -457,6 +457,41 @@ def build_documents() -> dict[str, dict[str, Any]]:
     # ---- 6_KeyDef ---------------------------------------------------------------
     key_defs = [_order_fields("6_KeyDef", dict(k)) for k in KEY_DEFS]
 
+    # ---- 9_Participation --------------------------------------------------------
+    # Beneficiary populations per pool = the provider's actual SERVICE pair
+    # recipients (Stage 4 resolves its denominator from these rows — V-K1);
+    # one Provider row per pool completes the associative entity. The fully
+    # excluded management pools carry the same populations ("LVAIGS where
+    # charged", DECISIONS.md M1 #2): their zero chargeable base means Stage 4
+    # never apportions them.
+    participation = []
+    benefit_rationale = {
+        "POOL-IT-US": "Consumes hosted ERP/applications, network and end-user support delivered group-wide from the US parent.",
+        "POOL-RSS-CH": "AP/AR processing, statutory bookkeeping and finance systems run for the distributor by the Swiss RHQ shared-service center.",
+        "POOL-MGMT-US": "In scope for chargeable group management where performed (LVAIGS); the seeded stewardship carve-out currently excludes the full pool.",
+        "POOL-MGMT-CH": "In scope for chargeable regional management where performed (LVAIGS); the seeded stewardship carve-out currently excludes the full pool.",
+    }
+    for pool_row in pools:
+        pool_id = pool_row["pool_id"]
+        prov = pool_row["provider_entity_id"]
+        participation.append(_order_fields("9_Participation", {
+            "participation_id": f"PP-{pool_id}-{prov}",
+            "pool_id": pool_id,
+            "entity_id": prov,
+            "role": "Provider",
+            "effective_from": EFFECTIVE_FROM,
+        }))
+        for rec in recipients[prov]:
+            participation.append(_order_fields("9_Participation", {
+                "participation_id": f"PP-{pool_id}-{rec}",
+                "pool_id": pool_id,
+                "entity_id": rec,
+                "role": "Beneficiary",
+                "benefit_rationale": benefit_rationale[pool_id],
+                "effective_from": EFFECTIVE_FROM,
+            }))
+    participation.sort(key=lambda r: r["participation_id"])
+
     # ---- 7_KeyValue -------------------------------------------------------------
     # Consumption units proportional to pair cost base per period (cb / 1000).
     def key_value_rows(prefix: str) -> list[dict[str, Any]]:
@@ -602,6 +637,11 @@ def build_documents() -> dict[str, dict[str, Any]]:
             "note": f"Allocation key definitions (6_KeyDef). {note_derived}",
             "rows": key_defs,
         },
+        "participation.v1.json": {
+            "version": "1",
+            "note": f"Pool participation (9_Participation): beneficiary populations per pool = the provider's actual SERVICE pair recipients (1000->3000; 3100->3200/3300/3800), plus one Provider row per pool. {note_derived} The fully stewardship-excluded management pools carry the same populations ('LVAIGS where charged') and never apportion while their chargeable base is zero.",
+            "rows": participation,
+        },
         "key_values.v1.json": {
             "version": "1",
             "note": f"FABRICATED allocation key values (7_KeyValue): consumption units proportional to the warehouse pair cost base per period (cb/1000), so Stage-4 allocation reproduces the pair split exactly. {note_derived} Budget keys forecast the actual mix.",
@@ -626,6 +666,7 @@ FILE_SHEETS: dict[str, tuple[str, tuple[str, ...]]] = {
     "markup_policies.v1.json": ("4_MarkupPolicy", ("rows",)),
     "exclusions.v1.json": ("5_Exclusions", ("rows",)),
     "key_defs.v1.json": ("6_KeyDef", ("rows",)),
+    "participation.v1.json": ("9_Participation", ("rows",)),
     "key_values.v1.json": ("7_KeyValue", ("actual", "budget")),
     "cost_lines.v1.json": ("1_CostLine", ("actual", "budget")),
 }
