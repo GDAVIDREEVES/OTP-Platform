@@ -41,6 +41,7 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import FunctionsIcon from '@mui/icons-material/Functions';
 import RefreshIcon from '@mui/icons-material/RestartAlt';
 import ResearchBrainFab from '@/features/research-brain/ResearchBrainFab';
 import ResearchBrainPanel from '@/features/research-brain/ResearchBrainPanel';
@@ -61,6 +62,7 @@ const DRAWER_WIDTH = 248;
 const navItems = [
   { label: 'Home', icon: <HomeIcon />, path: '/home' },
   { label: 'Master Data', icon: <AccountTreeIcon />, path: '/master-data' },
+  { label: 'Calc Studio', icon: <FunctionsIcon />, path: '/calc-studio' },
   { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { label: 'Processes', icon: <GridViewIcon />, path: '/process' },
   { label: 'Inbox', icon: <InboxIcon />, path: '/inbox' },

@@ -60,6 +60,10 @@ import type {
   CatalogEntry,
   ProvenanceRollup,
   Parameter,
+  CalcDef,
+  CalcDefResolved,
+  CalcRun,
+  CalcRunResult,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -343,6 +347,31 @@ export const api = {
   /** Reset a parameter to its governed default — also hash-chained at param:{key}. */
   resetParameter: (key: string, body: { actor: string }) =>
     sendJSON<Parameter>('POST', `/api/parameters/${encodeURIComponent(key)}/reset`, body),
+
+  // ------------ Calc Studio (calculation registry + run console — CS-a/CS-b) ------------
+
+  /** Every registered calculation, each with its most recent run attached (or null). */
+  calcs: () => getJSON<CalcDef[]>('/api/calcs'),
+
+  /** One calculation with its inputs resolved — full catalog entries + governed parameter rows. */
+  calc: (id: string) => getJSON<CalcDefResolved>(`/api/calcs/${encodeURIComponent(id)}`),
+
+  /** Execute a calculation now. Persists the run (digest + summary + trace — never
+   *  the output body) and hash-chains a "run" event at record_ref="calc:{id}". */
+  runCalc: (
+    id: string,
+    body: { actor: string; args?: Record<string, unknown>; scenario_id?: string }
+  ) => sendJSON<CalcRunResult>('POST', `/api/calcs/${encodeURIComponent(id)}/run`, body),
+
+  /** Run history for one calculation, newest first. */
+  calcRuns: (id: string) => getJSON<CalcRun[]>(`/api/calcs/${encodeURIComponent(id)}/runs`),
+
+  /** The global run console, newest first (optionally filtered). */
+  runs: (params: { calc_id?: string; scenario_id?: string; status?: string } = {}) =>
+    getJSON<CalcRun[]>('/api/runs', params),
+
+  /** One run by id (404 if unknown). */
+  run: (runId: number) => getJSON<CalcRun>(`/api/runs/${runId}`),
 
   /** Per-entity covered-transaction rollup for the documentation workpapers
    *  (OTP-37 §6662 / OTP-32 Local File / OTP-33 Master File). Derived from the
