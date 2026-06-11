@@ -378,6 +378,35 @@ CREATE TABLE IF NOT EXISTS pl_overlays (
 CREATE INDEX IF NOT EXISTS ix_pl_overlays_run ON pl_overlays (waterfall_run_id);
 CREATE INDEX IF NOT EXISTS ix_pl_overlays_entity ON pl_overlays (entity);
 
+-- User-authored calculations (Phase 5 W3 — Author & Apply Calculation
+-- Builder). One row per user-defined expression evaluated by the safe engine
+-- in calc/expr.py (tokenizer/AST/Decimal — no eval/exec). Lifecycle:
+-- draft -> tested (successful test run of the CURRENT expression; the hash
+-- gate below) -> in_review (maker submits; one review item at
+-- record_ref="ucalc:{id}") -> active (a DIFFERENT checker approves —
+-- state/review.py:decide() hook), mirroring scenario promotion. Editing an
+-- active calculation bumps `version` and returns it to draft for re-approval.
+-- Every mutation is hash-chained at record_ref="ucalc:{id}"
+-- (state/user_calcs.py); registry runs of active calcs land in calc_runs and
+-- audit "run" events on the same ref.
+CREATE TABLE IF NOT EXISTS user_calculations (
+  id               TEXT PRIMARY KEY,                -- "UC-1", "UC-2", ...
+  name             TEXT NOT NULL,
+  description      TEXT,
+  process_id       TEXT,                            -- optional process binding
+  output_grain     TEXT NOT NULL DEFAULT 'group' CHECK (output_grain IN ('group','entity','entity_function')),
+  expression       TEXT NOT NULL,                   -- source text (calc/expr.py grammar)
+  status           TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','tested','in_review','active')),
+  version          INTEGER NOT NULL DEFAULT 1,
+  tested_expr_hash TEXT,                            -- sha256 of expression at last successful test
+  tested_at        TEXT,
+  created_by       TEXT NOT NULL,
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT,
+  activated_at     TEXT,
+  activated_by     TEXT
+);
+
 -- Waterfall orchestrator runs (services/waterfall_runner.py). One row per
 -- launch of the ordered charge sequence (default service_allocation ->
 -- royalties -> csa_true_up -> profit_split); steps_json carries the per-step

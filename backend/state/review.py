@@ -15,6 +15,7 @@ import persistence.overrides as overrides
 import state.audit as audit
 import state.lineage as lineage
 import state.scenarios as scenarios
+import state.user_calcs as user_calcs
 from state.engine import LOCK, get_conn
 
 # decision -> (stored status, audit event_type)
@@ -120,6 +121,18 @@ def decide(
                 scenarios.apply_promotion(scenario_id, checker)
             else:
                 scenarios.mark_rejected(scenario_id)
+
+    # W3 — user-calculation activation rides the same gate: approving a
+    # ucalc:* item activates the calculation in the registry (kind
+    # "user-defined"); rejecting returns it to draft so the maker can rework,
+    # re-test and resubmit.
+    if record_ref.startswith("ucalc:"):
+        ucalc_id = record_ref.split(":", 1)[1]
+        if user_calcs.get_user_calc(ucalc_id) is not None:
+            if decision == "approve":
+                user_calcs.apply_activation(ucalc_id, checker)
+            else:
+                user_calcs.mark_rejected(ucalc_id)
     return _to_dict(updated)
 
 

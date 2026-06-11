@@ -109,14 +109,18 @@ def compare(scenario_id: str, payload: ScenarioCompareIn):
     sc = scenarios.get_scenario(scenario_id)
     if sc is None:
         raise HTTPException(status_code=404, detail=f"unknown scenario: {scenario_id}")
-    if calc_registry.get_def(payload.calc_id) is None:
+    if not calc_registry.exists(payload.calc_id):
         raise HTTPException(status_code=404, detail=f"unknown calculation: {payload.calc_id}")
 
-    base = calc_registry.run(payload.calc_id, actor=payload.actor, args=payload.args)
-    scen = calc_registry.run(
-        payload.calc_id, actor=payload.actor, args=payload.args,
-        scenario_id=scenario_id, scenario_overrides=sc["overrides"],
-    )
+    try:
+        base = calc_registry.run(payload.calc_id, actor=payload.actor, args=payload.args)
+        scen = calc_registry.run(
+            payload.calc_id, actor=payload.actor, args=payload.args,
+            scenario_id=scenario_id, scenario_overrides=sc["overrides"],
+        )
+    except ValueError as e:
+        # e.g. a user calculation that is not active yet (W3).
+        raise HTTPException(status_code=409, detail=str(e))
     return {
         "base": base["output"],
         "scenario": scen["output"],

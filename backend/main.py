@@ -53,6 +53,7 @@ from routers import (
     stewardship,
     transactions,
     treasury,
+    user_calcs,
     vat,
     waterfall,
     wht,
@@ -119,6 +120,7 @@ for r in (
     wht.router,
     beat.router,
     stewardship.router,
+    user_calcs.router,
     waterfall.router,
     worklist.router,
 ):
