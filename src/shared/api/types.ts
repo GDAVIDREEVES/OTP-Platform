@@ -1289,3 +1289,114 @@ export interface AllocationSeed<T> {
   note?: string;
   rows: T[];
 }
+
+// ----------------- TP waterfall + post-charge P&L (Phase 5 W1/W2) -----------------
+//
+// The waterfall orchestrator (services/waterfall_runner.py) applies the
+// intercompany charge sequence to the append-only pl_overlays ledger.
+// Overlay amounts are EXACT DECIMAL STRINGS off the ledger (never floats);
+// base / post-charge P&L measures are floats like every other P&L endpoint.
+
+export type WaterfallRunStatus =
+  | 'running'
+  | 'applied'
+  | 'failed'
+  | 'rolled_back'
+  | 'superseded';
+
+/** One step's persisted summary on a waterfall run (extra step-specific
+ *  detail keys — billing_periods, pool, key, … — ride along untyped). */
+export interface WaterfallStep {
+  id: string;
+  status: string;
+  label?: string;
+  lines?: number;
+  /** Exact decimal strings — Σ revenue-side / Σ cost-side / net (== "0"). */
+  revenue_total?: string;
+  cost_total?: string;
+  net?: string;
+  error?: string;
+  billing_periods?: string[];
+  allocation_run_ids?: string[];
+  [extra: string]: unknown;
+}
+
+export interface WaterfallRun {
+  id: string;
+  year: number;
+  actor: string;
+  status: WaterfallRunStatus;
+  steps: WaterfallStep[];
+  error: string | null;
+  started_at: string;
+  finished_at: string | null;
+}
+
+/** One append-only overlay ledger line (a reversing row has a negative
+ *  amount and reverses_id -> the original line). */
+export interface PlOverlayLine {
+  id: number;
+  waterfall_run_id: string;
+  step: string;
+  entity: string;
+  function: string | null;
+  period: string;
+  line_kind: string;
+  side: 'revenue' | 'cost';
+  /** Exact decimal string. */
+  amount: string;
+  source_ref: string;
+  reverses_id: number | null;
+  created_at: string;
+}
+
+export interface WaterfallRunDetail extends WaterfallRun {
+  lines: PlOverlayLine[];
+}
+
+/** Per-kind overlay rollup — exact decimal strings. */
+export interface PlOverlayKindTotals {
+  revenue: string;
+  cost: string;
+  net: string;
+}
+
+/** One row of GET /api/pl/adjusted: base segment_pl aggregate | applied
+ *  overlay | post-charge totals, with per-line provenance. */
+export interface PlAdjustedRow {
+  entity: string;
+  function: string | null;
+  base: {
+    revenue: number;
+    operating_profit: number;
+    operating_margin: number | null;
+    [measure: string]: number | null;
+  };
+  overlay: PlOverlayKindTotals & {
+    by_kind: Record<string, PlOverlayKindTotals>;
+  };
+  post_charge: {
+    revenue: number;
+    ic_cost: number;
+    operating_profit: number;
+    operating_margin: number | null;
+  };
+  lines: PlOverlayLine[];
+}
+
+export interface PlAdjusted {
+  year: number;
+  grain: 'entity' | 'entity_function';
+  /** The currently applied waterfall run — null = post-charge == base. */
+  applied_run_id: string | null;
+  rows: PlAdjustedRow[];
+  totals: {
+    overlay_revenue: string;
+    overlay_cost: string;
+    overlay_net: string;
+  };
+}
+
+/** P&L basis selector for the margin-bearing reads (W2). Omitted = the
+ *  governed pl.use_post_charge parameter resolves it server-side. */
+export type PlBasis = 'base' | 'post_charge';

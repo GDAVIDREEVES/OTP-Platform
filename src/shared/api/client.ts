@@ -77,6 +77,10 @@ import type {
   AllocationArtifact,
   AllocationChargeLineage,
   AllocationDoc,
+  WaterfallRun,
+  WaterfallRunDetail,
+  PlAdjusted,
+  PlBasis,
 } from './types';
 
 export const API_BASE_URL: string =
@@ -138,7 +142,9 @@ export const api = {
   /** The OTP-1…50 process catalog + pharmaceutical overlay. */
   processes: () => getJSON<ProcessCatalog>('/api/processes'),
 
-  kpis: (period: PeriodParams = {}) =>
+  /** `pl` (W2) selects the P&L basis: base | post_charge; omitted = the
+   *  governed pl.use_post_charge parameter resolves it server-side. */
+  kpis: (period: PeriodParams & { pl?: PlBasis } = {}) =>
     getJSON<KpiSummary>('/api/kpis', period as Record<string, unknown>),
 
   entities: (period: PeriodParams = {}) =>
@@ -174,7 +180,7 @@ export const api = {
   invoices: (period: PeriodParams = {}) =>
     getJSON<Invoice[]>('/api/invoices', period as Record<string, unknown>),
 
-  marginTrend: (params: { entityIds?: string[] } & PeriodParams = {}) => {
+  marginTrend: (params: { entityIds?: string[]; pl?: PlBasis } & PeriodParams = {}) => {
     const { entityIds, ...rest } = params;
     return getJSON<MonthlyMarginRow[]>('/api/margins/trend', {
       ...rest,
@@ -208,8 +214,10 @@ export const api = {
   reconciliation: (period: PeriodParams = {}) =>
     getJSON<Reconciliation>('/api/reconciliation', period as Record<string, unknown>),
 
-  /** Latest-Estimate forecast per tested party (OTP-24) — derived from segment_pl actuals by run-rate. */
-  forecast: (year?: number) => getJSON<ForecastModel>('/api/forecast', year ? { year } : {}),
+  /** Latest-Estimate forecast per tested party (OTP-24) — derived from segment_pl actuals by run-rate.
+   *  `pl` (W2) selects the basis; omitted = the governed pl.use_post_charge parameter. */
+  forecast: (year?: number, pl?: PlBasis) =>
+    getJSON<ForecastModel>('/api/forecast', { ...(year ? { year } : {}), ...(pl ? { pl } : {}) }),
 
   journalEntries: (
     params: { entity?: string; period?: string; year?: number; awref?: string; limit?: number } = {}
@@ -486,6 +494,39 @@ export const api = {
     getJSON<AllocationChargeLineage>(
       `/api/allocation/charges/${encodeURIComponent(chargeId)}/lineage`
     ),
+
+  // ------------ TP waterfall + post-charge P&L (Phase 5 W1/W2) ------------
+
+  /** Every waterfall run, oldest first (optionally filtered by status —
+   *  at most ONE run is 'applied' at any time). */
+  waterfallRuns: (status?: string) =>
+    getJSON<WaterfallRun[]>('/api/waterfall/runs', status ? { status } : {}),
+
+  /** One run with its overlay ledger lines (404 if unknown). */
+  waterfallRun: (runId: string) =>
+    getJSON<WaterfallRunDetail>(`/api/waterfall/runs/${encodeURIComponent(runId)}`),
+
+  /** Launch a waterfall run (default sequence: service_allocation →
+   *  royalties → csa_true_up → profit_split). A failed run is a domain
+   *  outcome (200, status "failed", nothing applied); the new run supersedes
+   *  the previously applied one. Audited at waterfall:{run_id}. */
+  runWaterfall: (body: { actor: string; year?: number; steps?: string[] }) =>
+    sendJSON<WaterfallRun>('POST', '/api/waterfall/runs', body),
+
+  /** Roll an applied run back — one REVERSING overlay row per line (the
+   *  ledger stays append-only), run status → rolled_back. */
+  rollbackWaterfall: (runId: string, body: { actor: string }) =>
+    sendJSON<WaterfallRun & { reversed_lines: number }>(
+      'POST',
+      `/api/waterfall/runs/${encodeURIComponent(runId)}/rollback`,
+      body
+    ),
+
+  /** Base segment_pl aggregate | applied overlay | post-charge totals per
+   *  entity (or entity-function), with per-line provenance. With no
+   *  waterfall applied every post-charge column equals base. */
+  plAdjusted: (params: { year?: number; grain?: 'entity' | 'entity_function' } = {}) =>
+    getJSON<PlAdjusted>('/api/pl/adjusted', params),
 
   /** Per-entity covered-transaction rollup for the documentation workpapers
    *  (OTP-37 §6662 / OTP-32 Local File / OTP-33 Master File). Derived from the

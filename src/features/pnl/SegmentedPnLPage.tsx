@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppShell from '@/shared/components/layout/AppShell';
 import {
   Paper,
@@ -17,6 +18,7 @@ import {
   Divider,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   Tabs,
   Tab } from
 '@mui/material';
@@ -34,6 +36,8 @@ import { statusColor, statusLabel } from '@/shared/utils/status';
 import type { EntityStatus } from '@/shared/types/entity';
 import { useEntities } from '@/shared/providers/DataProvider';
 import { formatCurrency } from '@/shared/utils/format';
+import { api } from '@/shared/api/client';
+import type { PlAdjusted, PlAdjustedRow } from '@/shared/api/types';
 import DetailedPnL from '@/features/pnl/DetailedPnL';
 // Worst status wins for jurisdiction-level rollup
 // no-data ranks below every real status so it never masks an out-of-range
@@ -45,11 +49,37 @@ const statusRank: Record<EntityStatus, number> = {
   'out-of-range': 3
 };
 const rankStatus: EntityStatus[] = ['no-data', 'in-range', 'watch', 'out-of-range'];
+
+/** Per-kind provenance line for the IC-charges tooltip ("service_charge net
+ *  −1,234.00 · royalty net …"), straight off the applied overlay rollup. */
+function overlayProvenance(row: PlAdjustedRow, runId: string): string {
+  const kinds = Object.entries(row.overlay.by_kind)
+    .filter(([, v]) => Number(v.net) !== 0 || Number(v.revenue) !== 0 || Number(v.cost) !== 0)
+    .map(([k, v]) => `${k}: net ${formatCurrency(Number(v.net), 'USD', true)}`);
+  return `Waterfall ${runId} · ${kinds.length ? kinds.join(' · ') : 'no applied charges'}`;
+}
+
 export default function SegmentedPnL() {
   const [tab, setTab] = useState(0);
   const [shift, setShift] = useState(0);
   const [view, setView] = useState<'entity' | 'jurisdiction'>('entity');
   const entities = useEntities();
+  const navigate = useNavigate();
+
+  // Post-charge side-by-side (Phase 5 W2). ADDITIVE: the columns render only
+  // while a waterfall run is APPLIED (applied_run_id non-null) — with no run
+  // the page is exactly its pre-W2 self. FY figures from GET /api/pl/adjusted.
+  const [adjusted, setAdjusted] = useState<PlAdjusted | null>(null);
+  useEffect(() => {
+    api.plAdjusted({ grain: 'entity' }).then(setAdjusted).catch(() => setAdjusted(null));
+  }, []);
+  const appliedRunId = adjusted?.applied_run_id ?? null;
+  const adjustedByEntity = useMemo(
+    () => new Map((adjusted?.rows ?? []).map((r) => [r.entity, r])),
+    [adjusted]
+  );
+  // Post-charge columns are entity-grain figures — shown on the entity view only.
+  const showPostCharge = appliedRunId !== null && view === 'entity';
   const segments = useMemo(
     () => entities.map((e) => {
       const revenue = e.ytdVolume;
@@ -537,16 +567,36 @@ export default function SegmentedPnL() {
                   Segmented P&L —{' '}
                   {view === 'entity' ? 'by entity' : 'by jurisdiction'}
                 </Typography>
-                <Typography
-                variant="caption"
-                sx={{
-                  color: '#64748B'
-                }}>
-                
-                  {view === 'entity' ?
-                `${tableRows.length} entities` :
-                `${tableRows.length} jurisdictions`}
-                </Typography>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  {appliedRunId !== null && (
+                    <Tooltip
+                      title="A TP waterfall run is applied — the Base | IC charges | Post-charge columns read FY figures from /api/pl/adjusted. Click to open the sequence console."
+                      arrow>
+
+                      <Chip
+                      size="small"
+                      clickable
+                      label={`Waterfall ${appliedRunId} applied — post-charge view`}
+                      onClick={() => navigate('/calc-studio/waterfall')}
+                      sx={{
+                        bgcolor: '#EFF6FF',
+                        color: '#1D4ED8',
+                        fontWeight: 700
+                      }} />
+
+                    </Tooltip>
+                  )}
+                  <Typography
+                  variant="caption"
+                  sx={{
+                    color: '#64748B'
+                  }}>
+
+                    {view === 'entity' ?
+                  `${tableRows.length} entities` :
+                  `${tableRows.length} jurisdictions`}
+                  </Typography>
+                </Stack>
               </Stack>
               <Box
               sx={{
@@ -570,8 +620,19 @@ export default function SegmentedPnL() {
                       </TableCell>
                       <TableCell align="right">IC Revenue</TableCell>
                       <TableCell align="right">Costs</TableCell>
-                      <TableCell align="right">Operating Profit</TableCell>
-                      <TableCell align="right">OM %</TableCell>
+                      <TableCell align="right">
+                        {showPostCharge ? 'Base OP' : 'Operating Profit'}
+                      </TableCell>
+                      <TableCell align="right">
+                        {showPostCharge ? 'Base OM %' : 'OM %'}
+                      </TableCell>
+                      {showPostCharge &&
+                    <>
+                          <TableCell align="right">IC charges (net)</TableCell>
+                          <TableCell align="right">Post-charge OP</TableCell>
+                          <TableCell align="right">Post-charge OM %</TableCell>
+                        </>
+                    }
                       <TableCell align="right">Scenario OM %</TableCell>
                       <TableCell align="right">ETR</TableCell>
                       <TableCell>Status</TableCell>
@@ -603,6 +664,56 @@ export default function SegmentedPnL() {
                           {formatCurrency(s.operatingProfit, 'USD', true)}
                         </TableCell>
                         <TableCell align="right">{s.opMargin}%</TableCell>
+                        {showPostCharge &&
+                    (() => {
+                      // FY entity-grain figures off /api/pl/adjusted; the
+                      // tooltip carries the per-kind charge provenance.
+                      const adj = adjustedByEntity.get(s.id);
+                      if (!adj) {
+                        return <>
+                                <TableCell align="right">—</TableCell>
+                                <TableCell align="right">—</TableCell>
+                                <TableCell align="right">—</TableCell>
+                              </>;
+                      }
+                      const net = Number(adj.overlay.net);
+                      const om = adj.post_charge.operating_margin;
+                      return <>
+                              <TableCell align="right">
+                                <Tooltip title={overlayProvenance(adj, appliedRunId!)} arrow>
+                                  <Typography
+                              component="span"
+                              variant="body2"
+                              sx={{
+                                color: net < 0 ? '#B91C1C' : '#15803D',
+                                fontWeight: 700,
+                                borderBottom: '1px dotted #94A3B8',
+                                cursor: 'help'
+                              }}>
+
+                                    {net >= 0 ? '+' : ''}{formatCurrency(net, 'USD', true)}
+                                  </Typography>
+                                </Tooltip>
+                              </TableCell>
+                              <TableCell
+                          align="right"
+                          sx={{
+                            fontWeight: 700
+                          }}>
+
+                                {formatCurrency(adj.post_charge.operating_profit, 'USD', true)}
+                              </TableCell>
+                              <TableCell
+                          align="right"
+                          sx={{
+                            fontWeight: 700
+                          }}>
+
+                                {om == null ? '—' : `${(om * 100).toFixed(1)}%`}
+                              </TableCell>
+                            </>;
+                    })()
+                    }
                         <TableCell
                       align="right"
                       sx={{
