@@ -37,7 +37,7 @@ npm run typecheck && npm run build                  # frontend gate
 | **Process library** (`/process`) | All 50 OTP processes (OTP-1…50, categories A–G), **every one live-wired** to real data: pricing wizards, charge/invoice batches, monitoring worklists, workpaper grids, case workspaces, compliance calcs. ⌘K command palette. |
 | **Close-cycle loops** | Processes hand off to each other and **loop back**: monitoring → adjustment → approval → re-validation; benchmark refresh → stale-price flags; DEMPE → price design; docs ⇄ controversy cases. Every hand-off is an audit event. |
 | **Inbox** (`/inbox`) | One cross-process worklist: drafts, items awaiting your review, out-of-range exceptions, open cases — urgency-sorted with deep links. |
-| **Calc Studio** (`/calc-studio`) | The calculation-management module (Anaplan/PaPM/Oracle-EPM-style): **Calculations** registry (every computed endpoint as a managed object) · **Drivers & Assumptions** (governed parameter store) · **Scenarios** (what-if with Base \| Scenario \| Δ and maker-checker promotion) · **Runs** (job console) · **Lineage** (sources → parameters → calculations → processes DAG) · **Data Catalog** & **Provenance** (real / assumed / fabricated per source) · **Allocations** (the engine workbench, below). |
+| **Calc Studio** (`/calc-studio`) | The calculation-management module (Anaplan/PaPM/Oracle-EPM-style): **Calculations** registry (every computed endpoint as a managed object) with a **Calculation Builder** — author your own calculation from term pickers (governed parameters, warehouse measures, composable calcs) into a syntax-checked formula bar, preview it, then activate via maker-checker review; user calcs run/trace/scenario like system calcs · **Drivers & Assumptions** (governed parameter store) · **Scenarios** (what-if with Base \| Scenario \| Δ and maker-checker promotion) · **Runs** (job console) · **Waterfall** (the TP charge sequence console: apply service / royalty / CSA / profit-split charges to entity P&L as an append-only double-entry overlay — group net zero, rollback by reversing rows) · **Lineage** (sources → parameters → calculations → processes DAG) · **Data Catalog** & **Provenance** (real / assumed / fabricated per source) · **Allocations** (the engine workbench, below). |
 | **Allocation engine** (`backend/allocation/`) | A deterministic cost-to-charge engine per [`docs/allocation/SPEC.md`](docs/allocation/SPEC.md): capture → pool → benefit-test gate → allocate (largest remainder; cascade + reciprocal) → markup → charge-out → reconcile/true-up. Decimal-only money, append-only ledgers, V-rule validation catalogue, input-snapshot hashing, doc packs as run byproducts. Its output **reconciles to the warehouse to the cent** (FY $13,586,402.70 cost / $14,344,773.26 gross == the demo's service flows). |
 | **Master Data** (`/master-data`) | Entity × function master, covered-transaction matrix, inbound SAP-delta mapping with AI-proposed, human-approved characterization (maker ≠ checker). |
 | **Review queue** (`/review`) | Maker-checker approvals for everything: adjustments, wizard submissions, scenario promotions. Rejected work routes back to its origin. |
@@ -52,7 +52,8 @@ React (Vite :5173) ── /api/* ──▶ FastAPI (:8000)
                                    │     journal · segment_pl · supply_chain · entity_roles
                                    ├─▶ SQLite state (mutable, audited)
                                    │     drafts · reviews · cases · parameters · scenarios
-                                   │     calc_runs · allocation ledgers (append-only)
+                                   │     calc_runs · user calculations · allocation ledgers
+                                   │     P&L overlays (append-only)
                                    └─▶ Seeds (versioned JSON reference data + catalog)
 ```
 
@@ -63,6 +64,12 @@ Key subsystems:
   engine and registry; every calc is runnable, traceable, and scenario-capable.
 - `backend/state/parameters.py` — the governed parameter store; scenario
   overrides apply through a contextvar overlay without touching governed values.
+- `backend/calc/expr.py` + `backend/state/user_calcs.py` — the Calculation
+  Builder's safe expression engine (tokenizer → AST → Decimal evaluator, no
+  eval/exec) and the draft → tested → in-review → active lifecycle.
+- `backend/services/waterfall_runner.py` + `backend/state/pl_overlays.py` — the
+  TP waterfall: intercompany charges applied to entity P&L as an append-only
+  double-entry overlay (`/api/pl/adjusted`), governed by `pl.use_post_charge`.
 - `backend/allocation/` — the pure allocation engine; types/DDL **generated**
   from `docs/allocation/intercompany-allocation-schema.json` (never hand-edit
   `generated/`).

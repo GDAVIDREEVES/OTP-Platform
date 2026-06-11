@@ -48,3 +48,35 @@ House rules as always: Decimal money, append-only, no silent defaults, audit eve
 mirror existing patterns (cases.py state style, calc_registry, review.decide() hook for ucalc:
 and waterfall refs), full pytest + typecheck/build gates per increment, golden non-regression
 (existing endpoints byte-identical with the toggle off).
+
+## Decisions (W5 — end-to-end verification, 2026-06-11)
+
+Live verification ran against the dev server (:8000) over the real demo state; no code
+fixes were needed — both loops passed exactly as built. Judgment calls:
+
+1. **Verification artifacts stay in the state DB (append-only by design).** The live loop
+   left: waterfall run WF-5 (status `rolled_back`, overlay nets to $0.00), user calculation
+   UC-3 "Projected entity revenue (growth-adjusted)" (ACTIVE, v1, maker greg.reeves /
+   checker dana.reviewer), scenario SC-1 (discarded), four UC-3 calc runs, the approved
+   `ucalc:UC-3` review item, and their hash-chained audit events. There is no delete API for
+   any of these (deliberately), and `state.migrate --reset` was out of bounds for this
+   increment. A pristine demo reset clears them.
+2. **Byte-identity scope.** After rollback + param reset, `/api/margins/trend`, `/api/kpis`,
+   `/api/forecast` and `/api/segments/pl` were verified byte-for-byte identical to their
+   pre-run captures (also identical with a run APPLIED while the toggle was off, and with
+   the toggle ON but no applied run — the "default base until applied" contract).
+   `/api/pl/adjusted` is a NEW endpoint and is excluded from byte-identity: after a
+   rollback it shows the netted ledger (original + reversing rows summing to `0.00`)
+   rather than an empty one — that is the append-only ledger telling the truth.
+3. **Maker-checker proven negatively too:** the same-actor approve of `ucalc:UC-3` was
+   asserted to fail (409 "a maker cannot approve their own work") before the different-actor
+   approve activated the calc.
+4. **Zero contamination evidence:** scenario compare (csa.growth 0.08 → 0.12) scaled UC-3's
+   total by exactly 1.12/1.08; the governed param read back 0.08 throughout, and all three
+   governed registry runs produced the identical output digest while the SC-1-tagged run
+   produced a different one.
+5. **Docs placement:** the waterfall close sequence became **Flow 4** in README-WORKFLOW.md
+   (charges applied to entity P&L BEFORE monitoring/adjustments/pricing), with a cross-ref
+   from Flow 1 step 5; the Calculation Builder became Flow 2 steps 6–8. README.md's Calc
+   Studio bullet gained the Builder + Waterfall tabs, and the architecture section gained
+   the `expr.py`/`user_calcs.py` and `waterfall_runner.py`/`pl_overlays.py` subsystems.
