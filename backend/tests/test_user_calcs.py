@@ -234,6 +234,23 @@ def test_preview_evaluates_without_persisting(state_db):
     assert resp.json()["detail"]["message"] == "division by zero"
 
 
+def test_terms_endpoint_serves_the_picker_allowlist(state_db):
+    """W4: the Builder's term pickers read the SAME allowlist validate/preview
+    enforce (calc.expr.MEASURE_TABLES + GRAINS + the non-composable set), so
+    the UI can never offer a term the engine would reject."""
+    body = client.get("/api/user-calcs/terms").json()
+    assert body["grains"] == ["group", "entity", "entity_function"]
+    seg = next(m for m in body["measures"] if m["table"] == "segment_pl")
+    assert seg["catalog_id"] == "warehouse:segment_pl"
+    assert "revenue" in seg["measures"] and "operating_profit" in seg["measures"]
+    assert seg["grains"]["entity"] == ["RBUKRS"]
+    assert seg["grains"]["group"] == []
+    assert seg["filters"]["GJAHR"] == "int"
+    assert "service_allocation" in body["non_composable"]
+    # Route order: the literal path must not be captured as a ucalc id.
+    assert client.get("/api/user-calcs/terms").status_code == 200
+
+
 # --- Registry integration -------------------------------------------------------------
 
 

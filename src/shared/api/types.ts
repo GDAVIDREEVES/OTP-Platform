@@ -845,8 +845,10 @@ export interface ProvenanceRollup {
 
 // ----------------- Calc Studio (calculation registry + run console — CS-a/CS-b) -----------------
 
-/** What a registered calculation does with its inputs. */
-export type CalcType = 'allocation' | 'derivation' | 'aggregate' | 'band-test' | 'reconciliation';
+/** What a registered calculation does with its inputs ('expression' = a
+ *  user-authored formula run by the safe expression engine — W3/W4). */
+export type CalcType =
+  | 'allocation' | 'derivation' | 'aggregate' | 'band-test' | 'reconciliation' | 'expression';
 
 /** One declared handler argument (merged over by POST /api/calcs/{id}/run args). */
 export interface CalcArgSpec {
@@ -897,6 +899,8 @@ export interface CalcDef {
   id: string;
   name: string;
   type: CalcType;
+  /** Seed definition ("system") vs user-authored expression ("user-defined" — W3/W4). */
+  kind: 'system' | 'user-defined';
   process_id: string;
   owner: string;
   status: string;
@@ -905,7 +909,8 @@ export interface CalcDef {
   formula: string;
   inputs: { catalog: string[]; parameters: string[] };
   output: string;
-  endpoint: string;
+  /** null for user-defined calcs — they run via the expression engine, not HTTP. */
+  endpoint: string | null;
   args: Record<string, CalcArgSpec>;
   summary_keys: string[];
   scenario_capable: boolean;
@@ -1005,6 +1010,111 @@ export interface ScenarioCompare {
   scenario_sensitive: boolean;
   base_run_id: number;
   scenario_run_id: number;
+}
+
+// ----------------- User-authored calculations (Calculation Builder — W3/W4) -----------------
+
+export type UserCalcStatus = 'draft' | 'tested' | 'in_review' | 'active';
+
+/** One user-authored calculation (state/user_calcs.py) — a named expression in
+ *  the safe param()/measure()/calc() grammar with a governed lifecycle:
+ *  draft → tested (test-run gate) → in_review (maker submits) → active (a
+ *  DIFFERENT checker approves in /review). Every mutation is hash-chained at
+ *  record_ref="ucalc:{id}"; editing an active calc bumps the version back to
+ *  draft. */
+export interface UserCalc {
+  id: string;
+  name: string;
+  description: string | null;
+  process_id: string | null;
+  output_grain: string;
+  expression: string;
+  status: UserCalcStatus;
+  version: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string | null;
+  tested_expr_hash: string | null;
+  tested_at: string | null;
+  activated_at: string | null;
+  activated_by: string | null;
+}
+
+/** One statically-resolved term of an expression (POST /api/user-calcs/validate). */
+export type ExprTerm =
+  | { kind: 'param'; key: string; pos: number }
+  | {
+      kind: 'measure';
+      ref: string;
+      grain: string;
+      filters: string | null;
+      catalog_id: string;
+      pos: number;
+    }
+  | { kind: 'calc'; calc_id: string; output_key: string; pos: number };
+
+/** POST /api/user-calcs/validate — parse errors are fatal (a single entry);
+ *  term errors are COLLECTED so the Builder shows them all at once. */
+export interface ExprValidation {
+  ok: boolean;
+  errors: { message: string; pos: number | null }[];
+  terms: ExprTerm[];
+}
+
+/** One row of a grained expression result: the grain's key columns (RBUKRS,
+ *  ROLE_CODE, …) plus the float value and the *_exact decimal string. */
+export interface ExprResultRow {
+  value: number;
+  value_exact: string;
+  [keyCol: string]: unknown;
+}
+
+/** An evaluated expression (preview / test run): a scalar (`value` +
+ *  `value_exact` for numbers) at 'group' grain, otherwise grained `rows`
+ *  (+ totals when every member is numeric). */
+export interface ExprResult {
+  grain: string;
+  value?: unknown;
+  value_exact?: string;
+  rows?: ExprResultRow[];
+  total?: number;
+  total_exact?: string;
+}
+
+/** POST /api/user-calcs/preview — evaluate without persisting; `trace` is the
+ *  raw term-step list (param/measure/aggregate/calc). */
+export interface ExprPreview {
+  result: ExprResult;
+  grain: string;
+  trace: TraceStep[];
+}
+
+/** POST /api/user-calcs/{id}/test — the updated row (now 'tested') + the
+ *  evaluated result and raw trace (NOT persisted; registry runs land in
+ *  calc_runs). */
+export interface UserCalcTestRun {
+  calc: UserCalc;
+  result: ExprResult;
+  trace: TraceStep[];
+}
+
+/** One measure table of the Builder's term-picker allowlist
+ *  (GET /api/user-calcs/terms — straight from calc.expr.MEASURE_TABLES, the
+ *  same registry validate/preview enforce). */
+export interface MeasureTableMeta {
+  table: string;
+  catalog_id: string;
+  measures: string[];
+  grains: Record<string, string[]>;
+  filters: Record<string, 'str' | 'int'>;
+}
+
+/** GET /api/user-calcs/terms — measure allowlist + legal output grains + the
+ *  calc ids calc() may not compose (they write ledgers). */
+export interface UserCalcTerms {
+  grains: string[];
+  measures: MeasureTableMeta[];
+  non_composable: string[];
 }
 
 // ----------------- Governed parameter store (OTP-49 console — Phase 2a) -----------------

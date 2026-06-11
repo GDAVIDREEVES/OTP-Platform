@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/shared/api/client';
 import type { ProvenanceKind } from '@/kernel/audit/ProvenanceChip';
 import type {
-  Parameter, CatalogEntry, Provenance, ProvenanceRollup,
+  Parameter, CatalogEntry, Provenance, ProvenanceRollup, ShapedStep, TraceStep,
 } from '@/shared/api/types';
 
 /** Map the catalog/parameter `provenance` field onto the ProvenanceChip kind. */
@@ -40,6 +40,58 @@ export const PROV_META: Record<Provenance, { label: string; hint: string }> = {
 
 /** Bucket order for the provenance dashboard — honest inventory first. */
 export const PROV_ORDER: Provenance[] = ['fabricated', 'assumed', 'real'];
+
+/** Shape the raw term steps of an expression evaluation (W4 — the Builder's
+ *  Preview and user-calc runs, which have no curated shaped_trace) into
+ *  TraceTree steps: one card per param/measure/calc term carrying the value
+ *  the engine actually read. The warehouse kernel's own "aggregate" step is
+ *  folded into its measure. `catalogByTable` (table -> catalog id, from
+ *  GET /api/user-calcs/terms or the calc's resolved inputs) attaches the
+ *  ProvenanceChip source when known — nothing is invented here. */
+export function shapeTermSteps(
+  steps: TraceStep[],
+  catalogByTable: Record<string, string> = {},
+): ShapedStep[] {
+  const out: ShapedStep[] = [];
+  steps.forEach((s, i) => {
+    if (s.step === 'param') {
+      const key = String(s.key);
+      out.push({
+        id: `param-${i}`,
+        label: `Parameter ${key}`,
+        formula: `param('${key}')`,
+        params: [{ key, value: s.value, overridden: Boolean(s.overridden) }],
+        values: {},
+        sources: [],
+      });
+    } else if (s.step === 'measure') {
+      const ref = String(s.ref);
+      const table = ref.split('.')[0];
+      const grain = String(s.grain ?? 'group');
+      const filters = s.filters == null ? null : String(s.filters);
+      out.push({
+        id: `measure-${i}`,
+        label: `Measure ${ref}`,
+        formula: `measure('${ref}', '${grain}'${filters ? `, '${filters}'` : ''})`,
+        params: [],
+        values: { grain, ...(filters ? { filters } : {}), rows: s.rows },
+        sources: catalogByTable[table] ? [catalogByTable[table]] : [],
+      });
+    } else if (s.step === 'calc') {
+      const calcId = String(s.calc_id);
+      const outputKey = String(s.output_key);
+      out.push({
+        id: `calc-${i}`,
+        label: `Calculation ${calcId} · ${outputKey}`,
+        formula: `calc('${calcId}', '${outputKey}')`,
+        params: [],
+        values: { value: s.value },
+        sources: [],
+      });
+    }
+  });
+  return out;
+}
 
 // ---- data hooks ----
 

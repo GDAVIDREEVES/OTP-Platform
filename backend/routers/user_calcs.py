@@ -45,6 +45,30 @@ def list_user_calcs(status: str | None = None):
     return user_calcs.list_user_calcs(status=status)
 
 
+@router.get("/api/user-calcs/terms")
+def term_metadata():
+    """Term-picker metadata for the W4 Builder: the measure allowlist
+    (tables/columns/grains/filters straight from ``calc.expr.MEASURE_TABLES`` —
+    the same registry validate/preview enforce, so the picker can never drift),
+    the legal output grains and the calc ids ``calc()`` may not compose."""
+    return {
+        "grains": list(expr.GRAINS),
+        "measures": [
+            {
+                "table": table,
+                "catalog_id": spec["catalog_id"],
+                "measures": list(spec["measures"]),
+                "grains": {g: list(cols) for g, cols in spec["grains"].items()},
+                "filters": spec["filters"],
+            }
+            for table, spec in expr.MEASURE_TABLES.items()
+        ],
+        # expr enforces this at validate/evaluate time; surfacing it keeps the
+        # picker from offering a calc whose composition would be rejected.
+        "non_composable": sorted(expr._NON_COMPOSABLE),
+    }
+
+
 @router.post("/api/user-calcs/validate")
 def validate_expression(payload: ExpressionIn):
     """Syntax + term-resolution report: ``{ok, errors: [{message, pos}], terms}``."""

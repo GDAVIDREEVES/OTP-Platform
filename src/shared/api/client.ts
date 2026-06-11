@@ -68,6 +68,12 @@ import type {
   CalcGraph,
   Scenario,
   ScenarioCompare,
+  UserCalc,
+  UserCalcStatus,
+  UserCalcTerms,
+  UserCalcTestRun,
+  ExprValidation,
+  ExprPreview,
   AllocationRun,
   AllocationRunDetail,
   AllocationRunLaunch,
@@ -440,6 +446,67 @@ export const api = {
   /** Discard a scenario (terminal — the audit chain at scenario:{id} remains). */
   discardScenario: (id: string, body: { actor: string }) =>
     sendJSON<Scenario>('POST', `/api/scenarios/${encodeURIComponent(id)}/discard`, body),
+
+  // ------------ User-authored calculations (Calculation Builder — W3/W4) ------------
+
+  /** Every user-authored calculation, newest first (optionally by status). */
+  userCalcs: (status?: UserCalcStatus) =>
+    getJSON<UserCalc[]>('/api/user-calcs', status ? { status } : {}),
+
+  /** One user calculation by id (404 if unknown). */
+  userCalc: (id: string) => getJSON<UserCalc>(`/api/user-calcs/${encodeURIComponent(id)}`),
+
+  /** The Builder's term-picker allowlist — measure tables/columns/grains/
+   *  filters (the same registry validate/preview enforce) + the legal output
+   *  grains + the non-composable calc ids. */
+  userCalcTerms: () => getJSON<UserCalcTerms>('/api/user-calcs/terms'),
+
+  /** Syntax + term-resolution report — pure read, nothing persists (the
+   *  Builder validates live as the formula is typed). */
+  validateUserCalc: (expression: string) =>
+    sendJSON<ExprValidation>('POST', '/api/user-calcs/validate', { expression }),
+
+  /** Evaluate an expression (the Builder's Preview) — nothing persists. */
+  previewUserCalc: (expression: string) =>
+    sendJSON<ExprPreview>('POST', '/api/user-calcs/preview', { expression }),
+
+  /** Create a draft calculation — hash-chained "created" at ucalc:{id}. */
+  createUserCalc: (body: {
+    name: string;
+    expression: string;
+    description?: string;
+    process_id?: string;
+    output_grain?: string;
+    actor: string;
+  }) => sendJSON<UserCalc>('POST', '/api/user-calcs', body),
+
+  /** Edit a calculation (409 while in_review). A formula/grain change resets
+   *  the test gate; editing an ACTIVE calc bumps the version back to draft. */
+  patchUserCalc: (
+    id: string,
+    body: {
+      name?: string;
+      description?: string;
+      expression?: string;
+      output_grain?: string;
+      process_id?: string;
+      actor: string;
+    }
+  ) => sendJSON<UserCalc>('PATCH', `/api/user-calcs/${encodeURIComponent(id)}`, body),
+
+  /** Test-run the draft: evaluates (traced) and marks it tested on success —
+   *  the gate submit-for-activation requires. */
+  testUserCalc: (id: string, body: { actor: string }) =>
+    sendJSON<UserCalcTestRun>('POST', `/api/user-calcs/${encodeURIComponent(id)}/test`, body),
+
+  /** Submit for activation: status -> in_review + one pending maker-checker
+   *  item at ucalc:{id} — a DIFFERENT reviewer must approve in /review. */
+  submitUserCalcActivation: (id: string, body: { maker: string }) =>
+    sendJSON<UserCalc>(
+      'POST',
+      `/api/user-calcs/${encodeURIComponent(id)}/submit-activation`,
+      body
+    ),
 
   // ------------ Allocation engine (Calc Studio Allocations workbench — M7) ------------
 
