@@ -54,6 +54,7 @@ from routers import (
     transactions,
     treasury,
     vat,
+    waterfall,
     wht,
     worklist,
     years,
@@ -118,6 +119,7 @@ for r in (
     wht.router,
     beat.router,
     stewardship.router,
+    waterfall.router,
     worklist.router,
 ):
     app.include_router(r)

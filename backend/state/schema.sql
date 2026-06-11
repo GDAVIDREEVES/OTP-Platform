@@ -351,3 +351,48 @@ CREATE TABLE IF NOT EXISTS allocation_run_artifacts (
   created_at   TEXT NOT NULL,
   PRIMARY KEY (run_id, name)
 );
+
+-- P&L overlay ledger (Phase 5 W1 — Author & Apply waterfall). One row per
+-- DOUBLE-ENTRY leg of an applied intercompany charge: the provider books a
+-- revenue+ line and the recipient a cost+ line for the same amount, so the
+-- group always nets to zero. APPEND-ONLY: corrections/rollbacks are reversing
+-- rows (negative amount, reverses_id -> the original line), never UPDATEs.
+-- `amount` is an exact decimal string (TEXT) — never a float. Every append is
+-- hash-chained into the audit trail at record_ref="overlay:{id}" (see
+-- state/pl_overlays.py), so each line's evidence packet lights up for free.
+CREATE TABLE IF NOT EXISTS pl_overlays (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  waterfall_run_id TEXT NOT NULL,    -- "WF-1", ... (waterfall_runs.id)
+  step             TEXT NOT NULL,    -- waterfall step that produced the line
+  entity           TEXT NOT NULL,    -- RBUKRS
+  function         TEXT,             -- ROLE_CODE | NULL (entity_function grain)
+  period           TEXT NOT NULL,    -- 'YYYY-MM' (billing period) or 'YYYY'
+  line_kind        TEXT NOT NULL CHECK (line_kind IN
+                     ('service_charge','royalty','csa_true_up','profit_split','other')),
+  side             TEXT NOT NULL CHECK (side IN ('revenue','cost')),
+  amount           TEXT NOT NULL,    -- exact decimal string; negative = reversing row
+  source_ref       TEXT NOT NULL,    -- provenance: charge/royalty pair/calc ref
+  reverses_id      INTEGER,          -- the pl_overlays.id this row reverses
+  created_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_pl_overlays_run ON pl_overlays (waterfall_run_id);
+CREATE INDEX IF NOT EXISTS ix_pl_overlays_entity ON pl_overlays (entity);
+
+-- Waterfall orchestrator runs (services/waterfall_runner.py). One row per
+-- launch of the ordered charge sequence (default service_allocation ->
+-- royalties -> csa_true_up -> profit_split); steps_json carries the per-step
+-- summary (lines, revenue/cost totals, source refs). Exactly ONE run is
+-- 'applied' at a time: applying a new run first reverses the prior applied
+-- run's overlay lines and marks it 'superseded'; an explicit rollback marks
+-- it 'rolled_back'. Audited at record_ref="waterfall:{id}".
+CREATE TABLE IF NOT EXISTS waterfall_runs (
+  id          TEXT PRIMARY KEY,      -- "WF-1", "WF-2", ...
+  year        INTEGER NOT NULL,
+  actor       TEXT NOT NULL,
+  status      TEXT NOT NULL CHECK (status IN
+                ('running','applied','failed','rolled_back','superseded')),
+  steps_json  TEXT NOT NULL DEFAULT '[]',
+  error       TEXT,
+  started_at  TEXT NOT NULL,
+  finished_at TEXT
+);
