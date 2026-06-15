@@ -129,6 +129,13 @@
       "description": "Governed parameter store — one row per calc parameter pulled out of router code into a single auditable registry (value/default JSON-encoded). Every edit hash-chained at param:{key}.",
       "provenance": "real",
       "lineage": "Read by csa.py/beat.py/reconciliation.py via get_param; read/written by /api/parameters; entries also surfaced as catalog 'parameter' kind."
+    },
+    {
+      "id": "state:authored_pools",
+      "name": "authored_pools",
+      "description": "User-authored allocation pools (Allocation Pool Builder — Phase 6). Each row is a cost-to-charge pool built from a cost-capture rule over cost_center/profit_center/cost_element, a beneficiary set, an allocation key, exclusions and per-jurisdiction markup policies. Governed EXPERIMENTS run through the REAL Stages 1-7 in isolation and flagged 'authored' at the row level — they overlay the engine and NEVER touch the governed seeded allocation. Lifecycle draft→tested→in_review→active with a tested-hash gate + maker-checker; every mutation hash-chained at allocpool:{id}.",
+      "provenance": "real",
+      "lineage": "Read/written by /api/allocation/pools; built over the FABRICATED finer cost-center layer (allocation_cost_lines); activated via the /review queue; run via /api/allocation/authored-runs → allocation:{run_id}."
     }
   ]
 }

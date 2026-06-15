@@ -1075,6 +1075,12 @@ def run_authored_allocation(
     exclusion_ledger: list[dict] = []
     lineage6: list[dict] = []
     in_scope_pool_ids: list[str] = []
+    # Doc-pack inputs, accumulated per authored pool from its overlay so the
+    # authored run emits the same per-pool Markdown pack as the governed run.
+    pool_catalog: list[dict] = []
+    participation: list[dict] = []
+    key_defs: list[dict] = []
+    entities: list[dict] = []
 
     for pool in pools:
         definition = pool.get("definition") or pool
@@ -1099,6 +1105,11 @@ def run_authored_allocation(
         exclusion_ledger.extend(ex["s3"]["outputs"]["exclusion_ledger"])
         lineage6.extend(s6["outputs"]["lineage"])
         line_rows.update(ex["line_rows"])
+        pool_catalog.extend(overlay["pools"])
+        participation.extend(overlay["participation"])
+        key_defs.extend(overlay["key_defs"])
+        if not entities:
+            entities = list(overlay["entities"])
 
     output_hash = _sha256({
         "charges": engine_charges, "true_up_rows": [],
@@ -1171,12 +1182,22 @@ def run_authored_allocation(
         "output_hash": output_hash, "input_snapshot_hash": input_hash,
         "authored_pool_ids": in_scope_pool_ids,
     }
+    # Doc pack: one Markdown document per authored pool (same builder the
+    # governed run uses) so "build → run → see the doc pack" lands on a real
+    # SPEC §8.3 service-charge memo, flagged authored via the run id.
+    docs = docpack.build_doc_pack(
+        period=period, run_type="actual", pools=pools5,
+        pool_catalog=pool_catalog, exclusion_ledger=exclusion_ledger,
+        participation=participation, key_defs=key_defs, entities=entities,
+        recon_rows=recon_engine, ledger_rows=persisted_charges, run_id=run_id)
     artifacts = [
         _json_artifact("exceptions.json", report),
         _artifact("output.sha256", "text/plain", output_hash),
         _json_artifact("lineage.json", lineage_obj),
         _json_artifact("summary.json", summary),
     ]
+    for name, content in sorted(docs.items()):
+        artifacts.append(_artifact(f"docs/{name}", "text/markdown", content))
     run = store.persist_run_success(
         run_id, charges=persisted_charges, recon_rows=recon_rows,
         artifacts=artifacts)
