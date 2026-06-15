@@ -152,30 +152,37 @@ def test_budget_variants_diverge_8_and_15_pct():
     management cost (the impure corporate center) is unchanged."""
     doc = _seed_doc("cost_lines.v1.json")
 
-    def base_by_period(rows: list[dict], provider: str, corp_cc: str) -> dict[str, Decimal]:
-        """Chargeable pool base per period: pure lines + 20% of the corp center."""
+    def is_corp(cc: str) -> bool:
+        # PB1: the impure corporate cost is decomposed into named sub-centers
+        # (CC-{prov}-CORP-FIN/HR/LEGAL/FAC/BOARD); detect them by the -CORP marker.
+        return "-CORP" in cc
+
+    def base_by_period(rows: list[dict], provider: str) -> dict[str, Decimal]:
+        """Chargeable pool base per period: pure lines + 20% of the corp centers."""
         out: dict[str, Decimal] = {}
         for r in rows:
             if r["provider_entity_id"] != provider:
                 continue
             amount = Decimal(r["amount_local"])
-            if r["cost_center"] == corp_cc:
+            if is_corp(r["cost_center"]):
                 amount *= Decimal("0.2")
             out[r["fiscal_period"]] = out.get(r["fiscal_period"], Decimal(0)) + amount
         return out
 
-    for provider, corp_cc, factor in (
-        ("1000", "CC-1000-CORP", Decimal("0.92")),
-        ("3100", "CC-3100-CORP", Decimal("0.85")),
+    for provider, factor in (
+        ("1000", Decimal("0.92")),
+        ("3100", Decimal("0.85")),
     ):
-        actual = base_by_period(doc["actual"], provider, corp_cc)
-        budget = base_by_period(doc["budget"], provider, corp_cc)
+        actual = base_by_period(doc["actual"], provider)
+        budget = base_by_period(doc["budget"], provider)
         assert sorted(actual) == sorted(budget)
         for period, actual_base in actual.items():
             assert budget[period] == (actual_base * factor).quantize(CENT), (provider, period)
-        # the impure corporate center (management cost) is unchanged in budget
-        corp_actual = [Decimal(r["amount_local"]) for r in doc["actual"] if r["cost_center"] == corp_cc]
-        corp_budget = [Decimal(r["amount_local"]) for r in doc["budget"] if r["cost_center"] == corp_cc]
+        # the impure corporate centers (management cost) are unchanged in budget
+        corp_actual = sorted(Decimal(r["amount_local"]) for r in doc["actual"]
+                             if r["provider_entity_id"] == provider and is_corp(r["cost_center"]))
+        corp_budget = sorted(Decimal(r["amount_local"]) for r in doc["budget"]
+                             if r["provider_entity_id"] == provider and is_corp(r["cost_center"]))
         assert corp_actual == corp_budget
 
 
@@ -377,16 +384,21 @@ def test_chargeable_pool_base_ties_per_period():
         for provider, gjahr, poper, total in rows
     }
     cost_doc = _seed_doc("cost_lines.v1.json")
-    corp_ccs = {"1000": "CC-1000-CORP", "3100": "CC-3100-CORP"}
+    # PB1: corporate cost is spread across named sub-centers (CC-{prov}-CORP-*);
+    # the per-line nickel-grain split keeps every 20% slice cent-exact.
+    def is_corp(cc: str) -> bool:
+        return "-CORP" in cc
+
     for (provider, period), cb_total in cb_period.items():
         pure = sum(
             Decimal(r["amount_local"]) for r in cost_doc["actual"]
             if r["provider_entity_id"] == provider and r["fiscal_period"] == period
-            and r["cost_center"] != corp_ccs[provider]
+            and not is_corp(r["cost_center"])
         )
-        corp = sum(
-            Decimal(r["amount_local"]) for r in cost_doc["actual"]
-            if r["provider_entity_id"] == provider and r["fiscal_period"] == period
-            and r["cost_center"] == corp_ccs[provider]
+        corp_svc = sum(
+            (Decimal(r["amount_local"]) * Decimal("0.2") for r in cost_doc["actual"]
+             if r["provider_entity_id"] == provider and r["fiscal_period"] == period
+             and is_corp(r["cost_center"])),
+            Decimal(0),
         )
-        assert pure + corp * Decimal("0.2") == cb_total, (provider, period)
+        assert pure + corp_svc == cb_total, (provider, period)

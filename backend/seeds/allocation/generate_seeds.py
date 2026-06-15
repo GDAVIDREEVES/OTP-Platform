@@ -81,6 +81,11 @@ ENTITY_INFO: dict[str, dict[str, Any]] = {
 
 # Service pools: one per provider (V-P5 single provider per pool), plus a
 # management pool per provider holding the stewardship-heavy corporate cost.
+#
+# PB1 — richer cost-center layer: each pure pool decomposes into finer,
+# function-realistic cost centers (PB1 spec) — every cost center carries a
+# realistic GL cost_element and an enum-valid cost_nature, with weights summing
+# to 1.0 so largest_remainder preserves the per-pool/per-period totals exactly.
 SERVICE_POOLS: dict[str, dict[str, Any]] = {
     "POOL-IT-US": {
         "provider": "1000",
@@ -88,11 +93,15 @@ SERVICE_POOLS: dict[str, dict[str, Any]] = {
         "service_line": "IT",
         "description": "Hosting, network, ERP/application operations and end-user support delivered group-wide from the US parent.",
         "key_id": "KEY-IT-CONS",
+        "profit_center": "PC-1000-IT",  # entity+function profit center for the pool's cost centers
         # (cost_center, cost_element, cost_nature, weight) — weights sum to 1.
         "pure_ccs": (
-            ("CC-1000-IT-OPS", "6500-Salaries", "Payroll", Decimal("0.45")),
-            ("CC-1000-IT-HOST", "6620-Cloud & hosting", "Software", Decimal("0.30")),
-            ("CC-1000-IT-NET", "6710-Network & telecom", "Third-party fee", Decimal("0.25")),
+            ("CC-1000-IT-OPS-ERP", "6510-Application operations payroll", "Payroll", Decimal("0.22")),
+            ("CC-1000-IT-OPS-SUPPORT", "6520-End-user support payroll", "Payroll", Decimal("0.18")),
+            ("CC-1000-IT-HOST-CLOUD", "6620-Cloud & hosting", "Software", Decimal("0.20")),
+            ("CC-1000-IT-HOST-COLO", "6625-Data-centre colocation", "Facilities", Decimal("0.12")),
+            ("CC-1000-IT-NET-MPLS", "6710-Network & MPLS circuits", "Third-party fee", Decimal("0.16")),
+            ("CC-1000-IT-NET-INET", "6720-Internet & SD-WAN", "Third-party fee", Decimal("0.12")),
         ),
         "budget_factor": Decimal("0.92"),  # actuals overrun budget by ~8% (< warn threshold)
     },
@@ -102,10 +111,13 @@ SERVICE_POOLS: dict[str, dict[str, Any]] = {
         "service_line": "Finance",
         "description": "Accounts payable/receivable, statutory bookkeeping and finance systems run for the EMEA distributors from the Swiss RHQ.",
         "key_id": "KEY-RSS-CONS",
+        "profit_center": "PC-3100-RSS",
         "pure_ccs": (
-            ("CC-3100-RSS-AP", "6500-Salaries", "Payroll", Decimal("0.40")),
-            ("CC-3100-RSS-AR", "6500-Salaries", "Payroll", Decimal("0.35")),
-            ("CC-3100-RSS-SYS", "6630-ERP licences", "Software", Decimal("0.25")),
+            ("CC-3100-RSS-AP", "6500-Accounts-payable payroll", "Payroll", Decimal("0.26")),
+            ("CC-3100-RSS-AR", "6505-Accounts-receivable payroll", "Payroll", Decimal("0.24")),
+            ("CC-3100-RSS-PAYROLL", "6515-Payroll-services payroll", "Payroll", Decimal("0.18")),
+            ("CC-3100-RSS-SYS-ERP", "6630-ERP licences", "Software", Decimal("0.20")),
+            ("CC-3100-RSS-SYS-BI", "6640-BI & reporting licences", "Software", Decimal("0.12")),
         ),
         "budget_factor": Decimal("0.85"),  # actuals overrun budget by ~15% (> warn threshold → V-X3)
     },
@@ -116,12 +128,37 @@ MGMT_POOL_NAMES = {
     "POOL-MGMT-US": "Group Management & Corporate (US)",
     "POOL-MGMT-CH": "Group Management & Corporate (CH)",
 }
-CORP_CCS = {"1000": "CC-1000-CORP", "3100": "CC-3100-CORP"}
-# The corporate cost center is impure: 80% group management/stewardship (to the
+# The corporate cost is impure: 80% group management/stewardship (to the
 # management pool), 20% chargeable management of the service-delivery org (to
 # the provider's service pool). 80/20 keeps every derived amount cent-exact.
 CORP_SPLIT_MGMT = Decimal("0.8")
 CORP_SPLIT_SVC = Decimal("0.2")
+
+# PB1 — decompose the impure corporate center into named sub-centers
+# (Finance / HR / Legal / Facilities / Board) per provider. Each sub-center is
+# still split 80/20 mgmt/service via cc_mapping (so every sub-center keeps the
+# same impurity as the old single CORP center). Weights sum to 1.0 of the
+# corporate amount; they are NICKEL-grain split (see corp_subcenter_amounts) so
+# each sub-center amount x has cent-exact x*0.2 and x*0.8 — Stage 1's split then
+# introduces no rounding drift and the per-period pool totals stay byte-identical.
+# (cost_center_suffix, label, cost_element, cost_nature, weight).
+CORP_SUBCENTERS = (
+    ("CORP-FIN", "Group Finance", "6410-Group finance & treasury", "Payroll", Decimal("0.30")),
+    ("CORP-HR", "Group HR", "6420-Group human resources", "Payroll", Decimal("0.20")),
+    ("CORP-LEGAL", "Group Legal", "6430-Group legal & compliance", "Third-party fee", Decimal("0.20")),
+    ("CORP-FAC", "Corporate Facilities", "6440-Corporate facilities & occupancy", "Facilities", Decimal("0.20")),
+    ("CORP-BOARD", "Board & Governance", "6450-Board, governance & corporate affairs", "Other", Decimal("0.10")),
+)
+
+
+def corp_cc(provider: str, suffix: str) -> str:
+    """Fully-qualified corporate sub-center id, e.g. CC-1000-CORP-FIN."""
+    return f"CC-{provider}-{suffix}"
+
+
+def corp_pc(provider: str) -> str:
+    """Corporate profit center for the provider (entity + Corporate function)."""
+    return f"PC-{provider}-CORP"
 
 KEY_DEFS = (
     {
@@ -186,6 +223,32 @@ def largest_remainder(total: Decimal, weights: list[Decimal]) -> list[Decimal]:
     order = sorted(range(len(raw)), key=lambda i: (-(raw[i] - floors[i]), i))
     for k in range(n_cents):
         floors[order[k % len(order)]] += CENT
+    assert sum(floors) == total
+    return floors
+
+
+NICKEL = Decimal("0.05")
+
+
+def largest_remainder_grain(total: Decimal, weights: list[Decimal], grain: Decimal) -> list[Decimal]:
+    """Split ``total`` (a multiple of ``grain``) by ``weights`` (sum 1), each
+    part a multiple of ``grain``, summing EXACTLY to ``total``.
+
+    Generalises ``largest_remainder`` to an arbitrary minor unit. Used for the
+    corporate sub-center decomposition at NICKEL grain so each sub-center
+    amount x keeps both x*0.2 and x*0.8 cent-exact (no Stage-1 rounding drift).
+    """
+    assert sum(weights) == ONE, f"weights must sum to 1: {weights}"
+    assert total == (total / grain).to_integral_value() * grain, (
+        f"total must be {grain}-grain: {total}")
+    raw = [total * w for w in weights]
+    floors = [(r / grain).to_integral_value(rounding=ROUND_DOWN) * grain for r in raw]
+    residual = total - sum(floors)
+    n_units = int((residual / grain).to_integral_value())
+    assert n_units >= 0
+    order = sorted(range(len(raw)), key=lambda i: (-(raw[i] - floors[i]), i))
+    for k in range(n_units):
+        floors[order[k % len(order)]] += grain
     assert sum(floors) == total
     return floors
 
@@ -390,15 +453,18 @@ def build_documents() -> dict[str, dict[str, Any]]:
             ))
     for prov in PROVIDERS:
         svc_pool = next(pid for pid, p in SERVICE_POOLS.items() if p["provider"] == prov)
-        corp = CORP_CCS[prov]
-        cc_mapping.append(mapping_row(
-            prov, corp, svc_pool, SERVICE_POOLS[svc_pool]["service_line"], CORP_SPLIT_SVC,
-            "Impure corporate center: time study attributes 20% to chargeable management of the service-delivery organisation.",
-        ))
-        cc_mapping.append(mapping_row(
-            prov, corp, MGMT_POOLS[prov], "Management", CORP_SPLIT_MGMT,
-            "Impure corporate center: 80% group management/stewardship (shareholder activity, OECD TPG 7.9-7.10).",
-        ))
+        for suffix, label, _elem, _nature, _w in CORP_SUBCENTERS:
+            cc = corp_cc(prov, suffix)
+            cc_mapping.append(mapping_row(
+                prov, cc, svc_pool, SERVICE_POOLS[svc_pool]["service_line"], CORP_SPLIT_SVC,
+                f"Impure corporate sub-center ({label}): time study attributes 20% to "
+                "chargeable management of the service-delivery organisation.",
+            ))
+            cc_mapping.append(mapping_row(
+                prov, cc, MGMT_POOLS[prov], "Management", CORP_SPLIT_MGMT,
+                f"Impure corporate sub-center ({label}): 80% group management/stewardship "
+                "(shareholder activity, OECD TPG 7.9-7.10).",
+            ))
     cc_mapping.sort(key=lambda r: r["mapping_id"])
 
     # ---- 4_MarkupPolicy -------------------------------------------------------
@@ -523,13 +589,15 @@ def build_documents() -> dict[str, dict[str, Any]]:
     key_values_budget = key_value_rows("KV-B")
 
     # ---- 1_CostLine ---------------------------------------------------------------
-    def cost_line(prov: str, per: str, cc: str, elem: str, nature: str, function: str,
-                  amount: Decimal, pool_id: str | None, prefix: str) -> dict[str, Any]:
+    def cost_line(prov: str, per: str, cc: str, profit_center: str, elem: str,
+                  nature: str, function: str, amount: Decimal,
+                  pool_id: str | None, prefix: str) -> dict[str, Any]:
         row: dict[str, Any] = {
             "cost_line_id": f"{prefix}-{prov}-{per}-{cc.split('-', 2)[2]}",
             "provider_entity_id": prov,
             "company_code": prov,
             "cost_center": cc,
+            "profit_center": profit_center,
             "cost_element": elem,
             "cost_nature": nature,
             "function": function,
@@ -569,14 +637,21 @@ def build_documents() -> dict[str, dict[str, Any]]:
                 weights = [w for _cc, _e, _n, w in p["pure_ccs"]]
                 amounts = largest_remainder(pure_target, weights)
                 for (cc, elem, nature, _w), amount in zip(p["pure_ccs"], amounts):
-                    rows.append(cost_line(prov, per, cc, elem, nature,
-                                          p["service_line"], amount, pool_id, prefix))
-                # Impure corporate center: pool assignment happens at Stage 2 via
-                # the cc_mapping 20/80 split, so pool_id stays unset here. The
-                # budget variant keeps it unchanged: the management pool must
-                # still net to zero against the fixed stewardship exclusions.
-                rows.append(cost_line(prov, per, CORP_CCS[prov], "6400-Management & administration",
-                                      "Other", "Management", corp_amount, None, prefix))
+                    rows.append(cost_line(prov, per, cc, p["profit_center"], elem,
+                                          nature, p["service_line"], amount, pool_id, prefix))
+                # Impure corporate cost, decomposed into named sub-centers
+                # (Finance/HR/Legal/Facilities/Board). Pool assignment happens at
+                # Stage 2 via the cc_mapping 20/80 split, so pool_id stays unset
+                # here. NICKEL-grain split keeps every sub-center amount x with
+                # cent-exact x*0.2 and x*0.8 (no Stage-1 rounding drift). The
+                # budget variant keeps the corporate cost unchanged: the
+                # management pool must still net to zero against the fixed
+                # stewardship exclusions.
+                corp_weights = [w for _s, _l, _e, _n, w in CORP_SUBCENTERS]
+                corp_amounts = largest_remainder_grain(corp_amount, corp_weights, NICKEL)
+                for (suffix, _label, elem, nature, _w), amount in zip(CORP_SUBCENTERS, corp_amounts):
+                    rows.append(cost_line(prov, per, corp_cc(prov, suffix), corp_pc(prov),
+                                          elem, nature, "Management", amount, None, prefix))
         rows.sort(key=lambda r: r["cost_line_id"])
         return rows
 
@@ -593,14 +668,25 @@ def build_documents() -> dict[str, dict[str, Any]]:
         excl_total = sum(Decimal(r["exclusion_amount"]) for r in exclusions
                          if r["pool_id"] == MGMT_POOLS[prov])
         assert excl_total == stw, (prov, excl_total, stw)
+        corp_ccs_prov = {corp_cc(prov, suffix) for suffix, *_ in CORP_SUBCENTERS}
         for per in periods[prov]:
-            corp = next(Decimal(r["amount_local"]) for r in cost_lines_actual
-                        if r["cost_center"] == CORP_CCS[prov] and r["fiscal_period"] == per)
+            # The corporate cost is now spread across named sub-centers; sum
+            # them, and rely on the nickel-grain split so each sub-center's
+            # 20%/80% slice is cent-exact (Σ ties exactly, no drift).
+            corp_lines = [Decimal(r["amount_local"]) for r in cost_lines_actual
+                          if r["cost_center"] in corp_ccs_prov and r["fiscal_period"] == per]
+            corp = sum(corp_lines, Decimal(0))
+            corp_svc = sum((a * CORP_SPLIT_SVC for a in corp_lines), Decimal(0))
+            corp_mgmt = sum((a * CORP_SPLIT_MGMT for a in corp_lines), Decimal(0))
             pure = sum(Decimal(r["amount_local"]) for r in cost_lines_actual
                        if r["provider_entity_id"] == prov and r["fiscal_period"] == per
-                       and r["cost_center"] != CORP_CCS[prov])
-            assert pure + corp * CORP_SPLIT_SVC == cb_period[(prov, per)]
-            assert corp * CORP_SPLIT_MGMT == mgmt_period_total[(prov, per)]
+                       and r["cost_center"] not in corp_ccs_prov)
+            # each per-line slice is cent-exact, so the per-line and aggregate
+            # 20/80 splits coincide — assert both the engine sees the right base.
+            assert corp_svc == corp * CORP_SPLIT_SVC
+            assert corp_mgmt == corp * CORP_SPLIT_MGMT
+            assert pure + corp_svc == cb_period[(prov, per)]
+            assert corp_mgmt == mgmt_period_total[(prov, per)]
 
     note_derived = (
         "Derived at authoring time from warehouse supply_chain SERVICE pairs by "
@@ -619,7 +705,7 @@ def build_documents() -> dict[str, dict[str, Any]]:
         },
         "cc_mapping.v1.json": {
             "version": "1",
-            "note": f"FABRICATED cost-center -> service-line mapping (2_CCMapping) beneath reconciled totals. {note_derived} The corporate centers split 20/80 between the provider's service pool and its management pool.",
+            "note": f"FABRICATED cost-center -> service-line mapping (2_CCMapping) beneath reconciled totals, at a finer cost-center grain (PB1): each pure pool decomposes into function-realistic cost centers and each corporate sub-center (Finance/HR/Legal/Facilities/Board) splits 20/80 between the provider's service pool and its management pool. {note_derived} Split percentages still sum to 100% per cost center (V-P2).",
             "rows": cc_mapping,
         },
         "markup_policies.v1.json": {
@@ -650,7 +736,7 @@ def build_documents() -> dict[str, dict[str, Any]]:
         },
         "cost_lines.v1.json": {
             "version": "1",
-            "note": f"FABRICATED cost lines (1_CostLine) at cost-center grain beneath reconciled totals: per provider they sum EXACTLY to the warehouse FY{FY} SERVICE pair cost base + stewardship exclusions (1000: 6,793,200.00 + 4,250,000.00; 3100: 6,793,202.70 + 2,700,000.00). {note_derived} Budget variant diverges 8% on POOL-IT-US and 15% on POOL-RSS-CH for the true-up demo.",
+            "note": f"FABRICATED cost lines (1_CostLine) at a finer, function-realistic cost-center grain (PB1) beneath reconciled totals — every line carries a cost_center, a profit_center and a realistic GL cost_element. Per provider they sum EXACTLY to the warehouse FY{FY} SERVICE pair cost base + stewardship exclusions (1000: 6,793,200.00 + 4,250,000.00; 3100: 6,793,202.70 + 2,700,000.00). {note_derived} The corporate cost is decomposed into Finance/HR/Legal/Facilities/Board sub-centers (nickel-grain split so each 20/80 slice stays cent-exact). Budget variant diverges 8% on POOL-IT-US and 15% on POOL-RSS-CH for the true-up demo.",
             "actual": cost_lines_actual,
             "budget": cost_lines_budget,
         },
