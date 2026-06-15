@@ -25,7 +25,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { api } from '@/shared/api/client';
 import type { CalcDefResolved, CalcRun, CalcRunResult, ShapedStep } from '@/shared/api/types';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
-import { provKind, valueText, PROV_META } from '../lib';
+import { provKind, shapeTermSteps, valueText, PROV_META } from '../lib';
 import TraceTree from './TraceTree';
 import RuleCard from './RuleCard';
 
@@ -50,7 +50,11 @@ function Meta({ label, value }: { label: string; value: string }) {
  *  trace tree (CS-d) — fresh runs show the richest trace straight from the
  *  POST response; "View trace" shapes any past run retroactively. Every run
  *  persists to calc_runs and hash-chains a "run" event at
- *  record_ref="calc:{id}", so the evidence packet lights up automatically. */
+ *  record_ref="calc:{id}", so the evidence packet lights up automatically.
+ *  W4: user-defined calcs reuse this drawer unchanged — the definition shows
+ *  the authored formula, Inputs show its resolved terms; their runs audit at
+ *  ucalc:{id} and have no curated shaped trace, so the raw param/measure/calc
+ *  term steps are shaped client-side (shapeTermSteps). */
 export default function CalcDetailDrawer({
   open,
   onClose,
@@ -81,6 +85,19 @@ export default function CalcDetailDrawer({
     api.calcRuns(calcId).then(setRuns).catch(() => setRuns([]));
   }, [calcId]);
 
+  // table -> catalog id for the term-step fallback (user-defined calcs) — the
+  // resolved inputs carry the real warehouse:{table} ids, nothing is invented.
+  const catalogByTable: Record<string, string> = {};
+  (detail?.resolved_inputs.catalog ?? []).forEach((c) => {
+    if (c.id?.startsWith('warehouse:')) catalogByTable[c.id.slice('warehouse:'.length)] = c.id;
+  });
+
+  // Evidence + run events hash-chain at calc:{id} for system calcs and
+  // ucalc:{id} for user-defined ones (state/user_calcs.py).
+  const recordRef = detail
+    ? `${detail.kind === 'user-defined' ? 'ucalc' : 'calc'}:${detail.id}`
+    : null;
+
   const runNow = async () => {
     if (!calcId) return;
     setRunning(true);
@@ -89,7 +106,14 @@ export default function CalcDetailDrawer({
     try {
       const res = await api.runCalc(calcId, { actor: ACTOR });
       setResult(res);
-      setTrace({ label: `Run #${res.id} — just now`, steps: res.shaped_trace ?? [] });
+      setTrace({
+        label: `Run #${res.id} — just now`,
+        // User-defined calcs have no curated shape — their raw term steps ARE
+        // the explanation (param/measure/calc values the engine read).
+        steps: res.shaped_trace?.length
+          ? res.shaped_trace
+          : shapeTermSteps(res.trace ?? [], catalogByTable),
+      });
       const fresh = await api.calcRuns(calcId);
       setRuns(fresh);
       onChanged();
@@ -106,7 +130,9 @@ export default function CalcDetailDrawer({
       const shaped = await api.shapedRun(r.id);
       setTrace({
         label: `Run #${r.id} — ${new Date(r.ts).toLocaleString()}`,
-        steps: shaped.shaped_trace,
+        steps: shaped.shaped_trace.length
+          ? shaped.shaped_trace
+          : shapeTermSteps(shaped.trace, catalogByTable),
       });
     } catch (e) {
       setRunError(String(e));
@@ -128,6 +154,13 @@ export default function CalcDetailDrawer({
               {detail && (
                 <>
                   <Chip size="small" label={detail.type} sx={{ height: 22 }} />
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    color={detail.kind === 'user-defined' ? 'secondary' : 'default'}
+                    label={detail.kind}
+                    sx={{ height: 22 }}
+                  />
                   <Chip size="small" variant="outlined" label={`v${detail.version}`} sx={{ height: 22 }} />
                   <Chip
                     size="small"
@@ -152,7 +185,7 @@ export default function CalcDetailDrawer({
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1.5 }}>
               <Meta label="Process" value={detail.process_id} />
               <Meta label="Owner" value={detail.owner} />
-              <Meta label="Endpoint" value={detail.endpoint} />
+              <Meta label="Endpoint" value={detail.endpoint ?? 'expression engine (no HTTP endpoint)'} />
               <Meta label="Scenarios" value={detail.scenario_capable ? 'scenario-capable' : 'not scenario-capable'} />
             </Box>
 
@@ -245,7 +278,7 @@ export default function CalcDetailDrawer({
               </Button>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                 Runs the live handler, persists digest + summary + trace, and hash-chains a run event
-                at calc:{detail.id}.
+                at {recordRef}.
               </Typography>
               {result && (
                 <Alert severity="success" variant="outlined" onClose={() => setResult(null)}>
@@ -253,7 +286,7 @@ export default function CalcDetailDrawer({
                   <Box component="span" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>
                     {(result.output_digest ?? '').slice(0, 12)}
                   </Box>
-                  . Recorded at calc:{detail.id}.
+                  . Recorded at {recordRef}.
                 </Alert>
               )}
               {runError && (
@@ -345,18 +378,21 @@ export default function CalcDetailDrawer({
 
             <Divider />
 
-            {/* Evidence packet — the hash-chained run history at calc:{id} */}
+            {/* Evidence packet — the hash-chained history at calc:{id} (system)
+                or ucalc:{id} (user-defined: full authoring changelog + runs) */}
             <Stack spacing={0.5}>
               <Button
                 variant="outlined"
                 startIcon={<DescriptionOutlinedIcon />}
-                onClick={() => navigate(`/evidence/${encodeURIComponent(`calc:${detail.id}`)}`)}
+                onClick={() => navigate(`/evidence/${encodeURIComponent(recordRef ?? `calc:${detail.id}`)}`)}
                 sx={{ alignSelf: 'flex-start' }}
               >
                 Evidence packet
               </Button>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                Every run event, hash-chained at calc:{detail.id}.
+                {detail.kind === 'user-defined'
+                  ? `The full authoring changelog + every run event, hash-chained at ${recordRef}.`
+                  : `Every run event, hash-chained at ${recordRef}.`}
               </Typography>
             </Stack>
           </Stack>

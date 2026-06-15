@@ -148,11 +148,11 @@
       "owner": "Priya Natarajan",
       "status": "active",
       "version": "1",
-      "description": "Full-year Latest Estimate per tested party: segment_pl actuals-to-date projected by run-rate for the unposted months, with the resulting full-year margin tested against each entity's arm's-length band from entity_roles.",
-      "formula": "run_rate = actuals_to_date / months_posted; LE = actuals_to_date + run_rate × months_remaining; status = band(LE margin vs OM_LOW_PCT..OM_HIGH_PCT)",
+      "description": "Full-year Latest Estimate per tested party: segment_pl actuals-to-date projected by run-rate for the unposted months, with the resulting full-year margin tested against each entity's arm's-length band from entity_roles. The governed pl.use_post_charge toggle (Phase 5 W2) resolves the P&L basis — when true and a waterfall run is applied, the FY overlay folds into the Latest Estimate.",
+      "formula": "run_rate = actuals_to_date / months_posted; LE = actuals_to_date + run_rate × months_remaining (+ applied waterfall overlay when pl=post_charge); status = band(LE margin vs OM_LOW_PCT..OM_HIGH_PCT)",
       "inputs": {
         "catalog": ["warehouse:segment_pl", "warehouse:entity_roles"],
-        "parameters": []
+        "parameters": ["pl.use_post_charge"]
       },
       "output": "Per-party LE workpaper: actuals, forecast remainder, full-year revenue/profit/margin, target band and projected in/watch/out status.",
       "endpoint": "/api/forecast",

@@ -351,3 +351,77 @@ CREATE TABLE IF NOT EXISTS allocation_run_artifacts (
   created_at   TEXT NOT NULL,
   PRIMARY KEY (run_id, name)
 );
+
+-- P&L overlay ledger (Phase 5 W1 — Author & Apply waterfall). One row per
+-- DOUBLE-ENTRY leg of an applied intercompany charge: the provider books a
+-- revenue+ line and the recipient a cost+ line for the same amount, so the
+-- group always nets to zero. APPEND-ONLY: corrections/rollbacks are reversing
+-- rows (negative amount, reverses_id -> the original line), never UPDATEs.
+-- `amount` is an exact decimal string (TEXT) — never a float. Every append is
+-- hash-chained into the audit trail at record_ref="overlay:{id}" (see
+-- state/pl_overlays.py), so each line's evidence packet lights up for free.
+CREATE TABLE IF NOT EXISTS pl_overlays (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  waterfall_run_id TEXT NOT NULL,    -- "WF-1", ... (waterfall_runs.id)
+  step             TEXT NOT NULL,    -- waterfall step that produced the line
+  entity           TEXT NOT NULL,    -- RBUKRS
+  function         TEXT,             -- ROLE_CODE | NULL (entity_function grain)
+  period           TEXT NOT NULL,    -- 'YYYY-MM' (billing period) or 'YYYY'
+  line_kind        TEXT NOT NULL CHECK (line_kind IN
+                     ('service_charge','royalty','csa_true_up','profit_split','other')),
+  side             TEXT NOT NULL CHECK (side IN ('revenue','cost')),
+  amount           TEXT NOT NULL,    -- exact decimal string; negative = reversing row
+  source_ref       TEXT NOT NULL,    -- provenance: charge/royalty pair/calc ref
+  reverses_id      INTEGER,          -- the pl_overlays.id this row reverses
+  created_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_pl_overlays_run ON pl_overlays (waterfall_run_id);
+CREATE INDEX IF NOT EXISTS ix_pl_overlays_entity ON pl_overlays (entity);
+
+-- User-authored calculations (Phase 5 W3 — Author & Apply Calculation
+-- Builder). One row per user-defined expression evaluated by the safe engine
+-- in calc/expr.py (tokenizer/AST/Decimal — no eval/exec). Lifecycle:
+-- draft -> tested (successful test run of the CURRENT expression; the hash
+-- gate below) -> in_review (maker submits; one review item at
+-- record_ref="ucalc:{id}") -> active (a DIFFERENT checker approves —
+-- state/review.py:decide() hook), mirroring scenario promotion. Editing an
+-- active calculation bumps `version` and returns it to draft for re-approval.
+-- Every mutation is hash-chained at record_ref="ucalc:{id}"
+-- (state/user_calcs.py); registry runs of active calcs land in calc_runs and
+-- audit "run" events on the same ref.
+CREATE TABLE IF NOT EXISTS user_calculations (
+  id               TEXT PRIMARY KEY,                -- "UC-1", "UC-2", ...
+  name             TEXT NOT NULL,
+  description      TEXT,
+  process_id       TEXT,                            -- optional process binding
+  output_grain     TEXT NOT NULL DEFAULT 'group' CHECK (output_grain IN ('group','entity','entity_function')),
+  expression       TEXT NOT NULL,                   -- source text (calc/expr.py grammar)
+  status           TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','tested','in_review','active')),
+  version          INTEGER NOT NULL DEFAULT 1,
+  tested_expr_hash TEXT,                            -- sha256 of expression at last successful test
+  tested_at        TEXT,
+  created_by       TEXT NOT NULL,
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT,
+  activated_at     TEXT,
+  activated_by     TEXT
+);
+
+-- Waterfall orchestrator runs (services/waterfall_runner.py). One row per
+-- launch of the ordered charge sequence (default service_allocation ->
+-- royalties -> csa_true_up -> profit_split); steps_json carries the per-step
+-- summary (lines, revenue/cost totals, source refs). Exactly ONE run is
+-- 'applied' at a time: applying a new run first reverses the prior applied
+-- run's overlay lines and marks it 'superseded'; an explicit rollback marks
+-- it 'rolled_back'. Audited at record_ref="waterfall:{id}".
+CREATE TABLE IF NOT EXISTS waterfall_runs (
+  id          TEXT PRIMARY KEY,      -- "WF-1", "WF-2", ...
+  year        INTEGER NOT NULL,
+  actor       TEXT NOT NULL,
+  status      TEXT NOT NULL CHECK (status IN
+                ('running','applied','failed','rolled_back','superseded')),
+  steps_json  TEXT NOT NULL DEFAULT '[]',
+  error       TEXT,
+  started_at  TEXT NOT NULL,
+  finished_at TEXT
+);

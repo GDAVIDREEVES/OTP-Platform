@@ -14,14 +14,25 @@ LE (revenue / operating profit / margin), the arm's-length target band
 OTP-20), and the projected in/watch/out status via the shared
 ``services.status.compute_status`` so the early-warning verdict matches the
 monitoring screen.
+
+Phase 5 W2: accepts ``?pl=base|post_charge`` (omitted = the governed
+``pl.use_post_charge`` parameter). Base path untouched — byte-identical,
+golden-gated in tests/test_post_charge.py. Post-charge path (only when a
+waterfall run is APPLIED): the overlay deltas are full-year amounts, so they
+fold into the FULL-YEAR Latest Estimate (revenue / operating profit / margin /
+band verdict); the actuals + run-rate remainder mechanics stay on the base
+figures, and each adjusted party carries its ``overlay`` deltas (exact decimal
+strings) for provenance.
 """
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
+import services.post_charge as post_charge
 from constants import ENTITY_DIM, ROLE_FUNCTION
 from db import q
 from services.status import compute_status, fmt_pct_band
@@ -34,7 +45,13 @@ FULL_YEAR_MONTHS = 12
 
 
 @router.get("/api/forecast")
-def forecast(year: int = 2026) -> dict[str, Any]:
+def forecast(
+    year: int = 2026,
+    # plain None default (NOT Query()) — the calc registry invokes this
+    # handler directly (golden-equivalence), so the Python default must be a
+    # real value. Basis: base | post_charge; omitted = pl.use_post_charge.
+    pl: str | None = None,
+) -> dict[str, Any]:
     """Full-year Latest Estimate per tested party for ``year``.
 
     Aggregates the monthly ``segment_pl`` actuals-to-date per RBUKRS, projects
@@ -42,6 +59,12 @@ def forecast(year: int = 2026) -> dict[str, Any]:
     against the entity's arm's-length band. Returns a graceful empty model (one
     zeroed row per entity in the band table) when the year has no data.
     """
+    try:
+        mode = post_charge.resolve_mode(pl)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    adj = post_charge.entity_adjustments(year=year) \
+        if mode == "post_charge" else {}
     # Actuals-to-date per tested party: sum the monthly actuals and count the
     # distinct months posted so the run-rate divides by the right denominator.
     rows = q(
@@ -91,6 +114,18 @@ def forecast(year: int = 2026) -> dict[str, Any]:
 
         le_revenue = actual_revenue + remainder_revenue
         le_profit = actual_profit + remainder_profit
+
+        # Post-charge basis: the waterfall overlay is a FULL-YEAR delta, so it
+        # folds into the full-year LE (Decimal, then back to the float shape
+        # the response already uses). Base path: ``a`` is None — untouched.
+        a = adj.get(rb)
+        overlay: dict[str, str] | None = None
+        if a is not None:
+            le_revenue = float(Decimal(str(le_revenue)) + a["revenue"])
+            le_profit = float(Decimal(str(le_profit)) + a["net"])
+            overlay = {"revenue": str(a["revenue"]), "cost": str(a["cost"]),
+                       "net": str(a["net"])}
+
         le_margin = (le_profit / le_revenue) if le_revenue else None
 
         # Project the early-warning verdict from the full-year LE margin against
@@ -126,12 +161,19 @@ def forecast(year: int = 2026) -> dict[str, Any]:
                 "targetMarginLabel": fmt_pct_band(low, high),
                 "variance": variance,
                 "status": status,
+                # `overlay` only exists on the post-charge basis (additive —
+                # the base payload stays byte-identical).
+                **({"overlay": overlay} if overlay is not None else {}),
             }
         )
 
-    return {
+    out = {
         "year": year,
         "fullYearMonths": FULL_YEAR_MONTHS,
         "basis": "run-rate",
         "parties": parties,
     }
+    if adj:
+        out["plBasis"] = "post_charge"
+        out["waterfallRunId"] = post_charge.applied_run_id()
+    return out

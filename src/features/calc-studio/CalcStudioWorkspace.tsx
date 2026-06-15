@@ -6,6 +6,7 @@ import DriversTab from './tabs/DriversTab';
 import ScenariosTab from './tabs/ScenariosTab';
 import RunsTab from './tabs/RunsTab';
 import AllocationsTab from './tabs/AllocationsTab';
+import WaterfallTab from './tabs/WaterfallTab';
 import LineageTab from './tabs/LineageTab';
 import DataCatalogTab from './tabs/DataCatalogTab';
 import ProvenanceTab from './tabs/ProvenanceTab';
@@ -23,6 +24,7 @@ const TABS = [
   { key: 'scenarios', label: 'Scenarios' },
   { key: 'runs', label: 'Runs' },
   { key: 'allocations', label: 'Allocations' },
+  { key: 'waterfall', label: 'Waterfall' },
   { key: 'lineage', label: 'Lineage' },
   { key: 'catalog', label: 'Data Catalog' },
   { key: 'provenance', label: 'Provenance' },
@@ -43,7 +45,7 @@ export default function CalcStudioWorkspace() {
           provenance in one place.
         </Typography>
       </Box>
-      {/* 8 tabs — scrollable so the row never overflows on narrow viewports. */}
+      {/* 9 tabs — scrollable so the row never overflows on narrow viewports. */}
       <Tabs
         value={active}
         onChange={(_, v) => navigate(`/calc-studio/${v}`)}
@@ -61,6 +63,7 @@ export default function CalcStudioWorkspace() {
       {active === 'scenarios' && <ScenariosTab />}
       {active === 'runs' && <RunsTab />}
       {active === 'allocations' && <AllocationsTab />}
+      {active === 'waterfall' && <WaterfallTab />}
       {active === 'lineage' && <LineageTab />}
       {active === 'catalog' && <DataCatalogTab />}
       {active === 'provenance' && <ProvenanceTab />}

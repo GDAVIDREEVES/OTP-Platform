@@ -155,13 +155,22 @@ def reset_param(key: str, actor: str) -> dict[str, Any]:
 
 
 def seed_if_empty() -> None:
-    """Populate parameters from the seed on first run (idempotent)."""
+    """Populate parameters from the seed (idempotent, regen-safe).
+
+    Inserts every seed key that is MISSING from the table — so a brand-new DB
+    gets the full seed, while an existing DB picks up newly added parameters
+    (e.g. ``pl.use_post_charge``, Phase 5 W2) with their governed defaults.
+    Existing rows — including user edits — are never touched.
+    """
     with LOCK:
         conn = get_conn()
-        if conn.execute("SELECT count(*) AS n FROM parameters").fetchone()["n"] != 0:
-            return
+        existing = {
+            r["key"] for r in conn.execute("SELECT key FROM parameters").fetchall()
+        }
         now = _now()
         for p in _doc("parameters.v1.json")["parameters"]:
+            if p["key"] in existing:
+                continue
             conn.execute(
                 "INSERT INTO parameters (key, value, type, default_value, min_value, "
                 "max_value, category, process_id, provenance, rationale, unit, updated_at, "

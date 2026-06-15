@@ -97,8 +97,10 @@ def test_inputs_parameter_keys_exist(state_db):
 
 def test_parameter_reader_counts_match_handlers():
     """Only the get_param-reading handlers declare parameters (csa 2,
-    profit_split 3, beat 6, reconciliation 1); everything else is []."""
-    expected = {"csa": 2, "profit_split": 3, "beat": 6, "reconciliation": 1}
+    profit_split 3, beat 6, reconciliation 1, forecast 1 — the W2
+    pl.use_post_charge basis toggle); everything else is []."""
+    expected = {"csa": 2, "profit_split": 3, "beat": 6, "reconciliation": 1,
+                "forecast": 1}
     for d in calc_registry.defs():
         assert len(d["inputs"]["parameters"]) == expected.get(d["id"], 0), d["id"]
 

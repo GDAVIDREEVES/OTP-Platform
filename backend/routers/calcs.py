@@ -6,6 +6,11 @@ history). Route order matters: the literal ``/api/calcs`` and
 ``/api/calcs/graph`` routes are registered before ``/api/calcs/{calc_id}``
 (so "graph" is never captured as a calc id), and ``/api/runs`` before
 ``/api/runs/{run_id}``.
+
+W3: ACTIVE user calculations list alongside the seed definitions —
+``kind: "user-defined"`` vs ``"system"`` — and run through the same
+``calc_registry.run()`` (which falls through to the expression runner for ids
+the seed doesn't know).
 """
 
 from __future__ import annotations
@@ -17,6 +22,7 @@ import services.calc_traces as calc_traces
 import services.catalog as catalog
 import state.calc_runs as calc_runs
 import state.parameters as parameters
+import state.user_calcs as user_calcs
 from schemas.calcs import RunIn
 
 router = APIRouter()
@@ -24,9 +30,13 @@ router = APIRouter()
 
 @router.get("/api/calcs")
 def list_calcs():
-    """Every registered calculation, each with its most recent run (or null)."""
+    """Every registered calculation — the seed's system definitions plus the
+    ACTIVE user-defined ones — each with its most recent run (or null)."""
     out = []
     for d in calc_registry.defs():
+        runs = calc_runs.list_runs(calc_id=d["id"], limit=1)
+        out.append({**d, "kind": "system", "last_run": runs[0] if runs else None})
+    for d in calc_registry.user_defs():
         runs = calc_runs.list_runs(calc_id=d["id"], limit=1)
         out.append({**d, "last_run": runs[0] if runs else None})
     return out
@@ -66,10 +76,17 @@ def get_run(run_id: int, shaped: bool = False):
 def get_calc(calc_id: str):
     """One calculation definition with its inputs resolved: each catalog id is
     attached as its full catalog entry, each parameter key as its governed
-    parameter row (value/default/provenance), plus the latest run."""
+    parameter row (value/default/provenance), plus the latest run. User
+    calculations resolve through their registry-def shape (kind
+    "user-defined")."""
     d = calc_registry.get_def(calc_id)
     if d is None:
-        raise HTTPException(status_code=404, detail=f"unknown calculation: {calc_id}")
+        u = user_calcs.get_user_calc(calc_id)
+        if u is None:
+            raise HTTPException(status_code=404, detail=f"unknown calculation: {calc_id}")
+        d = calc_registry.user_def(u)
+    else:
+        d = {**d, "kind": "system"}
     runs = calc_runs.list_runs(calc_id=calc_id, limit=1)
     return {
         **d,
@@ -90,8 +107,6 @@ def get_calc(calc_id: str):
 @router.post("/api/calcs/{calc_id}/run")
 def run_calc(calc_id: str, payload: RunIn):
     d = calc_registry.get_def(calc_id)
-    if d is None:
-        raise HTTPException(status_code=404, detail=f"unknown calculation: {calc_id}")
     try:
         res = calc_registry.run(
             calc_id,
@@ -100,7 +115,15 @@ def run_calc(calc_id: str, payload: RunIn):
             scenario_id=payload.scenario_id,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        msg = str(e)
+        raise HTTPException(
+            status_code=404 if msg.startswith("unknown calculation") else 400,
+            detail=msg,
+        )
+    if d is None:
+        # User calculation: the raw trace (param/measure/calc/aggregate steps)
+        # IS the explanation — no curated shape exists for arbitrary formulas.
+        return res
     # A fresh run shapes with the full output body — the richest trace
     # (per-participant figures); persisted runs shape from summary/trace alone.
     return {**res, "shaped_trace": calc_traces.shape_trace(res, d, output=res["output"])}
@@ -108,6 +131,6 @@ def run_calc(calc_id: str, payload: RunIn):
 
 @router.get("/api/calcs/{calc_id}/runs")
 def list_calc_runs(calc_id: str):
-    if calc_registry.get_def(calc_id) is None:
+    if not calc_registry.exists(calc_id):
         raise HTTPException(status_code=404, detail=f"unknown calculation: {calc_id}")
     return calc_runs.list_runs(calc_id=calc_id)

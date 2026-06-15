@@ -157,6 +157,19 @@
       "unit": null
     },
     {
+      "key": "pl.use_post_charge",
+      "value": false,
+      "type": "bool",
+      "default": false,
+      "min": null,
+      "max": null,
+      "category": "pl",
+      "process_id": "OTP-49",
+      "provenance": "assumed",
+      "rationale": "Governed P&L basis toggle (Phase 5 W2): when true, the margin-bearing reads behind OTP-20/16/1 (/api/margins/trend, /api/kpis, /api/forecast) resolve to the post-charge P&L = base segment_pl + the APPLIED waterfall overlay. Base remains the default, and even when true nothing changes until a waterfall run is applied.",
+      "unit": null
+    },
+    {
       "key": "reconciliation.value_break_tolerance",
       "value": 1.0,
       "type": "number",
