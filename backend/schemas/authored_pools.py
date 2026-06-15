@@ -50,3 +50,13 @@ class ActorIn(BaseModel):
 
 class MakerIn(BaseModel):
     maker: str
+
+
+class RunAuthoredIn(BaseModel):
+    """Launch an authored allocation run for one period — overlays every ACTIVE
+    authored pool whose capture rule touches the period (flagged ``authored``;
+    the governed run is untouched)."""
+
+    actor: str
+    period: str
+    source: str = "actual"

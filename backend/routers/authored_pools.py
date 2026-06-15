@@ -29,6 +29,7 @@ from schemas.authored_pools import (
     AuthoredPoolPatch,
     CaptureRuleIn,
     MakerIn,
+    RunAuthoredIn,
 )
 
 router = APIRouter()
@@ -164,3 +165,21 @@ def submit_activation(pool_id: str, payload: MakerIn):
         return authored_pools.submit_for_activation(pool_id, maker=payload.maker)
     except ValueError as e:
         raise _http_error(e)
+
+
+# --------------------------------------------------------- authored runs --
+
+
+@router.post("/api/allocation/authored-runs")
+def launch_authored_run(payload: RunAuthoredIn):
+    """Launch an authored allocation run for ``period`` — overlays every ACTIVE
+    authored pool whose capture rule touches the period through the REAL Stages
+    1-7 in isolation, persisted + flagged ``authored`` (config.authored = True),
+    audited at allocation:{run_id}. The governed seeded allocation is untouched.
+    A failed run is a domain outcome (200, status ``failed`` + exception report).
+    """
+    try:
+        return runner.run_authored_allocation(period=payload.period, actor=payload.actor,
+                                              source=payload.source)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
