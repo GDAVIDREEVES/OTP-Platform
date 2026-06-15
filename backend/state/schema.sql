@@ -425,3 +425,35 @@ CREATE TABLE IF NOT EXISTS waterfall_runs (
   started_at  TEXT NOT NULL,
   finished_at TEXT
 );
+
+-- User-authored allocation pools (Phase 6 PB2 — Allocation Pool Builder). One
+-- row per user-built cost-to-charge pool: a cost-capture rule (predicates over
+-- cost_center / profit_center / cost_element), beneficiaries, an allocation key
+-- factor, exclusions and markup policies. The full authoring object lives as
+-- JSON in `definition_json`; hot columns are promoted for listing. Lifecycle
+-- mirrors user_calculations:
+--   draft -> tested (a successful dry-run of the CURRENT definition; the hash
+--   gate below) -> in_review (maker submits; one review item at
+--   record_ref="allocpool:{id}") -> active (a DIFFERENT checker approves —
+--   state/review.py:decide() hook). Editing an active pool bumps `version` and
+--   returns it to draft for re-test + re-approval. `tested_def_hash` is the
+--   sha256 of the canonical definition JSON at the last successful dry-run, so
+--   an untested definition can never reach activation. Authored pools are
+--   governed EXPERIMENTS — they overlay the engine in isolation and NEVER touch
+--   the governed seeded allocation. Every mutation is hash-chained at
+--   record_ref="allocpool:{id}" (state/authored_pools.py).
+CREATE TABLE IF NOT EXISTS authored_pools (
+  id              TEXT PRIMARY KEY,                -- "AP-1", "AP-2", ...
+  name            TEXT NOT NULL,
+  definition_json TEXT NOT NULL,                   -- full authoring object (JSON)
+  status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','tested','in_review','active')),
+  version         INTEGER NOT NULL DEFAULT 1,
+  process_id      TEXT,                            -- optional process binding
+  tested_def_hash TEXT,                            -- sha256 of definition_json at last successful dry-run
+  tested_at       TEXT,
+  created_by      TEXT NOT NULL,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT,
+  activated_at    TEXT,
+  activated_by    TEXT
+);

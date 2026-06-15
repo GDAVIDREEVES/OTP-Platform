@@ -73,6 +73,28 @@ The allocation engine implements the full OECD Ch. VII / §1.482-9 pipeline
 | 6 | **Take the doc pack** | ▸ *Doc packs* | Generated Markdown per pool/period: cost composition, exclusions + rationale, key + ratios, markup basis, charges, recon tie-out — the local-file support artifact, produced *by the run*. |
 | 7 | **True-up at year end** | ▸ *Run console* → "Run true-up" | Recomputes the year on actuals, books deltas vs in-year budget charges as linked True-up rows; large deltas fire the V-X3 KPI warning. |
 
+### Flow 3b — Author your own pool (Pool Builder, build → preview → test → activate → run, 8 min)
+
+The seeded pools above are governed and read-only. The **Pool Builder** lets you
+author a *new* cost pool from scratch — selecting cost centers / profit centers /
+GL accounts — and run it through the **same** Stages 1-7. Authored pools are
+governed **experiments**: flagged `authored`, balanced to zero residual on their
+own, and they **never** touch the cent-exact governed tie-out (Flow 3 step 3).
+
+| # | Step | Where | What happens |
+|---|------|-------|--------------|
+| 1 | **Build a pool** | `/calc-studio/allocations` ▸ *Build pool* | Name + provider + service line + characterization + cost base, then a **cost-capture rule**: multiselect cost centers / profit centers / GL accounts (the pickers list every dimension value with its cost, from the richer fabricated cost-center layer). Add a beneficiary population, an allocation key (Equal / Revenue / Cost), exclusions and per-jurisdiction markup policies. |
+| 2 | **Preview the captured cost** | (live card on the form) | The capture rule is evaluated over the cost lines — "captures **$X** across **N** cost lines → these entities" — to the cent, before anything is saved. |
+| 3 | **Test (dry-run)** | ▸ **Test run** | The pool runs through Stages 1-7 **in isolation** (no persist): charges, recon (zero residual), V-rule exceptions and a trace tree render inline. A sound pool is marked **tested**; a missing markup or empty rule **blocks** (V-M1 / V-P1 — never a silent default). |
+| 4 | **Save draft → Submit for activation** | ▸ **Save draft**, then **Submit** | A definition edit re-arms the test gate. Submitting enqueues a maker-checker item at `allocpool:{id}` in the `/review` queue. |
+| 5 | **Approve as a different actor** | `/review` | A **different** reviewer approves the item (a maker can't approve their own work). On approval the pool flips to **active** — every mutation is audited at `allocpool:{id}`. |
+| 6 | **Run the authored allocation** | ▸ *Build pool* → **Run authored allocation** | Active authored pools overlay the engine and run for a period, **flagged `authored`**: charges + recon (Balanced) + a per-pool **doc pack** (the same SPEC §8.3 memo the governed run produces), persisted under `allocation:{run_id}`. |
+
+The richer (fabricated) cost-center layer and the authored-pool store both show
+up on **Calc Studio ▸ Provenance** (`allocation_cost_lines` / `allocation_cc_mapping`
+as *fabricated*; `authored_pools` as a *real* governed store whose rows carry the
+`authored` flag).
+
 ## Flow 4 — The TP waterfall (charges before decisions, 10 min)
 
 Close-flow correctness: intercompany charges are computed and **applied to each

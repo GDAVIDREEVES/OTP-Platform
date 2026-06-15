@@ -666,42 +666,51 @@ def test_demo_seeds_flow_stages_1_to_3_and_tie_to_warehouse_to_the_cent():
 
 
 def test_demo_corporate_center_splits_20_80_with_lineage():
-    """The impure corporate cost center splits 20/80 into the provider's
-    service and management pools via cc_mapping (V-P2 sums to 100%), with
-    child IDs and lineage tying back to the parent line."""
+    """Each impure corporate sub-center (PB1: Finance/HR/Legal/Facilities/Board)
+    splits 20/80 into the provider's service and management pools via cc_mapping
+    (V-P2 sums to 100%), with child IDs and lineage tying back to the parent
+    line. Exercised here on the Group Finance sub-center (CC-1000-CORP-FIN)."""
     ref, _exclusions, cost_lines = _demo_ref()
     lines = [r for r in cost_lines
              if r["provider_entity_id"] == "1000" and r["fiscal_period"] == "2026-05"]
     config = {"period": "2026-05", "scope": {"providerEntityIds": ["1000"]}}
     s1 = stage1_capture_and_classify({"cost_lines": lines}, ref, config)
     assert s1["exceptions"] == []
-    corp_children = {
+    fin_children = {
         l["cost_line_id"]: l for l in s1["outputs"]["classified_lines"]
-        if l["cost_center"] == "CC-1000-CORP"
+        if l["cost_center"] == "CC-1000-CORP-FIN"
     }
-    assert set(corp_children) == {
-        "CL-1000-2026-05-CORP::POOL-IT-US",
-        "CL-1000-2026-05-CORP::POOL-MGMT-US",
+    assert set(fin_children) == {
+        "CL-1000-2026-05-CORP-FIN::POOL-IT-US",
+        "CL-1000-2026-05-CORP-FIN::POOL-MGMT-US",
     }
-    parent_amount = Decimal("2656250.00")
-    assert Decimal(corp_children["CL-1000-2026-05-CORP::POOL-IT-US"]["amount_local"]) \
+    parent_amount = Decimal("796875.00")  # 0.30 of the 2,656,250.00 corp cost
+    assert Decimal(fin_children["CL-1000-2026-05-CORP-FIN::POOL-IT-US"]["amount_local"]) \
         == parent_amount * Decimal("0.2")
-    assert sum(Decimal(c["amount_local"]) for c in corp_children.values()) \
+    assert sum(Decimal(c["amount_local"]) for c in fin_children.values()) \
         == parent_amount
     lineage = {l["cost_line_id"]: l for l in s1["outputs"]["lineage"]}
-    assert lineage["CL-1000-2026-05-CORP::POOL-MGMT-US"]["source_cost_line_id"] \
-        == "CL-1000-2026-05-CORP"
-    assert lineage["CL-1000-2026-05-CORP::POOL-MGMT-US"]["split_pct"] == "0.8"
-    # stage 2 lineage: the service pool total is the 3 pure lines + the child
+    assert lineage["CL-1000-2026-05-CORP-FIN::POOL-MGMT-US"]["source_cost_line_id"] \
+        == "CL-1000-2026-05-CORP-FIN"
+    assert lineage["CL-1000-2026-05-CORP-FIN::POOL-MGMT-US"]["split_pct"] == "0.8"
+    # stage 2 lineage: the service pool total is the 6 pure IT lines + the 5
+    # corporate sub-center service children (PB1 finer grain).
     s2 = stage2_pool({"classified_lines": s1["outputs"]["classified_lines"]},
                      ref, config)
     pool_it = next(p for p in s2["outputs"]["pools"]
                    if p["pool_id"] == "POOL-IT-US")
     assert pool_it["line_ids"] == [
-        "CL-1000-2026-05-CORP::POOL-IT-US",
-        "CL-1000-2026-05-IT-HOST",
-        "CL-1000-2026-05-IT-NET",
-        "CL-1000-2026-05-IT-OPS",
+        "CL-1000-2026-05-CORP-BOARD::POOL-IT-US",
+        "CL-1000-2026-05-CORP-FAC::POOL-IT-US",
+        "CL-1000-2026-05-CORP-FIN::POOL-IT-US",
+        "CL-1000-2026-05-CORP-HR::POOL-IT-US",
+        "CL-1000-2026-05-CORP-LEGAL::POOL-IT-US",
+        "CL-1000-2026-05-IT-HOST-CLOUD",
+        "CL-1000-2026-05-IT-HOST-COLO",
+        "CL-1000-2026-05-IT-NET-INET",
+        "CL-1000-2026-05-IT-NET-MPLS",
+        "CL-1000-2026-05-IT-OPS-ERP",
+        "CL-1000-2026-05-IT-OPS-SUPPORT",
     ]
 
 

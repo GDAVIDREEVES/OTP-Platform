@@ -41,6 +41,7 @@ import type {
   AllocationSeed,
 } from '@/shared/api/types';
 import AllocationChargeDrawer from '../components/AllocationChargeDrawer';
+import PoolBuilder from '../components/PoolBuilder';
 import { fmtAmount, fmtPct, isNonZero, sumCents } from '../allocationLib';
 
 /** Allocations — the allocation engine workbench (M7, ADAPTATION D4). One tab
@@ -61,6 +62,7 @@ const VIEWS = [
   { key: 'exceptions', label: 'Exceptions' },
   { key: 'charges', label: 'Charges' },
   { key: 'docs', label: 'Doc packs' },
+  { key: 'build', label: 'Build pool' },
 ] as const;
 type ViewKey = (typeof VIEWS)[number]['key'];
 
@@ -904,6 +906,7 @@ export default function AllocationsTab() {
       {view === 'exceptions' && exceptionsView}
       {view === 'charges' && chargesView}
       {view === 'docs' && docsView}
+      {view === 'build' && <PoolBuilder entities={entities} />}
       <AllocationChargeDrawer chargeId={chargeId} onClose={() => setChargeId(null)} />
     </Stack>
   );

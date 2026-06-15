@@ -1400,6 +1400,171 @@ export interface AllocationSeed<T> {
   rows: T[];
 }
 
+// ----------------- Allocation Pool Builder (Phase 6 PB2/PB3) -----------------
+//
+// Authored pools are governed EXPERIMENTS: a user-built cost-to-charge pool
+// (cost-capture rule + key + exclusions + markup) run through the REAL Stages
+// 1-7 in isolation and flagged `authored`. They NEVER touch the governed
+// seeded allocation (cent-exact to the warehouse). All amounts are exact
+// decimal strings (no float math — see ../allocationLib.ts).
+
+export type AuthoredPoolStatus = 'draft' | 'tested' | 'in_review' | 'active';
+
+/** A cost-capture rule's optional split (a fraction in (0,1] of each matched
+ *  line is pooled). The predicates are OR-within / AND-across dimension lists. */
+export interface AuthoredCaptureRule {
+  cost_centers?: string[] | null;
+  profit_centers?: string[] | null;
+  cost_elements?: string[] | null;
+  split_pct?: string | null;
+}
+
+/** The allocation key factor — factor values are computed from the warehouse
+ *  per beneficiary; the engine recomputes the total (V-K3). */
+export interface AuthoredKey {
+  key_factor: 'Equal' | 'Revenue' | 'Cost';
+}
+
+/** One authored Stage-3 exclusion — exactly one of amount | pct, plus a
+ *  basis_rationale (OECD TPG 7.9–7.10). */
+export interface AuthoredExclusion {
+  type: string;
+  amount?: string | null;
+  pct?: string | null;
+  basis_rationale: string;
+}
+
+/** One authored per-jurisdiction markup policy — a missing policy for a
+ *  beneficiary jurisdiction BLOCKS at Stage 5 (V-M1), never defaulted. */
+export interface AuthoredMarkupPolicy {
+  jurisdiction: string;
+  regime: string;
+  markup_pct: string;
+  benchmark_study_ref?: string | null;
+}
+
+/** The user-built authoring object (validate_definition is the single source
+ *  of truth for its shape). */
+export interface AuthoredPoolDefinition {
+  name: string;
+  provider_entity_id: string;
+  service_line: string;
+  characterization: string;
+  cost_base_definition: string;
+  cost_capture_rule: AuthoredCaptureRule;
+  beneficiaries: string[];
+  key: AuthoredKey;
+  exclusions: AuthoredExclusion[];
+  markup_policies: AuthoredMarkupPolicy[];
+}
+
+/** One authored pool record (SQLite authored_pools). */
+export interface AuthoredPool {
+  id: string;
+  name: string;
+  definition: AuthoredPoolDefinition;
+  process_id: string | null;
+  status: AuthoredPoolStatus;
+  version: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string | null;
+  tested_def_hash: string | null;
+  tested_at: string | null;
+  activated_at: string | null;
+  activated_by: string | null;
+}
+
+/** GET /api/allocation/dimensions — distinct cost_center / profit_center /
+ *  cost_element values across the cost lines, each with its TOTAL cost. */
+export interface AllocationDimensionOption {
+  value: string;
+  total_cost: string;
+}
+export interface AllocationDimensions {
+  source: string;
+  cost_centers: AllocationDimensionOption[];
+  profit_centers: AllocationDimensionOption[];
+  cost_elements: AllocationDimensionOption[];
+}
+
+/** POST /api/allocation/pools/preview — the live capture-rule preview card. */
+export interface CapturePreview {
+  captured_amount: string;
+  line_count: number;
+  by_entity: Record<string, string>;
+}
+
+/** POST /api/allocation/pools/validate — structural validation report. */
+export interface AuthoredPoolValidation {
+  ok: boolean;
+  errors: string[];
+}
+
+/** One fired V-rule from a dry-run / authored run. The engine-internal dry-run
+ *  exceptions carry no `remediation` (only the persisted run report does). */
+export interface AuthoredException {
+  rule_id: string;
+  severity: 'BLOCK' | 'WARN';
+  message: string;
+  objects: string[];
+  pool_id: string | null;
+  remediation?: string;
+}
+
+/** A dry-run recon row (Stages 1-7 in isolation) — the persisted-run fields
+ *  minus recon_id / run_id / run_timestamp. */
+export interface AuthoredReconRow {
+  pool_id: string;
+  provider_entity_id: string;
+  period: string;
+  total_pooled_cost: string;
+  total_exclusions: string;
+  total_cost_recovered: string;
+  total_markup: string;
+  total_charged_out: string;
+  unallocated_residual: string;
+  true_up_delta: string | null;
+  recon_status: 'Balanced' | 'Break';
+  break_amount: string | null;
+}
+
+/** One raw dry-run trace step ({step, ...detail}) from the contextvar
+ *  collector — sparse value-flow summaries, not a shaped trace. */
+export interface AuthoredTraceStep {
+  step: string;
+  [key: string]: unknown;
+}
+
+/** The dry-run result — Stages 1-7 in isolation, nothing persisted. */
+export interface AuthoredDryRun {
+  pool_id: string;
+  periods: string[];
+  charges: AllocationCharge[];
+  recon: AuthoredReconRow[];
+  exceptions: AuthoredException[];
+  trace: AuthoredTraceStep[];
+  balanced: boolean;
+  total_charged_out: string;
+}
+
+/** POST /api/allocation/pools/{id}/test — the dry-run plus the (maybe updated)
+ *  pool and whether the test gate now holds. */
+export interface AuthoredTestResult {
+  pool: AuthoredPool;
+  dry_run: AuthoredDryRun;
+  tested: boolean;
+}
+
+/** POST /api/allocation/authored-runs — a persisted authored run (flagged
+ *  authored). A failed run is a domain outcome (200, status "failed"). */
+export interface AuthoredRunResult extends AllocationRun {
+  summary: AllocationRunSummary & { authored?: boolean; authored_pool_ids?: string[] };
+  recon: AllocationRecon[];
+  exception_report: AllocationExceptionReport;
+  artifacts: string[];
+}
+
 // ----------------- TP waterfall + post-charge P&L (Phase 5 W1/W2) -----------------
 //
 // The waterfall orchestrator (services/waterfall_runner.py) applies the

@@ -83,6 +83,15 @@ import type {
   AllocationArtifact,
   AllocationChargeLineage,
   AllocationDoc,
+  AllocationDimensions,
+  AuthoredPool,
+  AuthoredPoolStatus,
+  AuthoredPoolDefinition,
+  AuthoredCaptureRule,
+  AuthoredPoolValidation,
+  CapturePreview,
+  AuthoredTestResult,
+  AuthoredRunResult,
   WaterfallRun,
   WaterfallRunDetail,
   PlAdjusted,
@@ -561,6 +570,84 @@ export const api = {
     getJSON<AllocationChargeLineage>(
       `/api/allocation/charges/${encodeURIComponent(chargeId)}/lineage`
     ),
+
+  // ------------ Allocation Pool Builder (Phase 6 PB2/PB3) ------------
+
+  /** Distinct cost_center / profit_center / cost_element values across the
+   *  allocation cost lines, each with its TOTAL cost — the capture-rule pickers. */
+  allocationDimensions: (source = 'actual') =>
+    getJSON<AllocationDimensions>('/api/allocation/dimensions', { source }),
+
+  /** Authored pools (governed experiments), newest first, optionally by status. */
+  authoredPools: (status?: AuthoredPoolStatus) =>
+    getJSON<AuthoredPool[]>('/api/allocation/pools', status ? { status } : {}),
+
+  /** One authored pool (404 if unknown). */
+  authoredPool: (poolId: string) =>
+    getJSON<AuthoredPool>(`/api/allocation/pools/${encodeURIComponent(poolId)}`),
+
+  /** Structural validation report {ok, errors} — nothing persists. */
+  validateAuthoredPool: (definition: AuthoredPoolDefinition, actor: string) =>
+    sendJSON<AuthoredPoolValidation>('POST', '/api/allocation/pools/validate', {
+      definition,
+      actor,
+    }),
+
+  /** Live capture-rule preview — captured $ / line count / by-entity (no persist). */
+  previewCaptureRule: (rule: AuthoredCaptureRule & { source?: string }) =>
+    sendJSON<CapturePreview>('POST', '/api/allocation/pools/preview', rule),
+
+  /** Create a draft authored pool (structurally validated up front). */
+  createAuthoredPool: (definition: AuthoredPoolDefinition, actor: string, processId?: string) =>
+    sendJSON<AuthoredPool>('POST', '/api/allocation/pools', {
+      definition,
+      actor,
+      process_id: processId,
+    }),
+
+  /** Edit a pool (drafts in place; an active pool versions + returns to draft). */
+  updateAuthoredPool: (
+    poolId: string,
+    actor: string,
+    definition?: AuthoredPoolDefinition,
+    processId?: string
+  ) =>
+    sendJSON<AuthoredPool>('PATCH', `/api/allocation/pools/${encodeURIComponent(poolId)}`, {
+      actor,
+      definition,
+      process_id: processId,
+    }),
+
+  /** Delete a draft/tested pool. */
+  deleteAuthoredPool: (poolId: string, actor: string) =>
+    sendJSON<AuthoredPool>('DELETE', `/api/allocation/pools/${encodeURIComponent(poolId)}`, {
+      actor,
+    }),
+
+  /** Dry-run the pool through Stages 1-7 in isolation (no persist) — on a sound
+   *  result (recon Balanced, no BLOCK) it is marked `tested`, the activation gate.
+   *  Returns the dry-run charges/recon/exceptions/trace either way. */
+  testAuthoredPool: (poolId: string, actor: string) =>
+    sendJSON<AuthoredTestResult>(
+      'POST',
+      `/api/allocation/pools/${encodeURIComponent(poolId)}/test`,
+      { actor }
+    ),
+
+  /** Submit a tested pool for activation: status → in_review + one pending
+   *  maker-checker item at allocpool:{id}. A DIFFERENT reviewer must approve. */
+  submitAuthoredPoolActivation: (poolId: string, maker: string) =>
+    sendJSON<AuthoredPool>(
+      'POST',
+      `/api/allocation/pools/${encodeURIComponent(poolId)}/submit-activation`,
+      { maker }
+    ),
+
+  /** Launch an authored allocation run for a period — overlays every ACTIVE
+   *  authored pool whose capture rule touches it (flagged authored). A failed
+   *  run is a domain outcome (200, status "failed" + exception report). */
+  runAuthoredAllocation: (body: { actor: string; period: string; source?: string }) =>
+    sendJSON<AuthoredRunResult>('POST', '/api/allocation/authored-runs', body),
 
   // ------------ TP waterfall + post-charge P&L (Phase 5 W1/W2) ------------
 
