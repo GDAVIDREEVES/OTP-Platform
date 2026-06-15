@@ -618,3 +618,574 @@ def run_for_registry(
         "exceptions": res["exception_report"]["exceptions"],
         "artifacts": res.get("artifacts", []),
     }
+
+
+# ============================================================================
+# Phase 6 — Authored Pool Builder (PB2): engine integration for user-authored
+# pools. An authored pool is a governed EXPERIMENT — built from a cost-capture
+# rule over the (fabricated, cost-center-grain) allocation cost lines, run
+# through the REAL Stages 1-7 in ISOLATION, and flagged authored. It NEVER
+# touches the governed seeded allocation: the demo dataset's pools/cc_mapping/
+# cost_lines are not mutated; instead a fresh, minimal overlay dataset is
+# assembled per authored pool and executed on its own. The engine invariant
+# (pooled = exclusions + recovered + 0 residual) still holds by construction,
+# so an authored run reconciles to zero residual exactly like the governed one.
+# ============================================================================
+
+#: Recognised key factors (authoring object `key.key_factor`). Each maps a
+#: beneficiary to a non-negative Decimal factor value; the engine recomputes
+#: the total over the resolved population (V-K3 — never trusted from input).
+AUTHORED_KEY_FACTORS = ("Equal", "Revenue", "Cost")
+
+#: segment_pl Cost measure = Σ of the operating-cost columns (matches the
+#: warehouse P&L the rest of the demo reads). Wrapped in SUM() by the caller.
+_SEGMENT_PL_COST_EXPR = "SUM(cogs + opex_production + opex_rd + opex_sm + opex_ga)"
+
+#: authoring `key_factor` -> the 6_KeyDef.key_factor enum the engine carries
+#: (the engine recomputes the total over the resolved population — V-K3). The
+#: enum has no "Equal" value, so Equal weighting is labelled "Multi-factor"
+#: (a neutral catch-all); Cost maps to the schema's "Total cost".
+_SCHEMA_KEY_FACTOR = {"Equal": "Multi-factor", "Revenue": "Revenue",
+                      "Cost": "Total cost"}
+
+
+def _authored_cost_line_matches(
+    rule: Mapping[str, Any], line: Mapping[str, Any]
+) -> bool:
+    """Evaluate a cost-capture rule's predicates over one cost line (AND across
+    the three dimensions; OR within each non-empty list). An empty list for a
+    dimension is "no constraint on this dimension". A rule with NO predicates
+    at all matches nothing (a pool must capture something deliberately)."""
+    ccs = rule.get("cost_centers") or []
+    pcs = rule.get("profit_centers") or []
+    els = rule.get("cost_elements") or []
+    if not (ccs or pcs or els):
+        return False
+    if ccs and line.get("cost_center") not in ccs:
+        return False
+    if pcs and line.get("profit_center") not in pcs:
+        return False
+    if els and line.get("cost_element") not in els:
+        return False
+    return True
+
+
+def preview_capture_rule(
+    rule: Mapping[str, Any], *, source: str = "actual",
+    dataset: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Evaluate a cost-capture rule over the cost lines (no persist). Returns
+    the captured amount (Decimal-exact), the matched line count and a
+    by-(provider) breakdown — what the Builder's live preview card shows.
+
+    An optional ``split_pct`` (Decimal string in (0, 1]) scales the captured
+    amount: only that fraction of each matched line is pooled (the remainder
+    stays with its existing pool / out of scope). No silent default — if
+    ``split_pct`` is present it must parse to a value in (0, 1]."""
+    split = _parse_split_pct(rule.get("split_pct"))
+    lines = dataset["cost_lines"][source] if dataset else load_demo_dataset()["cost_lines"][source]
+    captured = ZERO
+    count = 0
+    by_entity: dict[str, Decimal] = {}
+    for line in lines:
+        if not _authored_cost_line_matches(rule, line):
+            continue
+        amount = Decimal(line["amount_local"]) * split
+        captured += amount
+        count += 1
+        prov = line["provider_entity_id"]
+        by_entity[prov] = by_entity.get(prov, ZERO) + amount
+    return {
+        "captured_amount": str(captured),
+        "line_count": count,
+        "by_entity": {k: str(v) for k, v in sorted(by_entity.items())},
+    }
+
+
+def _parse_split_pct(raw: Any) -> Decimal:
+    """A capture rule's optional ``split_pct`` as a Decimal in (0, 1]. Absent =
+    full capture (1). NEVER silently defaulted to a bad value: a present but
+    out-of-range / malformed split raises (BLOCK, not a default)."""
+    if raw is None:
+        return Decimal("1")
+    try:
+        split = Decimal(str(raw))
+    except Exception as exc:  # noqa: BLE001 — surface as a domain error
+        raise ValueError(f"cost_capture_rule.split_pct malformed: {raw!r}") from exc
+    if not (ZERO < split <= Decimal("1")):
+        raise ValueError(
+            f"cost_capture_rule.split_pct must be in (0, 1], got {split}")
+    return split
+
+
+def _authored_key_factor_values(
+    key_factor: str, beneficiaries: list[str], year: int,
+) -> dict[str, Decimal]:
+    """Factor value per beneficiary for the authored key (the engine recomputes
+    the total — V-K3). ``Equal`` = 1 each; ``Revenue`` / ``Cost`` come from
+    ``segment_pl`` per beneficiary (the same warehouse P&L the demo reads). A
+    beneficiary with NO warehouse row is NOT silently zeroed — it is omitted
+    here so Stage 4's V-K1 BLOCK fires (a missing key value is never a zero)."""
+    if key_factor not in AUTHORED_KEY_FACTORS:
+        raise ValueError(
+            f"key_factor must be one of {AUTHORED_KEY_FACTORS}, got {key_factor!r}")
+    if key_factor == "Equal":
+        return {b: Decimal("1") for b in beneficiaries}
+    from calc import warehouse  # local import: warehouse needs duckdb (heavy)
+
+    measure = ("revenue" if key_factor == "Revenue"
+               else (_SEGMENT_PL_COST_EXPR, "factor"))
+    alias = "revenue" if key_factor == "Revenue" else "factor"
+    ph = ",".join("?" for _ in beneficiaries)
+    rows = warehouse.aggregate(
+        "segment_pl", ["RBUKRS"], [measure], year=year,
+        where=f"RBUKRS IN ({ph})", params=list(beneficiaries),
+    )
+    out: dict[str, Decimal] = {}
+    for r in rows:
+        val = r.get(alias)
+        if val is None:
+            continue
+        out[str(r["RBUKRS"])] = Decimal(str(val))
+    return out
+
+
+def build_authored_overlay(
+    pool: Mapping[str, Any], *, periods: list[str],
+    source: str = "actual", dataset: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Assemble a minimal, self-contained engine dataset for ONE authored pool.
+
+    Derives, from the authoring ``definition`` and the demo cost lines:
+      * the matched cost lines (capture rule), with their ``pool_id`` OVERRIDDEN
+        to the authored pool id and amounts scaled by ``split_pct`` if set;
+      * a ``cc_mapping`` row per distinct (company_code, cost_center) in the
+        matched set, split 1.0 to the authored pool (V-P1/V-P2 satisfied);
+      * a single 3_Pool row for the authored pool;
+      * participation (provider + beneficiaries) and key values computed from
+        the chosen key factor (the engine recomputes the total — V-K3);
+      * markup policies + exclusions exactly as authored.
+
+    The result plugs straight into ``_execute_period`` — no special-casing in
+    the stages. Reuses the demo ``entities`` (jurisdiction / currency / dating).
+    Raises (BLOCK) on a structurally impossible pool (no provider, missing
+    markup, etc.) — never silently defaults."""
+    dataset = dataset or load_demo_dataset()
+    definition = pool["definition"] if "definition" in pool else pool
+    pool_id = pool.get("pool_id") or pool.get("id")
+    if not pool_id:
+        raise ValueError("authored pool overlay needs a pool id")
+    provider = definition.get("provider_entity_id")
+    if not provider:
+        raise ValueError(f"authored pool {pool_id}: provider_entity_id is required")
+    service_line = definition.get("service_line")
+    characterization = definition.get("characterization")
+    cost_base = definition.get("cost_base_definition")
+    capture = definition.get("cost_capture_rule") or {}
+    beneficiaries = list(definition.get("beneficiaries") or [])
+    if not beneficiaries:
+        raise ValueError(f"authored pool {pool_id}: at least one beneficiary is required")
+    key = definition.get("key") or {}
+    key_factor = key.get("key_factor")
+    split = _parse_split_pct(capture.get("split_pct"))
+
+    period_set = set(periods)
+    src_lines = dataset["cost_lines"][source]
+    matched: list[dict] = []
+    cc_keys: dict[tuple[str, str], dict] = {}
+    for line in src_lines:
+        if line.get("fiscal_period") not in period_set:
+            continue
+        if not _authored_cost_line_matches(capture, line):
+            continue
+        row = dict(line)
+        # Override the pool assignment (strip the governed pool_id) and scale
+        # by split_pct. amount stays an exact decimal string.
+        amt = Decimal(line["amount_local"]) * split
+        row["amount_local"] = str(amt.quantize(Decimal("0.01")))
+        row["pool_id"] = pool_id
+        # Unique cost_line_id within the authored overlay (avoid colliding with
+        # the governed line's id if both ever share a DB — overlay runs are
+        # isolated, but keep ids stable + distinct).
+        row["cost_line_id"] = f"AP::{pool_id}::{line['cost_line_id']}"
+        row["source_document_ref"] = f"AP::{pool_id}::{line.get('source_document_ref') or line['cost_line_id']}"
+        matched.append(row)
+        cc_keys.setdefault((line["company_code"], line["cost_center"]),
+                           {"company_code": line["company_code"],
+                            "cost_center": line["cost_center"]})
+
+    # cc_mapping: every matched cost center maps 1.0 to the authored pool.
+    cc_mapping = []
+    for (company, cc) in sorted(cc_keys):
+        cc_mapping.append({
+            "mapping_id": f"MAP-AP-{pool_id}-{cc}",
+            "company_code": company,
+            "cost_center": cc,
+            "service_line_id": pool_id,
+            "function": service_line,
+            "allocation_split_pct": "1",
+            "effective_from": "2026-01-01",
+            "effective_to": "2026-12-31",
+            "version": 1,
+            "owner": "authored",
+            "rationale": f"Authored pool {pool_id}: cost center captured 100% into the pool.",
+        })
+
+    pool_row = {
+        "pool_id": pool_id,
+        "pool_name": pool.get("name") or definition.get("name") or pool_id,
+        "service_line": service_line,
+        "service_description": definition.get("service_description")
+        or f"Authored pool {pool_id}.",
+        "provider_entity_id": provider,
+        "characterization": characterization,
+        "core_or_support": "Support",
+        "unique_intangible_flag": False,
+        "significant_risk_flag": False,
+        "cost_base_definition": cost_base,
+        "default_key_id": f"KEY-AP-{pool_id}",
+        "direct_charge_flag": False,
+        "documentation_ref": f"DOC/AP/{pool_id}",
+        "effective_from": "2026-01-01",
+        "effective_to": "2026-12-31",
+        "status": "Active",
+    }
+
+    key_def = {
+        "key_id": f"KEY-AP-{pool_id}",
+        "key_name": f"{key_factor} key (authored {pool_id})",
+        "key_factor": _SCHEMA_KEY_FACTOR.get(key_factor, "Other"),
+        "source_system": "Authored (Allocation Pool Builder)",
+        "static_or_dynamic": "Dynamic",
+        "description": f"Authored allocation key: {key_factor} per beneficiary.",
+        "owner": "authored",
+    }
+
+    # participation: one Provider row + one Beneficiary row per beneficiary.
+    participation = [{
+        "participation_id": f"PP-AP-{pool_id}-{provider}",
+        "pool_id": pool_id, "entity_id": provider, "role": "Provider",
+        "effective_from": "2026-01-01",
+    }]
+    for b in beneficiaries:
+        participation.append({
+            "participation_id": f"PP-AP-{pool_id}-{b}",
+            "pool_id": pool_id, "entity_id": b, "role": "Beneficiary",
+            "benefit_rationale": f"Authored beneficiary of pool {pool_id}.",
+            "effective_from": "2026-01-01",
+        })
+
+    # key values per period: factor per beneficiary from the chosen key factor;
+    # the engine recomputes the total over the resolved population (V-K3), so we
+    # emit a per-period total = Σ factor over the SAME beneficiary set.
+    year = int(str(periods[0])[:4]) if periods else 2026
+    factors = _authored_key_factor_values(key_factor, beneficiaries, year)
+    key_values: list[dict] = []
+    for per in sorted(period_set):
+        total = sum((factors.get(b, ZERO) for b in beneficiaries), ZERO)
+        for b in beneficiaries:
+            fv = factors.get(b)
+            if fv is None:
+                continue  # omit -> Stage-4 V-K1 BLOCK (never a silent zero)
+            ratio = (fv / total) if total > ZERO else ZERO
+            key_values.append({
+                "key_value_id": f"KV-AP-{pool_id}-{b}-{per}",
+                "key_id": f"KEY-AP-{pool_id}",
+                "pool_id": pool_id,
+                "recipient_entity_id": b,
+                "period": per,
+                "factor_value": str(fv),
+                "total_factor_value": str(total),
+                "allocation_ratio": str(ratio),
+                "as_of_date": _month_end(per),
+                "source_ref": f"authored:{key_factor}:{b}:{per}",
+            })
+
+    # markup policies: per (jurisdiction, regime, pct) as authored. No silent
+    # default — a beneficiary jurisdiction with no policy will hit V-M1 BLOCK.
+    markup_policies = []
+    for i, mp in enumerate(definition.get("markup_policies") or []):
+        jur = mp.get("jurisdiction")
+        regime = mp.get("regime")
+        pct = mp.get("markup_pct")
+        if jur is None or regime is None or pct is None:
+            raise ValueError(
+                f"authored pool {pool_id}: markup policy {i} needs jurisdiction, "
+                "regime and markup_pct")
+        markup_policies.append({
+            "markup_policy_id": f"MP-AP-{pool_id}-{jur}-{i}",
+            "pool_id": pool_id,
+            "jurisdiction": str(jur),
+            "regime": str(regime),
+            "markup_pct": str(pct),
+            "scm_eligibility_basis": mp.get("scm_eligibility_basis") or "n/a",
+            "benchmark_study_ref": mp.get("benchmark_study_ref")
+            or f"BM-AP-{pool_id}-{jur}",
+            "effective_from": "2026-01-01",
+            "effective_to": "2026-12-31",
+        })
+
+    # exclusions exactly as authored (pct OR amount; V-B3 needs exactly one).
+    exclusions = []
+    for i, ex in enumerate(definition.get("exclusions") or []):
+        row: dict[str, Any] = {
+            "exclusion_id": f"EX-AP-{pool_id}-{i}",
+            "pool_id": pool_id,
+            "exclusion_type": ex.get("exclusion_type") or "Stewardship",
+            "basis_rationale": ex.get("basis_rationale") or "",
+            "effective_from": "2026-01-01",
+            "effective_to": "2026-12-31",
+            "owner": "authored",
+        }
+        if ex.get("amount") is not None:
+            row["exclusion_amount"] = str(ex["amount"])
+        if ex.get("pct") is not None:
+            row["exclusion_pct"] = str(ex["pct"])
+        exclusions.append(row)
+
+    return {
+        "entities": dataset["entities"],
+        "cc_mapping": cc_mapping,
+        "pools": [pool_row],
+        "markup_policies": markup_policies,
+        "exclusions": exclusions,
+        "key_defs": [key_def],
+        "participation": participation,
+        "cost_lines": {source: matched, "budget": []},
+        "key_values": {source: key_values, "budget": []},
+        "fx_rates": [],
+        "trueup_fx_rates": [],
+        "tax_rules": [],
+        "received_charge_lineage": {},
+        "prior_year_keys": {},
+    }
+
+
+def _month_end(period: str) -> str:
+    import calendar
+    if len(str(period)) == 4:
+        return f"{period}-12-31"
+    y, m = int(str(period)[:4]), int(str(period)[5:7])
+    return f"{y:04d}-{m:02d}-{calendar.monthrange(y, m)[1]:02d}"
+
+
+def authored_pool_periods(
+    definition: Mapping[str, Any], *, source: str = "actual",
+    dataset: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """The billing periods an authored pool's capture rule touches (the
+    distinct fiscal periods of the matched cost lines), ascending."""
+    dataset = dataset or load_demo_dataset()
+    capture = definition.get("cost_capture_rule") or {}
+    return sorted({
+        str(line["fiscal_period"])
+        for line in dataset["cost_lines"][source]
+        if _authored_cost_line_matches(capture, line)
+    })
+
+
+def dry_run_authored_pool(
+    definition: Mapping[str, Any], *, pool_id: str = "AP-DRYRUN",
+    name: str | None = None, source: str = "actual",
+    dataset: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run ONE authored pool through Stages 1-7 in isolation (no persist) for
+    every period its capture rule touches. Returns charges / recon / exceptions
+    / trace — the Builder's "Test run" surface. The engine invariant holds, so
+    a structurally-sound pool reconciles to zero residual; a missing markup
+    policy / participation gap surfaces as the corresponding V-rule.
+
+    A pool whose capture rule matches NO cost lines is a domain error (nothing
+    to charge) — reported as an empty-capture block, never a silent success."""
+    dataset = dataset or load_demo_dataset()
+    periods = authored_pool_periods(definition, source=source, dataset=dataset)
+    if not periods:
+        return {
+            "pool_id": pool_id, "periods": [], "charges": [],
+            "recon": [], "exceptions": [{
+                "rule_id": "V-P1", "severity": "BLOCK",
+                "message": (f"authored pool {pool_id}: cost-capture rule matches "
+                            "no cost lines — nothing to pool"),
+                "objects": [pool_id], "pool_id": pool_id,
+            }], "trace": [], "balanced": False, "total_charged_out": "0",
+        }
+    cfg = {**DEFAULT_CONFIG, "scope": {}}
+    pool_obj = {"pool_id": pool_id, "name": name or pool_id, "definition": definition}
+    overlay = build_authored_overlay(
+        pool_obj, periods=periods, source=source, dataset=dataset)
+
+    all_charges: list[dict] = []
+    all_recon: list[dict] = []
+    exceptions: list[dict] = []
+    with trace.collect() as steps:
+        for per in periods:
+            ex = _execute_period(overlay, per, source, cfg)
+            s6 = stage6_chargeout(
+                {"charges": ex["charges5"]},
+                {"entities": overlay["entities"],
+                 "fx_rates": [], "tax_rules": []},
+                {**cfg, "period": per})
+            s7 = stage7_reconcile({"pools": ex["pools5"]}, {}, {**cfg, "period": per})
+            exceptions.extend(ex["exceptions"] + s6["exceptions"] + s7["exceptions"])
+            all_charges.extend(s6["outputs"]["charges"])
+            all_recon.extend(s7["outputs"]["recon"])
+            trace.emit("authored_period", period=per,
+                       charges=len(s6["outputs"]["charges"]),
+                       pools=len(s7["outputs"]["recon"]))
+
+    balanced = bool(all_recon) and all(
+        r["recon_status"] == "Balanced" for r in all_recon)
+    total = sum((Decimal(str(r["total_charged_out"])) for r in all_recon), ZERO)
+    return {
+        "pool_id": pool_id,
+        "periods": periods,
+        "charges": [_strs(c) for c in all_charges],
+        "recon": [_strs(r) for r in all_recon],
+        "exceptions": exceptions,
+        "trace": list(steps),
+        "balanced": balanced,
+        "total_charged_out": str(total),
+    }
+
+
+def run_authored_allocation(
+    *, period: str, actor: str, source: str = "actual",
+    pools: list[Mapping[str, Any]] | None = None,
+    dataset: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Launch an ACTUAL run that overlays the supplied ACTIVE authored pools for
+    one period, persisted + flagged authored. Each active authored pool whose
+    capture rule touches ``period`` runs through Stages 1-7 on its own minimal
+    overlay; the resulting charges/recon/exceptions are aggregated and persisted
+    as ONE authored run (``run_type="actual"``, ``config.authored = True``).
+    The governed run is untouched — authored runs are namespaced + flagged."""
+    if pools is None:
+        import state.authored_pools as authored_pools
+        pools = [p for p in authored_pools.list_authored_pools(status="active")]
+    dataset = dataset or load_demo_dataset()
+    period = str(period)
+    period_bounds(period)
+    cfg = {**DEFAULT_CONFIG, "scope": {}, "authored": True}
+
+    engine_charges: list[dict] = []
+    recon_engine: list[dict] = []
+    exceptions: list[dict] = []
+    line_rows: dict[str, dict] = {}
+    pools5: list[dict] = []
+    exclusion_ledger: list[dict] = []
+    lineage6: list[dict] = []
+    in_scope_pool_ids: list[str] = []
+
+    for pool in pools:
+        definition = pool.get("definition") or pool
+        pool_id = pool.get("id") or pool.get("pool_id")
+        periods = authored_pool_periods(definition, source=source, dataset=dataset)
+        if period not in periods:
+            continue
+        in_scope_pool_ids.append(pool_id)
+        overlay = build_authored_overlay(
+            {"pool_id": pool_id, "name": pool.get("name"), "definition": definition},
+            periods=[period], source=source, dataset=dataset)
+        ex = _execute_period(overlay, period, source, cfg)
+        s6 = stage6_chargeout(
+            {"charges": ex["charges5"]},
+            {"entities": overlay["entities"], "fx_rates": [], "tax_rules": []},
+            {**cfg, "period": period})
+        s7 = stage7_reconcile({"pools": ex["pools5"]}, {}, {**cfg, "period": period})
+        exceptions.extend(ex["exceptions"] + s6["exceptions"] + s7["exceptions"])
+        engine_charges.extend(s6["outputs"]["charges"])
+        recon_engine.extend(s7["outputs"]["recon"])
+        pools5.extend(ex["pools5"])
+        exclusion_ledger.extend(ex["s3"]["outputs"]["exclusion_ledger"])
+        lineage6.extend(s6["outputs"]["lineage"])
+        line_rows.update(ex["line_rows"])
+
+    output_hash = _sha256({
+        "charges": engine_charges, "true_up_rows": [],
+        "recon": [_strs(r) for r in recon_engine], "exceptions": exceptions,
+    })
+    input_hash = _sha256({"authored_pools": sorted(in_scope_pool_ids),
+                          "period": period, "source": source})
+
+    run_id = store.new_run_id(period, "actual")
+    store.insert_run(
+        run_id=run_id, period=period, run_type="actual",
+        input_snapshot_hash=input_hash,
+        scope={"authored_pool_ids": in_scope_pool_ids},
+        config={k: v for k, v in cfg.items() if k != "scope"})
+
+    report = docpack.build_exception_report(exceptions, run_id=run_id, period=period)
+    blocks = rules.blocks(exceptions)
+    if blocks:
+        run = store.persist_run_failure(run_id, artifacts=[
+            _json_artifact("exceptions.json", report),
+            _artifact("output.sha256", "text/plain", output_hash)])
+        summary = {
+            "run_id": run_id, "period": period, "run_type": "actual",
+            "authored": True, "status": "failed", "charges": 0,
+            "recon_balanced": False, "blocks": len(blocks),
+            "warns": report["counts"]["WARN"], "total_charged_out": "0",
+            "output_hash": output_hash, "authored_pool_ids": in_scope_pool_ids,
+        }
+        audit.record(actor=actor, actor_kind="human",
+                     record_ref=f"allocation:{run_id}", process_id=PROCESS_ID,
+                     event_type="run", after=summary,
+                     rationale="authored allocation run failed: BLOCK exceptions")
+        return {**run, "summary": summary,
+                "recon": [_strs(r) for r in recon_engine],
+                "exception_report": report,
+                "artifacts": ["exceptions.json", "output.sha256"]}
+
+    persisted_charges = [{**row,
+                          "charge_id": f"{run_id}:{row['charge_id']}",
+                          "documentation_ref": run_id}
+                         for row in engine_charges]
+    run_row = store.get_run(run_id)
+    started_at = run_row["started_at"] if run_row else ""
+    recon_rows = [{
+        **_strs({k: v for k, v in r.items() if v is not None}),
+        "recon_id": f"RECON-{run_id}-{r['pool_id']}",
+        "run_id": run_id, "run_timestamp": started_at,
+    } for r in recon_engine]
+
+    lineage_obj: dict[str, Any] = {"charges": {}, "lines": {}}
+    for entry in lineage6:
+        pid = f"{run_id}:{entry['charge_id']}"
+        lineage_obj["charges"][pid] = {
+            "pool_id": entry["pool_id"], "charge_kind": entry["charge_kind"],
+            "key_value_id": entry.get("key_value_id"),
+            "line_ids": list(entry.get("line_ids") or ())}
+        for lid in entry.get("line_ids") or ():
+            if lid in line_rows:
+                lineage_obj["lines"][lid] = line_rows[lid]
+
+    balanced_all = bool(recon_engine) and all(
+        r["recon_status"] == "Balanced" for r in recon_engine)
+    summary = {
+        "run_id": run_id, "period": period, "run_type": "actual",
+        "authored": True, "status": "succeeded", "pools": len(recon_engine),
+        "charges": len(persisted_charges), "recon_balanced": balanced_all,
+        "total_charged_out": str(sum(
+            (Decimal(r["total_charged_out"]) for r in recon_rows), ZERO)),
+        "blocks": 0, "warns": report["counts"]["WARN"],
+        "output_hash": output_hash, "input_snapshot_hash": input_hash,
+        "authored_pool_ids": in_scope_pool_ids,
+    }
+    artifacts = [
+        _json_artifact("exceptions.json", report),
+        _artifact("output.sha256", "text/plain", output_hash),
+        _json_artifact("lineage.json", lineage_obj),
+        _json_artifact("summary.json", summary),
+    ]
+    run = store.persist_run_success(
+        run_id, charges=persisted_charges, recon_rows=recon_rows,
+        artifacts=artifacts)
+    audit.record(actor=actor, actor_kind="human",
+                 record_ref=f"allocation:{run_id}", process_id=PROCESS_ID,
+                 event_type="run", after=summary,
+                 rationale=f"authored allocation run — {len(in_scope_pool_ids)} "
+                           "active authored pool(s) overlaid in isolation")
+    return {**run, "summary": summary,
+            "recon": [_strs(r) for r in recon_rows],
+            "exception_report": report,
+            "artifacts": [a["name"] for a in artifacts]}

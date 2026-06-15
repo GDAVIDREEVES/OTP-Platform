@@ -13,6 +13,7 @@ from typing import Any
 
 import persistence.overrides as overrides
 import state.audit as audit
+import state.authored_pools as authored_pools
 import state.lineage as lineage
 import state.scenarios as scenarios
 import state.user_calcs as user_calcs
@@ -133,6 +134,18 @@ def decide(
                 user_calcs.apply_activation(ucalc_id, checker)
             else:
                 user_calcs.mark_rejected(ucalc_id)
+
+    # PB2 — authored-pool activation rides the same gate: approving an
+    # allocpool:* item activates the pool (it now overlays the engine as a
+    # flagged authored run — the governed allocation is untouched); rejecting
+    # returns it to draft so the maker can rework, re-test and resubmit.
+    if record_ref.startswith("allocpool:"):
+        ap_id = record_ref.split(":", 1)[1]
+        if authored_pools.get_authored_pool(ap_id) is not None:
+            if decision == "approve":
+                authored_pools.apply_activation(ap_id, checker)
+            else:
+                authored_pools.mark_rejected(ap_id)
     return _to_dict(updated)
 
 
