@@ -361,9 +361,61 @@ def _check_cols(cols: Sequence[str], available: Sequence[str], nid: str,
                 f"(available: {', '.join(available)})", nid)
 
 
-def _build_source(node: dict[str, Any]) -> tuple[str, list[str], list[Any]]:
+#: ``source`` node config ``table`` value naming an authored dataset source:
+#: ``dataset/{id}`` (DS2). The active dataset's compiled query is inlined as a
+#: subquery — the dataset bridge (a dataset referencing another dataset).
+_DATASET_SOURCE_PREFIX = "dataset/"
+
+
+def _resolve_dataset_source(table: str) -> tuple[dict[str, Any], str]:
+    """Resolve a ``dataset/{id}`` source ``table`` to the ACTIVE authored
+    dataset's graph + id, deferring the import of ``state.authored_datasets`` to
+    keep that lifecycle module off this compiler's import path. Raises
+    :class:`DatasetError` if the id is unknown or the dataset is not active (a
+    draft/tested/in_review dataset can never be referenced — no silent default)."""
+    dataset_id = table[len(_DATASET_SOURCE_PREFIX):]
+    if not dataset_id:
+        raise DatasetError(
+            "dataset source needs an id (use 'dataset/{id}')")
+    import state.authored_datasets as authored_datasets  # deferred: avoid cycle
+    record = authored_datasets.get_authored_dataset(dataset_id)
+    if record is None:
+        raise DatasetError(f"unknown dataset source {dataset_id!r}")
+    if record["status"] != "active":
+        raise DatasetError(
+            f"dataset {dataset_id!r} is {record['status']} — only an ACTIVE "
+            "authored dataset can be referenced as a source")
+    return record["graph"], dataset_id
+
+
+def _build_source(node: dict[str, Any], compiling: tuple[str, ...]
+                  ) -> tuple[str, list[str], list[Any]]:
     cfg = node.get("config") or {}
     table = cfg.get("table") or node.get("table")
+    if isinstance(table, str) and table.startswith(_DATASET_SOURCE_PREFIX):
+        # An authored dataset referenced as a source — inline its compiled query
+        # as a subquery (cycle-guarded through ``compiling``).
+        graph, dataset_id = _resolve_dataset_source(table)
+        if dataset_id in compiling:
+            chain = " -> ".join(compiling + (dataset_id,))
+            raise DatasetError(
+                f"dataset reference cycle: {chain}", node["id"])
+        try:
+            sub_sql, sub_params, sub_cols = _compile(
+                graph, compiling=compiling + (dataset_id,))
+        except DatasetError as e:
+            raise DatasetError(
+                f"dataset source {dataset_id!r} failed to compile: {e.message}",
+                node["id"])
+        requested = cfg.get("columns")
+        if requested:
+            _check_cols(requested, sub_cols, node["id"], "source column")
+            out_cols = list(requested)
+        else:
+            out_cols = list(sub_cols)
+        select = ", ".join(f'"{c}"' for c in out_cols)
+        sql = f"SELECT {select} FROM (\n{sub_sql}\n) _src"
+        return sql, out_cols, sub_params
     if table not in DATASET_TABLES:
         raise DatasetError(
             f"unknown source table {table!r} "
@@ -585,13 +637,65 @@ _UNARY = {"filter", "aggregate", "derive", "select"}
 _BINARY = {"join", "union"}
 NODE_KINDS = {"source"} | _UNARY | _BINARY
 
+#: The dataset node family for the cockpit palette / node-types catalog (DS2).
+#: Each entry declares the node's *relation* handle arity (distinct from the
+#: calc value handles + allocation stage handles — ``isValidConnection`` keeps
+#: the families separate) and its config keys. The compiler in this module is
+#: the single source of truth for the config SHAPE; this catalog mirrors it so
+#: the palette can never offer a node the compiler would reject.
+DATASET_NODE_TYPES: dict[str, dict[str, Any]] = {
+    "source": {"family": "dataset", "inputs": 0, "output": "relation",
+               "config": ["table", "columns"]},
+    "filter": {"family": "dataset", "inputs": 1, "output": "relation",
+               "config": ["predicates"]},
+    "aggregate": {"family": "dataset", "inputs": 1, "output": "relation",
+                  "config": ["group_by", "measures"]},
+    "derive": {"family": "dataset", "inputs": 1, "output": "relation",
+               "config": ["alias", "left", "op", "right"]},
+    "select": {"family": "dataset", "inputs": 1, "output": "relation",
+               "config": ["columns"]},
+    "join": {"family": "dataset", "inputs": 2, "output": "relation",
+             "config": ["how", "on", "select"]},
+    "union": {"family": "dataset", "inputs": 2, "output": "relation",
+              "config": []},
+}
+
+
+def dataset_node_types() -> list[dict[str, Any]]:
+    """The dataset family node-type schemas (handle arity + config keys + the
+    allowed ops/funcs per node), for the palette / node-types catalog. Pure
+    read; mirrors the compiler's allowlist (filter ops, aggregate funcs, arith
+    ops) so the palette stays in lockstep."""
+    out: list[dict[str, Any]] = []
+    for typ, spec in DATASET_NODE_TYPES.items():
+        entry = {
+            "type": typ,
+            "family": spec["family"],
+            "inputs": spec["inputs"],
+            "output": spec["output"],
+            "config": list(spec["config"]),
+        }
+        if typ == "filter":
+            entry["ops"] = sorted(_FILTER_OPS)
+        elif typ == "aggregate":
+            entry["funcs"] = sorted(_AGG_FUNCS)
+        elif typ == "derive":
+            entry["ops"] = list(_ARITH_OPS)
+        elif typ == "join":
+            entry["hows"] = ["INNER", "LEFT"]
+        out.append(entry)
+    return out
+
 
 def _compile_node(node: dict[str, Any], cte_name: str, ins: list[str],
-                  schemas: dict[str, list[str]]
+                  schemas: dict[str, list[str]],
+                  compiling: tuple[str, ...] = ()
                   ) -> tuple[str, list[str], list[Any]]:
     """Compile one node into a CTE body, wiring the upstream CTE names in. Each
     node validates its own config against the allowlist; binary nodes consume
-    two ordered inputs (left, right)."""
+    two ordered inputs (left, right). ``compiling`` is the chain of authored
+    dataset ids currently being inlined (the cycle-guard for a ``dataset/{id}``
+    source)."""
     kind = node.get("type") or node.get("kind")
     if kind not in NODE_KINDS:
         raise DatasetError(
@@ -600,7 +704,7 @@ def _compile_node(node: dict[str, Any], cte_name: str, ins: list[str],
     if kind == "source":
         if ins:
             raise DatasetError("source node takes no inputs", node["id"])
-        body, cols, params = _build_source(node)
+        body, cols, params = _build_source(node, compiling)
     elif kind in _UNARY:
         if len(ins) != 1:
             raise DatasetError(
@@ -623,14 +727,13 @@ def _compile_node(node: dict[str, Any], cte_name: str, ins: list[str],
     return body, cols, params
 
 
-def compile_dataset(graph: dict[str, Any]
-                    ) -> tuple[str, list[Any], list[str]]:
-    """Compile a dataset graph to ``(sql, params, output_columns)``.
-
-    The SQL is a ``WITH`` CTE chain (one CTE per node, named ``n_<id>``) selecting
-    the terminal node's relation. ``params`` are the bound filter/derive values in
-    SQL order. Raises :class:`DatasetError` on any allowlist / structure problem
-    (call :func:`validate_dataset` first to collect every error)."""
+def _compile(graph: dict[str, Any], compiling: tuple[str, ...] = ()
+             ) -> tuple[str, list[Any], list[str]]:
+    """Compile one dataset graph to ``(sql, params, output_columns)``, threading
+    the ``compiling`` chain of authored-dataset ids so a ``dataset/{id}`` source
+    that inlines a sub-graph can detect a reference cycle. CTE names are
+    namespaced by depth so an inlined sub-dataset's CTEs never collide with the
+    outer graph's."""
     nodes = _nodes(graph)
     if not nodes:
         raise DatasetError("dataset graph has no nodes")
@@ -640,10 +743,14 @@ def compile_dataset(graph: dict[str, Any]
 
     ensure_cost_lines_relation()
 
+    depth = len(compiling)
+
     def cte(nid: str) -> str:
-        # node ids may contain '-'; CTE names must be plain identifiers.
-        return "n_" + "".join(ch if (ch.isalnum() or ch == "_") else "_"
-                              for ch in nid)
+        # node ids may contain '-'; CTE names must be plain identifiers. The
+        # depth prefix keeps an inlined sub-dataset's CTEs distinct from the
+        # outer graph's (no name collision across nesting).
+        safe = "".join(ch if (ch.isalnum() or ch == "_") else "_" for ch in nid)
+        return f"n{depth}_{safe}"
 
     cte_defs: list[str] = []
     params: list[Any] = []
@@ -652,13 +759,27 @@ def compile_dataset(graph: dict[str, Any]
         node = nodes[nid]
         up_ctes = [cte(s) for s in ins[nid]]
         up_schemas = {cte(s): schemas[s] for s in ins[nid]}
-        body, cols, node_params = _compile_node(node, cte(nid), up_ctes, up_schemas)
+        body, cols, node_params = _compile_node(
+            node, cte(nid), up_ctes, up_schemas, compiling)
         schemas[nid] = cols
         params.extend(node_params)
         cte_defs.append(f"{cte(nid)} AS (\n  {body}\n)")
 
     sql = "WITH " + ",\n".join(cte_defs) + f"\nSELECT * FROM {cte(terminal)}"
     return sql, params, schemas[terminal]
+
+
+def compile_dataset(graph: dict[str, Any]
+                    ) -> tuple[str, list[Any], list[str]]:
+    """Compile a dataset graph to ``(sql, params, output_columns)``.
+
+    The SQL is a ``WITH`` CTE chain (one CTE per node, named ``n<depth>_<id>``)
+    selecting the terminal node's relation. ``params`` are the bound
+    filter/derive values in SQL order. A ``dataset/{id}`` source node inlines the
+    referenced ACTIVE authored dataset's compiled query as a subquery (cycle-
+    guarded). Raises :class:`DatasetError` on any allowlist / structure problem
+    (call :func:`validate_dataset` first to collect every error)."""
+    return _compile(graph)
 
 
 def validate_dataset(graph: dict[str, Any]) -> dict[str, Any]:
@@ -718,10 +839,42 @@ def distinct_values(table: str, column: str, limit: int = 500) -> list[Any]:
     return [r["v"] for r in rows]
 
 
+def active_dataset_sources() -> list[dict[str, Any]]:
+    """Active authored datasets (DS2) offered as referenceable sources in the
+    palette: each one's ``table`` is ``dataset/{id}``, its output columns are the
+    compiled terminal schema, and its provenance is ``authored``. A draft/tested/
+    in_review dataset is NOT offered (only an ACTIVE dataset can be referenced).
+    Best-effort per dataset: one whose graph fails to compile is skipped rather
+    than breaking the whole palette. Deferred import keeps the lifecycle module
+    off this compiler's import path."""
+    import state.authored_datasets as authored_datasets  # deferred: avoid cycle
+
+    out: list[dict[str, Any]] = []
+    for d in authored_datasets.list_authored_datasets(status="active"):
+        try:
+            _sql, _params, cols = compile_dataset(d["graph"])
+        except DatasetError:
+            continue
+        out.append({
+            "table": f"{_DATASET_SOURCE_PREFIX}{d['id']}",
+            "dataset_id": d["id"],
+            "view": None,
+            "label": d["name"],
+            "provenance": "authored",
+            "catalog_id": f"dataset:{d['id']}",
+            "columns": [{"name": c, "role": _DIM, "type": "VARCHAR"} for c in cols],
+            "measures": [],
+            "join_keys": list(cols),
+            "dimensions": list(cols),
+        })
+    return out
+
+
 def sources_catalog() -> dict[str, Any]:
     """The palette catalogue: every source with its columns (role + type),
     provenance, join keys, enumerable dimensions, and — for the journal — the
-    real distinct GL / CC / PC value lists the user asked to see. Pure read."""
+    real distinct GL / CC / PC value lists the user asked to see, plus the
+    ACTIVE authored datasets (``dataset/{id}`` sources). Pure read."""
     ensure_cost_lines_relation()
     tables = []
     for name, spec in DATASET_TABLES.items():
@@ -746,6 +899,8 @@ def sources_catalog() -> dict[str, Any]:
     }
     return {
         "tables": tables,
+        "datasets": active_dataset_sources(),
+        "node_types": dataset_node_types(),
         "filter_ops": sorted(_FILTER_OPS),
         "agg_funcs": sorted(_AGG_FUNCS),
         "arith_ops": list(_ARITH_OPS),
