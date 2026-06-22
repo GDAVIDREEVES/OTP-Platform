@@ -111,3 +111,89 @@ dataset family + `calc/dataset.py` + `authored_datasets`.
 House rules: Decimal money; append-only; no silent defaults; audit every mutation; golden
 non-regression (governed allocation + existing endpoints unchanged); injection-safety tested; full
 pytest + typecheck/build per increment; never hand-edit `backend/allocation/generated/`.
+
+## Decisions (as built, DS1→DS4)
+
+The Phase-8 dataset layer is **DONE** across all four increments. What was decided
+and shipped, and why:
+
+1. **DuckDB stayed the engine — a dataset compiles to ONE CTE-chain query.**
+   `backend/calc/dataset.py:compile_dataset` turns a `source/filter/aggregate/
+   join/union/derive/select` subgraph into a single `WITH …` query (one CTE per
+   node, `n<depth>_<id>`) run through `db.q(sql, params)`. No new evaluator —
+   exactly the "no new evaluator" discipline of the cockpit calc/allocation
+   layers. Verified: the DS4 loop (journal → filter(RACCT IN a GL set) → LEFT
+   JOIN entity_roles → aggregate by RCNTR/PRCTR/jurisdiction, SUM HSL) ties out
+   to a hand DuckDB query **to the cent** ($18,968,655.36 on the demo GL set).
+
+2. **Injection-safety = allowlist identifiers + bound values, generalized from
+   `expr.MEASURE_TABLES`.** Every table/column/op/join-key/alias the compiler
+   emits comes only from `DATASET_TABLES` (and the small op/func/arith sets);
+   every literal (filter value, `IN` list, `BETWEEN` bound, derive constant) is a
+   bound `?` parameter, never interpolated. An unknown source/column/op or an
+   under-specified node is a precise `DatasetError` at *validate* time and **no
+   SQL is emitted** (test-enforced) — no silent defaults.
+
+3. **ACDOCA exposed as a curated, generous, REAL subset — not every SAP column.**
+   The `journal_entries` source surfaces the dimensions the user asked for
+   (`RBUKRS, RACCT, RCNTR, PRCTR, GJAHR, POPER, SEGMENT, BLART, DRCRK, RHCUR,
+   BUDAT, BELNR, SGTXT`) plus the meaningful money measures (`HSL` + the parallel
+   ledgers `KSL/OSL`), and the palette enumerates the real distinct GL/CC/PC
+   value lists. The other three warehouse views (segment_pl, supply_chain_flows,
+   entity_roles) are sources too, so joins enrich ACDOCA with dimensions that
+   only live elsewhere (jurisdiction from entity_roles, in the DS4 loop).
+
+4. **Money stayed Decimal everywhere — including the derive node.** Warehouse/
+   seed amount columns are DuckDB `DECIMAL`, so `SUM` returns Python `Decimal`.
+   The `derive` node casts both the bound constants and the whole arithmetic
+   expression to `DECIMAL` (DuckDB 1.1.x decimal division otherwise yields
+   `DOUBLE`), so a derived money column stays exact. No float on amounts, tests
+   included.
+
+5. **The fabricated cost_lines seed is materialized into a queryable DuckDB
+   relation — flagged `fabricated`, never silently mixed with real ACDOCA.**
+   `ensure_cost_lines_relation()` `CREATE OR REPLACE`s an in-memory typed table
+   from `seeds/allocation/cost_lines.v1.json` so the compiler can SELECT it like
+   any source; its provenance is `fabricated` in the palette and the catalog
+   rollup (`seed:allocation_cost_lines`), distinct from `warehouse:journal`
+   (`real`). The provenance dashboard shows both honestly.
+
+6. **First-class authored datasets reuse the existing lifecycle + maker-checker
+   verbatim.** `authored_datasets` mirrors `authored_pools`/`user_calcs`:
+   draft → tested (a compile+run of the *current* graph, gated on its sha256) →
+   in_review → active, every mutation hash-chained at `dataset:{id}`. Activation
+   rides the same `review.decide()` seam (a new `dataset:` branch alongside
+   `ucalc:`/`allocpool:`/`scenario:`); a maker cannot approve their own dataset.
+   An ACTIVE dataset is referenceable as a `dataset/{id}` source (cycle-guarded
+   inline subquery); a draft/tested/in_review one never resolves.
+
+7. **Two bridges, both reusing the existing engines unchanged.** *Calc bridge:* a
+   `dataset_value` boundary node (`calc/graph.py`) runs a dataset that aggregates
+   to a single row and emits the exact `Decimal` scalar as a literal into the
+   `calc/expr.py` expression — a journal-grained GL number reaching a formula
+   calc. *Allocation bridge:* an authored pool's `cost_capture_rule` may name an
+   ACTIVE `dataset_id`; the cost-line-shaped dataset rows are mapped to the
+   engine's 1_CostLine schema and run through the **real** Stages 1-7 — so you
+   build a cost pool by joining/filtering ACDOCA. A required field missing from a
+   dataset row is a precise error, never a default.
+
+8. **Golden non-regression held.** The governed demo allocation stays cent-exact
+   (FY cost-recovered **$13,586,402.70** / gross **$14,344,773.26**) even with an
+   active ACDOCA dataset + a dataset-sourced authored pool present and run on its
+   own overlay — a dataset-sourced pool is a governed *experiment* that never
+   touches the governed tie-out. All prior endpoints stay byte-identical.
+
+**Verification (DS4):** `backend/tests/test_dataset_e2e.py` pins the whole loop —
+build → preview (hand-query tie-out) → save → test → submit → approve as a
+DIFFERENT actor → active → feed a calc AND a pool cost base → governed golden —
+and the same loop was driven live over HTTP (`/api/dataset/*`, `/api/datasets/*`,
+`/api/review-queue`, `/api/calc-graph/node-types`). Full backend pytest +
+`npm run typecheck && npm run build` green.
+
+**Known notes / follow-ups (flagged, not blocking):**
+- v1 joins are inner/left only and the preview is row-capped (small demo data —
+  58k journal rows); a wider join surface / windowed previews are future work.
+- The fabricated `allocation_cost_lines` finer cost-center grain remains the only
+  way to reach a cost-line-shaped pool base today; a real ACDOCA-grained pool base
+  would need the journal mapped into 1_CostLine shape (a dataset can already do
+  the projection, but the demo's reconciled cost-line totals live in the seed).
