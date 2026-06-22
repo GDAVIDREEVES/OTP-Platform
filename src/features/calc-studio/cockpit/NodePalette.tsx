@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Accordion, AccordionDetails, AccordionSummary, Box, Chip, IconButton,
   InputAdornment, Stack, TextField, Tooltip, Typography,
@@ -10,10 +10,22 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
+import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
+import type { DatasetSourcesCatalog } from '@/shared/api/types';
 import { valueText } from '../lib';
 import { DRAG_MIME, type DragPayload } from './Canvas';
 import { presentationFor } from './nodeMeta';
 import type { GraphModel } from './useGraphModel';
+
+/** Labels for the dataset / data-prep ops in the Datasets palette group. */
+const DATASET_OP_LABELS: Record<string, string> = {
+  filter: 'Filter (predicates)',
+  aggregate: 'Aggregate (group + measures)',
+  join: 'Join (keys)',
+  union: 'Union (stack)',
+  derive: 'Derive (formula)',
+  select: 'Select (columns)',
+};
 
 /** Left pane (MC2) — a searchable, DRAGGABLE palette grouped Parameters (with
  *  live governed values + an inline driver edit) / Measures / Calculations /
@@ -101,6 +113,12 @@ export default function NodePalette({ model }: { model: GraphModel }) {
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editVal, setEditVal] = useState('');
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  // The dataset / data-prep palette catalogue (sources + provenance + ops) — the
+  // ACDOCA journal + the fabricated cost lines + the active authored datasets.
+  const [dsCat, setDsCat] = useState<DatasetSourcesCatalog | null>(null);
+  useEffect(() => {
+    api.datasetSources().then(setDsCat).catch(() => setDsCat(null));
+  }, []);
 
   // Drop a node at the canvas center when added by double-click (no position).
   const addCentered = (kind: string, config: Record<string, unknown>) =>
@@ -131,11 +149,24 @@ export default function NodePalette({ model }: { model: GraphModel }) {
     () => (cat?.stage_types ?? []).filter((s) => match(s.type) || match('allocation stage') || match('pool')),
     [cat, needle]
   );
-  // The two families never mix on one canvas — only offer the calc-into-stage
+  // The three families never mix on one canvas — only offer the calc-into-stage
   // value subgraphs once a stage graph exists; offer stage seeding only on an
-  // empty/alloc canvas.
+  // empty/alloc canvas; offer dataset nodes only on an empty/dataset canvas.
   const allocCanvas = family === 'alloc';
   const calcCanvas = family === 'calc';
+  const datasetCanvas = family === 'dataset';
+
+  // Dataset sources + ops, filtered by the search needle.
+  const dsSources = useMemo(
+    () => [...(dsCat?.tables ?? []), ...(dsCat?.datasets ?? [])].filter(
+      (s) => match(s.label) || match(s.table)),
+    [dsCat, needle]
+  );
+  const dsOps = useMemo(
+    () => (dsCat?.node_types ?? []).filter(
+      (t) => t.type !== 'source' && (match(t.type) || match('data prep'))),
+    [dsCat, needle]
+  );
 
   const saveDriver = async (key: string) => {
     setSavingKey(key);
@@ -335,6 +366,85 @@ export default function NodePalette({ model }: { model: GraphModel }) {
             />
           ))}
         </Group>
+
+        {/* Datasets / ACDOCA (DS3) — the data-prep family (relation handles). */}
+        <Group
+          title="Datasets / ACDOCA"
+          count={dsSources.length + dsOps.length}
+          defaultExpanded={datasetCanvas}
+        >
+          {allocCanvas && (
+            <Typography variant="caption" sx={{ color: 'text.secondary', px: 1, py: 0.5, display: 'block' }}>
+              This canvas holds an allocation pool — clear it (New) to build a dataset.
+            </Typography>
+          )}
+          {!allocCanvas && (
+            <>
+              <Typography variant="overline" sx={{ color: 'text.secondary', px: 1, display: 'block', mt: 0.5 }}>
+                Source tables
+              </Typography>
+              {dsSources.map((s) => (
+                <PaletteItem
+                  key={`ds-src-${s.table}`}
+                  kind="source"
+                  config={{ table: s.table }}
+                  label={s.label}
+                  onAdd={() => addCentered('source', { table: s.table })}
+                  sub={
+                    <Box sx={{ mt: 0.25 }}>
+                      <ProvenanceChip
+                        source={s.provenance}
+                        kind={s.provenance === 'fabricated' ? 'fabricated'
+                          : s.provenance === 'authored' ? 'assumed' : 'real'}
+                        tooltip={
+                          s.provenance === 'real' ? 'Real warehouse data (ACDOCA / segment_pl / supply-chain / entity roles)'
+                          : s.provenance === 'fabricated' ? 'Fabricated seed — fine cost-center grain beneath reconciled totals'
+                          : 'An ACTIVE authored dataset, referenced as a source'
+                        }
+                      />
+                    </Box>
+                  }
+                />
+              ))}
+
+              <Typography variant="overline" sx={{ color: 'text.secondary', px: 1, display: 'block', mt: 1 }}>
+                Data-prep ops
+              </Typography>
+              {dsOps.map((t) => (
+                <PaletteItem
+                  key={`ds-op-${t.type}`}
+                  kind={t.type}
+                  config={{}}
+                  label={DATASET_OP_LABELS[t.type] ?? t.type}
+                  onAdd={() => addCentered(t.type, {})}
+                  sub={
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }} noWrap>
+                      {t.inputs === 2 ? 'two relations in' : t.inputs === 1 ? 'one relation in' : 'relation'}
+                    </Typography>
+                  }
+                />
+              ))}
+            </>
+          )}
+        </Group>
+
+        {/* Dataset → calc bridge (DS3) — a dataset that aggregates to a single
+            value, consumed by a calc graph. Offered on a calc/empty canvas. */}
+        {!allocCanvas && !datasetCanvas && (
+          <Group title="Dataset bridges" count={1}>
+            <PaletteItem
+              kind="dataset_value"
+              config={{}}
+              label="dataset → value"
+              onAdd={() => addCentered('dataset_value', {})}
+              sub={
+                <Typography variant="caption" sx={{ color: 'text.secondary' }} noWrap>
+                  an active dataset's scalar into a calc
+                </Typography>
+              }
+            />
+          </Group>
+        )}
       </Box>
     </Box>
   );

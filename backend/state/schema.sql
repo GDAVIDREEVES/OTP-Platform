@@ -459,3 +459,35 @@ CREATE TABLE IF NOT EXISTS authored_pools (
   activated_at    TEXT,
   activated_by    TEXT
 );
+
+-- First-class authored datasets (Phase 8 DS2 — Dataset / Data-Prep Layer). One
+-- row per user-built data-prep graph (source / filter / aggregate / join / union
+-- / derive / select nodes). The graph is the source of truth and lives as JSON
+-- in `graph_json`; it compiles to ONE safe parameterized DuckDB query
+-- (calc/dataset.py). Lifecycle mirrors authored_pools / user_calculations:
+--   draft -> tested (a successful compile+run of the CURRENT graph; the hash
+--   gate below) -> in_review (maker submits; one review item at
+--   record_ref="dataset:{id}") -> active (a DIFFERENT checker approves —
+--   state/review.py:decide() hook). Editing an active dataset bumps `version`
+--   and returns it to draft for re-test + re-approval. `tested_graph_hash` is
+--   the sha256 of the canonical graph JSON at the last successful test run, so
+--   an untested graph can never reach activation. An ACTIVE dataset is
+--   referenceable as a SOURCE in another dataset (a `dataset/{id}` source node;
+--   calc/dataset.py resolves it as a compiled subquery). Every mutation is
+--   hash-chained at record_ref="dataset:{id}" (state/authored_datasets.py).
+CREATE TABLE IF NOT EXISTS authored_datasets (
+  id                TEXT PRIMARY KEY,              -- "DS-1", "DS-2", ...
+  name              TEXT NOT NULL,
+  description       TEXT,
+  graph_json        TEXT NOT NULL,                 -- the dataset data-prep graph (source of truth)
+  status            TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','tested','in_review','active')),
+  version           INTEGER NOT NULL DEFAULT 1,
+  process_id        TEXT,                          -- optional process binding
+  tested_graph_hash TEXT,                          -- sha256 of canonical graph_json at last successful test run
+  tested_at         TEXT,
+  created_by        TEXT NOT NULL,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT,
+  activated_at      TEXT,
+  activated_by      TEXT
+);

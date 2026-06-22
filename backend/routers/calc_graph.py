@@ -23,6 +23,7 @@ from fastapi import APIRouter, HTTPException
 
 from contextlib import nullcontext
 
+import calc.dataset as dataset
 import calc.expr as expr
 import calc.graph as graph
 import calc.trace as trace
@@ -85,6 +86,12 @@ def node_types():
         }
         for t, spec in graph.STAGE_TYPES.items()
     ]
+    # Dataset family (DS2): the data-prep node types (relation handles, distinct
+    # family) + the active authored datasets offered as ``dataset/{id}`` sources.
+    # The cockpit canvas renders this third family alongside calc-value and
+    # allocation-stage nodes.
+    dataset_node_types = dataset.dataset_node_types()
+    dataset_sources = dataset.active_dataset_sources()
     return {
         "node_types": types,
         "operators": list(graph._OP_SYMBOLS),
@@ -97,6 +104,8 @@ def node_types():
         "non_composable": sorted(expr._NON_COMPOSABLE),
         "stage_types": stage_types,
         "stage_order": list(graph.STAGE_ORDER),
+        "dataset_node_types": dataset_node_types,
+        "dataset_sources": dataset_sources,
     }
 
 

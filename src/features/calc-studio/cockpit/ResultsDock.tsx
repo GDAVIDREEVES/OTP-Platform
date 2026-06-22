@@ -17,9 +17,10 @@ import type { GraphModel } from './useGraphModel';
  */
 
 export default function ResultsDock({ model }: { model: GraphModel }) {
-  const { nodes, preview, scenarioPreview, stagePreview, family, validation, running, runError } = model;
+  const { nodes, preview, scenarioPreview, stagePreview, datasetPreview, family, validation, running, runError } = model;
   const [view, setView] = useState<'values' | 'output' | 'exceptions'>('values');
   const isAlloc = family === 'alloc';
+  const isDataset = family === 'dataset';
 
   const stageExceptions = stagePreview?.exceptions ?? [];
   const errorCount = (validation && !validation.ok ? validation.errors.length : 0)
@@ -125,8 +126,51 @@ export default function ResultsDock({ model }: { model: GraphModel }) {
           )
         )}
 
+        {/* ---- Values (dataset graph) — the tabular preview ---- */}
+        {view === 'values' && isDataset && (
+          !datasetPreview ? (
+            <Empty text="Select a dataset node and press Run — its columns + sample rows + row count land here (Alteryx-style)." />
+          ) : (
+            <Box>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 0.75 }}>
+                <Chip size="small" color="primary" variant="outlined"
+                  label={`${datasetPreview.row_count.toLocaleString()} rows`} sx={{ height: 20, fontWeight: 700 }} />
+                <Chip size="small" variant="outlined"
+                  label={`${datasetPreview.columns.length} cols`} sx={{ height: 20 }} />
+                {datasetPreview.rows.length < datasetPreview.row_count && (
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    showing first {datasetPreview.rows.length}
+                  </Typography>
+                )}
+              </Stack>
+              <TableContainer sx={{ maxHeight: 160 }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      {datasetPreview.columns.map((c) => (
+                        <TableCell key={c} sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{c}</TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {datasetPreview.rows.map((row, i) => (
+                      <TableRow key={i} hover>
+                        {datasetPreview.columns.map((c) => (
+                          <TableCell key={c} sx={{ fontFamily: 'monospace', fontSize: 11.5, whiteSpace: 'nowrap' }}>
+                            {row[c] == null ? '—' : String(row[c])}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )
+        )}
+
         {/* ---- Values (calc graph) ---- */}
-        {view === 'values' && !isAlloc && (
+        {view === 'values' && !isAlloc && !isDataset && (
           rows.length === 0 ? (
             <Empty text="Add nodes and press Run to paint per-node values here." />
           ) : !preview ? (
@@ -204,8 +248,36 @@ export default function ResultsDock({ model }: { model: GraphModel }) {
           )
         )}
 
+        {/* ---- Output (dataset graph) ---- */}
+        {view === 'output' && isDataset && (
+          !datasetPreview ? (
+            <Empty text="The dataset's compiled shape (columns + row count) appears here after a Run." />
+          ) : (
+            <Box sx={{ p: 1.5 }}>
+              <Stack direction="row" spacing={3} alignItems="baseline" sx={{ flexWrap: 'wrap' }}>
+                <Box>
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>Rows</Typography>
+                  <Typography variant="h6" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                    {datasetPreview.row_count.toLocaleString()}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>Columns</Typography>
+                  <Typography variant="body1" sx={{ fontFamily: 'monospace' }}>
+                    {datasetPreview.columns.join(', ') || '—'}
+                  </Typography>
+                </Box>
+              </Stack>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
+                Compiled to ONE safe parameterized DuckDB query (column/op/table names from the
+                allowlist, values bound) and run through db.q — nothing persisted. DuckDB stays the engine.
+              </Typography>
+            </Box>
+          )
+        )}
+
         {/* ---- Output (calc graph) ---- */}
-        {view === 'output' && !isAlloc && (
+        {view === 'output' && !isAlloc && !isDataset && (
           !preview ? (
             <Empty text="The whole-graph result appears here after a Run." />
           ) : (

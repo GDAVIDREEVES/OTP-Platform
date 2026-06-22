@@ -2,9 +2,10 @@
 
 How the solution is actually used, end to end. Four connected flows: the
 **operating close cycle** (operator → reviewer → director), the **calculation
-governance loop** (Calc Studio, now home to the drag-and-drop **Cockpit** canvas),
-the **allocation run** (cost → charge), and the **TP waterfall** (charges applied
-to entity P&L *before* TP decisions). Everything below writes to the same
+governance loop** (Calc Studio, now home to the drag-and-drop **Cockpit** canvas —
+including an Alteryx-style **data-prep layer over the full ACDOCA journal**, Flow
+2b), the **allocation run** (cost → charge), and the **TP waterfall** (charges
+applied to entity P&L *before* TP decisions). Everything below writes to the same
 hash-chained audit trail; any record's evidence packet is at
 `/evidence/{record_ref}`.
 
@@ -64,6 +65,28 @@ activation and the audit chain unchanged. The old tabs remain as **drill-downs**
 | 7 | **Allocations on the same canvas** | Cockpit ▸ **Allocation stages** | The typed pipeline (Source → Pool → Benefit-test → Allocate → Markup → Charge → Recon) drags onto the *same* canvas; a calc subgraph can bind a stage's numeric input (e.g. a governed-driver markup %). It compiles to an `authored_pools` definition and runs Stages 1-7 — see Flow 3b. |
 | 8 | **Drill down to the registry / drivers / scenarios** | `/calc-studio/calculations`, `/drivers`, `/scenarios`, `/runs` | The reference tabs still exist: browse every managed calculation (CSA, BEAT, WHT…) with its trace, manage the 12+ governed parameters, build and **promote** full scenarios with maker-checker, and read the Runs job console. |
 | 9 | **See the model map & data honesty** | `/calc-studio/lineage`, `/provenance` | The dependency DAG (sources → parameters → calculations → processes, colored by provenance) and every fabricated magnitude listed and linked — nothing buried. |
+
+### Flow 2b — Build a dataset (Alteryx-style data-prep over ACDOCA, build → preview → govern → use, 8 min)
+
+Calc Studio's measures only reach the pre-aggregated entity P&L (`segment_pl`).
+The **dataset layer** opens up the **full ACDOCA journal** — every GL account,
+cost center and profit center — with drag-and-drop data-prep (Filter / Aggregate
+/ Join / Union / Derive / Select). A dataset is a **visual layer, not a new
+engine**: the subgraph compiles to **one safe parameterized DuckDB query** (column
+and operator names from an allowlist, every value a bound parameter — so an
+author who controls the predicate values can never inject SQL), run via `db.q`.
+A saved dataset is a governed object that can **feed a calc** or become an
+**allocation pool's cost base**.
+
+| # | Step | Where | What happens |
+|---|------|-------|--------------|
+| 1 | **Drag in an ACDOCA source** | Cockpit ▸ **Palette → Datasets / ACDOCA** | Drop the **Journal (ACDOCA)** source (or `segment_pl` / `supply_chain` / `entity_roles`, or the fabricated `allocation_cost_lines`). The journal exposes GL account `RACCT`, cost center `RCNTR`, profit center `PRCTR`, segment, document type, amounts (`HSL`…) — with the real distinct GL/CC/PC value lists in the pickers. Each source carries a **provenance chip** (real ACDOCA vs fabricated cost lines — never silently mixed). |
+| 2 | **Prep the data** | Drop **Filter / Aggregate / Join / Union / Derive / Select**, draw relation edges | Filter to a base-eroding GL set (`RACCT IN …`), **Join** `entity_roles` on `RBUKRS` to bring jurisdiction onto each line, **Aggregate** by `RCNTR, PRCTR, jurisdiction` with `SUM(HSL)`. Configure every node **inline** (column pickers from the allowlist, join keys, group-by + measures, filter predicates) — no modals. An unknown column / op / under-specified node is a **precise error**, never a silent guess. |
+| 3 | **Preview per node** | Cockpit ▸ **Results dock** | Each node previews its **tabular result** — columns, sample rows and the true row count — compiled and run live. The aggregate ties out to a hand DuckDB query to the cent; money stays Decimal. Nothing persists. |
+| 4 | **Save → Test → Submit** | Cockpit ▸ split-button | **Save** the dataset (draft); **Test** compiles + runs it (the gate — an untested dataset can't be submitted); **Submit for activation** queues a `dataset:{id}` item in `/review`. |
+| 5 | **Approve as a different actor** | `/review` | A **different** reviewer approves (maker ≠ checker). On approval the dataset flips to **active** — every transition is audited at `dataset:{id}`. An active dataset now appears in the palette as a reusable source. |
+| 6a | **Use it in a calc** | Cockpit ▸ a **dataset-value** node | Drop a dataset that aggregates to a single number; it emits the exact `Decimal` scalar into a calc graph — a journal-grained GL figure reaching a formula calc, traceable and scenario-capable like any other calc term. |
+| 6b | **Use it as a pool cost base** | `/calc-studio/allocations` ▸ *Build pool* | A cost-line-shaped active dataset (provider / cost_center / profit_center / cost_element / amount / period) can be a pool's **cost base** instead of the seed cost lines — so you **build a cost pool by joining/filtering ACDOCA**. The capture preview equals the dataset's `SUM(amount)`; the dry-run runs the **real** Stages 1-7 and reconciles to **zero residual**. The governed cent-exact allocation (Flow 3) is **never** perturbed — a dataset-sourced pool is a governed experiment. |
 
 ## Flow 3 — An allocation run (cost → charge, 10 min)
 

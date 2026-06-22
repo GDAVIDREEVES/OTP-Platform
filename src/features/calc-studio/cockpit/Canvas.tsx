@@ -15,12 +15,14 @@ import { Box } from '@mui/material';
 import CockpitNode from './CockpitNode';
 import { CanvasContext } from './canvasContext';
 import {
-  presentationFor,
+  presentationForFamily,
   outputKindFor,
   inputHandlesFor,
   stageInputsFor,
   stageHasFlowOut,
   isStageKind,
+  isDatasetKind,
+  datasetInputsFor,
   STAGE_ORDER,
 } from './nodeMeta';
 import type { GraphModel, RFNode } from './useGraphModel';
@@ -53,6 +55,7 @@ function CanvasInner({ model }: { model: GraphModel }) {
     preview,
     scenarioPreview,
     stagePreview,
+    family,
     validation,
   } = model;
 
@@ -98,6 +101,24 @@ function CanvasInner({ model }: { model: GraphModel }) {
       const tgt = nodeById[target];
       if (!src || !tgt) return false;
 
+      // ---- dataset RELATION rules (DS3) ----
+      // A dataset relation handle only connects to another dataset relation
+      // handle: the relation family is kept distinct from value/bool/flow. A
+      // ``source`` is family-ambiguous by kind alone, so we resolve it from the
+      // canvas family (the two families never coexist on one canvas).
+      const srcDataset = isDatasetKind(src.data.kind)
+        && (family === 'dataset' || src.data.kind !== 'source'
+            || typeof src.data.config?.table === 'string');
+      const tgtDataset = isDatasetKind(tgt.data.kind)
+        && (family === 'dataset' || tgt.data.kind !== 'source');
+      if (srcDataset || tgtDataset) {
+        if (!(srcDataset && tgtDataset)) return false; // no cross-family wire
+        // The target's relation input handles (in / left / right) accept the
+        // relation flowing out of any upstream dataset node.
+        const inputs = datasetInputsFor(tgt.data.kind).map((h) => h.handle);
+        if (!inputs.includes(targetHandle ?? '')) return false;
+      } else {
+
       const srcStage = isStageKind(src.data.kind);
       const tgtStage = isStageKind(tgt.data.kind);
 
@@ -131,6 +152,7 @@ function CanvasInner({ model }: { model: GraphModel }) {
         const want = tgtInputs.find((h) => h.handle === targetHandle)?.kind;
         if (want != null && srcOut != null && want !== srcOut) return false;
       }
+      } // end calc/alloc branch (the dataset branch returned/fell through above)
 
       // Acyclic: walk the existing dependency edges from `target`; if we can
       // already reach `source`, this new edge would close a cycle.
@@ -148,7 +170,7 @@ function CanvasInner({ model }: { model: GraphModel }) {
       void sourceHandle;
       return true;
     },
-    [nodeById, edges, catalogue]
+    [nodeById, edges, catalogue, family]
   );
 
   // ---- palette drop ----
@@ -175,7 +197,7 @@ function CanvasInner({ model }: { model: GraphModel }) {
   );
 
   return (
-    <CanvasContext.Provider value={{ catalogue, preview, scenarioPreview, stagePreview, errorNodeIds }}>
+    <CanvasContext.Provider value={{ catalogue, preview, scenarioPreview, stagePreview, family, errorNodeIds }}>
       <Box
         ref={wrapperRef}
         sx={{ width: '100%', height: '100%', position: 'relative' }}
@@ -204,7 +226,7 @@ function CanvasInner({ model }: { model: GraphModel }) {
           <MiniMap
             pannable
             zoomable
-            nodeColor={(n) => presentationFor((n.data as { kind?: string })?.kind ?? '').accent}
+            nodeColor={(n) => presentationForFamily((n.data as { kind?: string })?.kind ?? '', family).accent}
             maskColor="rgba(241,245,249,0.6)"
             style={{ background: '#fff', border: '1px solid #E2E8F0' }}
           />

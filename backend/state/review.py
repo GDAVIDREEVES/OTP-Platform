@@ -13,6 +13,7 @@ from typing import Any
 
 import persistence.overrides as overrides
 import state.audit as audit
+import state.authored_datasets as authored_datasets
 import state.authored_pools as authored_pools
 import state.lineage as lineage
 import state.scenarios as scenarios
@@ -146,6 +147,18 @@ def decide(
                 authored_pools.apply_activation(ap_id, checker)
             else:
                 authored_pools.mark_rejected(ap_id)
+
+    # DS2 — authored-dataset activation rides the same gate: approving a
+    # dataset:* item activates the dataset (it now lists as an ACTIVE source
+    # other datasets / calcs / pool cost bases can reference); rejecting returns
+    # it to draft so the maker can rework, re-test and resubmit.
+    if record_ref.startswith("dataset:"):
+        ds_id = record_ref.split(":", 1)[1]
+        if authored_datasets.get_authored_dataset(ds_id) is not None:
+            if decision == "approve":
+                authored_datasets.apply_activation(ds_id, checker)
+            else:
+                authored_datasets.mark_rejected(ds_id)
     return _to_dict(updated)
 
 

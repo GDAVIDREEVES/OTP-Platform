@@ -1,11 +1,14 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Box, Button, Chip, Divider, MenuItem, Stack, TextField, Typography,
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import { presentationFor, isStageKind } from './nodeMeta';
+import { presentationForFamily, isStageKind, isDatasetKind } from './nodeMeta';
 import { resultText } from './resultText';
 import StageInspector from './StageInspector';
+import DatasetInspector from './DatasetInspector';
+import { api } from '@/shared/api/client';
+import type { AuthoredDataset } from '@/shared/api/types';
 import type { GraphModel } from './useGraphModel';
 
 /** Right pane (MC2) — INLINE config for the selected node. No modal dialogs
@@ -16,7 +19,14 @@ import type { GraphModel } from './useGraphModel';
  */
 
 export default function NodeInspector({ model }: { model: GraphModel }) {
-  const { selectedNode, nodeTypes: cat, updateNodeConfig, removeNode, preview } = model;
+  const { selectedNode, nodeTypes: cat, updateNodeConfig, removeNode, preview, family } = model;
+
+  // Active authored datasets — the source list a dataset_value (calc bridge)
+  // node picks from.
+  const [activeDatasets, setActiveDatasets] = useState<AuthoredDataset[]>([]);
+  useEffect(() => {
+    api.authoredDatasets('active').then(setActiveDatasets).catch(() => setActiveDatasets([]));
+  }, []);
 
   const measureTables = cat?.measures ?? [];
   const grains = cat?.grains ?? ['group', 'entity', 'entity_function'];
@@ -49,9 +59,10 @@ export default function NodeInspector({ model }: { model: GraphModel }) {
   const { id, data } = selectedNode;
   const kind = data.kind;
   const config = data.config;
-  const pres = presentationFor(kind);
+  const pres = presentationForFamily(kind, family);
   const set = (patch: Record<string, unknown>) => updateNodeConfig(id, patch);
   const nv = preview?.nodes[id];
+  const isDatasetNode = family === 'dataset' && isDatasetKind(kind);
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -80,7 +91,9 @@ export default function NodeInspector({ model }: { model: GraphModel }) {
       <Divider />
 
       <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5 }}>
-        {isStageKind(kind) ? (
+        {isDatasetNode ? (
+          <DatasetInspector model={model} node={selectedNode} />
+        ) : isStageKind(kind) ? (
           <StageInspector model={model} node={selectedNode} />
         ) : (
         <Stack spacing={1.5}>
@@ -166,6 +179,40 @@ export default function NodeInspector({ model }: { model: GraphModel }) {
                 helperText="The summary key the calc emits"
                 InputProps={{ sx: { fontFamily: 'monospace', fontSize: 13 } }}
               />
+            </>
+          )}
+
+          {/* ---- dataset_value (calc bridge, DS3) ---- */}
+          {kind === 'dataset_value' && (
+            <>
+              <TextField
+                select size="small" fullWidth label="Active dataset (scalar source)"
+                value={String(config.dataset_id ?? '')}
+                onChange={(e) => set({ dataset_id: e.target.value || undefined })}
+                helperText="An ACTIVE authored dataset that aggregates to ONE scalar"
+              >
+                {activeDatasets.map((d) => (
+                  <MenuItem key={d.id} value={d.id} sx={{ fontSize: 13 }}>
+                    {d.id} — {d.name}
+                  </MenuItem>
+                ))}
+                {Boolean(config.dataset_id) && !activeDatasets.some((d) => d.id === config.dataset_id) && (
+                  <MenuItem value={String(config.dataset_id)}>{String(config.dataset_id)}</MenuItem>
+                )}
+                {activeDatasets.length === 0 && <MenuItem value="" disabled>No active datasets yet</MenuItem>}
+              </TextField>
+              <TextField
+                size="small" fullWidth label="Column (the scalar)"
+                value={String(config.column ?? '')}
+                onChange={(e) => set({ column: e.target.value || undefined })}
+                placeholder="defaults to the sole column"
+                helperText="Which output column carries the scalar"
+                InputProps={{ sx: { fontFamily: 'monospace', fontSize: 13 } }}
+              />
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                The dataset compiles to one safe DuckDB query; its single value feeds this calc as
+                an exact Decimal. DuckDB stays the engine — no new evaluator.
+              </Typography>
             </>
           )}
 
