@@ -396,6 +396,7 @@ CREATE TABLE IF NOT EXISTS user_calculations (
   process_id       TEXT,                            -- optional process binding
   output_grain     TEXT NOT NULL DEFAULT 'group' CHECK (output_grain IN ('group','entity','entity_function')),
   expression       TEXT NOT NULL,                   -- source text (calc/expr.py grammar)
+  graph_json       TEXT,                            -- Phase 7 MC1: canvas graph (visual layer; expression is source of truth)
   status           TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','tested','in_review','active')),
   version          INTEGER NOT NULL DEFAULT 1,
   tested_expr_hash TEXT,                            -- sha256 of expression at last successful test

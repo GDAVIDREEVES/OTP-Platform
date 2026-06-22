@@ -47,11 +47,29 @@ def get_conn() -> sqlite3.Connection:
     return _conn
 
 
+# Additive columns introduced after a table's original CREATE. SQLite cannot
+# express "ADD COLUMN IF NOT EXISTS", so init_db() adds any of these missing from
+# an existing DB — append-only, never dropping or rewriting data.
+_ADDITIVE_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    # (table, column, column-def) — Phase 7 MC1 canvas graph storage.
+    ("user_calculations", "graph_json", "TEXT"),
+)
+
+
+def _ensure_columns(conn: sqlite3.Connection) -> None:
+    for table, column, coldef in _ADDITIVE_COLUMNS:
+        cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coldef}")
+
+
 def init_db() -> None:
-    """Apply the schema. Idempotent (all CREATE ... IF NOT EXISTS)."""
+    """Apply the schema. Idempotent (all CREATE ... IF NOT EXISTS) plus any
+    additive ALTER TABLE columns introduced after a table's original create."""
     with LOCK:
         conn = get_conn()
         conn.executescript(_SCHEMA.read_text(encoding="utf-8"))
+        _ensure_columns(conn)
         conn.commit()
 
 

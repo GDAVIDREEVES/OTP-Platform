@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel
 
 
 class UserCalcIn(BaseModel):
-    """Create a draft calculation. The expression must validate (every term
-    resolvable) or the request is rejected with the full error list."""
+    """Create a draft calculation from EITHER an expression OR a canvas graph
+    (the graph compiles to an expression first; both are persisted, the
+    expression is the source of truth). The resolved expression must validate
+    (every term resolvable) or the request is rejected with the full error
+    list."""
 
     name: str
-    expression: str
+    expression: str | None = None
+    graph: dict[str, Any] | None = None
     description: str | None = None
     process_id: str | None = None
     output_grain: str = "group"
@@ -18,12 +24,14 @@ class UserCalcIn(BaseModel):
 
 
 class UserCalcPatch(BaseModel):
-    """Edit a calculation; omitted fields keep their current value. Editing an
+    """Edit a calculation; omitted fields keep their current value. The formula
+    may be edited via EITHER ``expression`` OR ``graph`` (not both). Editing an
     active calculation bumps the version and returns it to draft."""
 
     name: str | None = None
     description: str | None = None
     expression: str | None = None
+    graph: dict[str, Any] | None = None
     output_grain: str | None = None
     process_id: str | None = None
     actor: str
