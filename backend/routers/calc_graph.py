@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from contextlib import nullcontext
+
 import calc.expr as expr
 import calc.graph as graph
 import calc.trace as trace
@@ -96,41 +98,53 @@ def preview_graph(payload: GraphIn):
     per-node value by compiling + evaluating each node's subgraph. A node whose
     subgraph fails (e.g. a grain mismatch) reports its exception in
     ``exceptions`` and a null value instead of aborting the whole preview.
-    Nothing persists."""
+    Nothing persists.
+
+    When ``overrides`` is supplied (the cockpit's Scenario side of the
+    Base⟷Scenario toggle) the WHOLE preview is evaluated inside the existing
+    ``parameters.overrides`` overlay — the same contextvar a scenario run uses,
+    so the values paint exactly the scenario figures. Omitted/empty it is a
+    no-op and the response is identical to the base preview (golden)."""
     report = graph.validate_graph(payload.graph)
     if not report["ok"]:
         raise HTTPException(status_code=400, detail={"errors": report["errors"]})
 
-    # The whole-graph result + the canonical trace come from one evaluation of
-    # the compiled expression.
-    expression = graph.graph_to_expr(payload.graph)
-    with trace.collect() as steps:
-        try:
-            value = expr.evaluate(expression)
-        except expr.ExprError as e:
-            raise HTTPException(
-                status_code=400, detail={"message": e.message, "pos": e.pos})
-    result = expr.to_jsonable(value)
-    grain = expr.result_grain(value)
+    overlay = (
+        parameters.overrides(payload.overrides)
+        if payload.overrides else nullcontext()
+    )
+    with overlay:
+        # The whole-graph result + the canonical trace come from one evaluation
+        # of the compiled expression.
+        expression = graph.graph_to_expr(payload.graph)
+        with trace.collect() as steps:
+            try:
+                value = expr.evaluate(expression)
+            except expr.ExprError as e:
+                raise HTTPException(
+                    status_code=400, detail={"message": e.message, "pos": e.pos})
+        result = expr.to_jsonable(value)
+        grain = expr.result_grain(value)
 
-    # Per-node values: compile + evaluate each node's own subgraph. Failures are
-    # captured per node (never abort the preview) so the canvas can show the one
-    # node that is wrong.
-    node_values: dict[str, dict] = {}
-    exceptions: list[dict] = []
-    for nid, node_expr in graph.node_exprs(payload.graph).items():
-        try:
-            nv = expr.evaluate(node_expr)
-            node_values[nid] = {
-                "ok": True,
-                "grain": expr.result_grain(nv),
-                "result": expr.to_jsonable(nv),
-                "expression": node_expr,
-            }
-        except expr.ExprError as e:  # precise, with the node's char position
-            node_values[nid] = {"ok": False, "result": None,
-                                "expression": node_expr, "error": e.message}
-            exceptions.append({"node_id": nid, "message": e.message, "pos": e.pos})
+        # Per-node values: compile + evaluate each node's own subgraph. Failures
+        # are captured per node (never abort the preview) so the canvas can show
+        # the one node that is wrong.
+        node_values: dict[str, dict] = {}
+        exceptions: list[dict] = []
+        for nid, node_expr in graph.node_exprs(payload.graph).items():
+            try:
+                nv = expr.evaluate(node_expr)
+                node_values[nid] = {
+                    "ok": True,
+                    "grain": expr.result_grain(nv),
+                    "result": expr.to_jsonable(nv),
+                    "expression": node_expr,
+                }
+            except expr.ExprError as e:  # precise, with the node's char position
+                node_values[nid] = {"ok": False, "result": None,
+                                    "expression": node_expr, "error": e.message}
+                exceptions.append(
+                    {"node_id": nid, "message": e.message, "pos": e.pos})
 
     return {
         "expression": expression,

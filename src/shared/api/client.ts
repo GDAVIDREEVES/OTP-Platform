@@ -66,6 +66,10 @@ import type {
   CalcRunResult,
   CalcRunShaped,
   CalcGraph,
+  CockpitNodeTypes,
+  CockpitGraph,
+  CockpitGraphValidation,
+  CockpitGraphPreview,
   Scenario,
   ScenarioCompare,
   UserCalc,
@@ -416,6 +420,59 @@ export const api = {
   /** The dependency DAG — sources | parameters | calculations | processes —
    *  assembled from the calculation registry seed (CS-d Lineage tab). */
   calcsGraph: () => getJSON<CalcGraph>('/api/calcs/graph'),
+
+  // ------------ Model Canvas cockpit graph (Phase 7 MC1/MC2) ------------
+
+  /** The cockpit palette catalogue — every node type's handle/config schema
+   *  plus the live measure allowlist, governed parameters (with current
+   *  values) and composable system calcs. Pure read. */
+  cockpitNodeTypes: () => getJSON<CockpitNodeTypes>('/api/calc-graph/node-types'),
+
+  /** Structural validation of a canvas graph (acyclic, one output, typed
+   *  handles, no under-specified config) — nothing persists. */
+  validateGraph: (graph: CockpitGraph) =>
+    sendJSON<CockpitGraphValidation>('POST', '/api/calc-graph/validate', { graph }),
+
+  /** Compile + evaluate the graph (traced): the whole-graph result, a value
+   *  per node, the raw trace and per-node exceptions. ``overrides`` (the
+   *  Scenario side of the Base⟷Scenario toggle) re-runs the whole preview under
+   *  the existing scenario overlay — nothing persists. */
+  previewGraph: (graph: CockpitGraph, overrides?: Record<string, unknown>) =>
+    sendJSON<CockpitGraphPreview>('POST', '/api/calc-graph/preview', {
+      graph,
+      ...(overrides && Object.keys(overrides).length ? { overrides } : {}),
+    }),
+
+  /** The canvas graph for a user calculation — its stored graph_json when
+   *  authored on the canvas, else expr_to_graph(expression) so a formula calc
+   *  still visualises (the expression stays the source of truth). */
+  userCalcGraph: (id: string) =>
+    getJSON<CockpitGraph>(`/api/user-calcs/${encodeURIComponent(id)}/graph`),
+
+  /** Create a draft calculation FROM A CANVAS GRAPH (the graph compiles to an
+   *  expression first; both persist, the expression is the source of truth). */
+  createUserCalcGraph: (body: {
+    name: string;
+    graph: CockpitGraph;
+    description?: string;
+    process_id?: string;
+    output_grain?: string;
+    actor: string;
+  }) => sendJSON<UserCalc>('POST', '/api/user-calcs', body),
+
+  /** Edit a calculation's formula FROM A CANVAS GRAPH (resets the test gate;
+   *  editing an active calc bumps the version back to draft). */
+  patchUserCalcGraph: (
+    id: string,
+    body: {
+      name?: string;
+      description?: string;
+      graph?: CockpitGraph;
+      output_grain?: string;
+      process_id?: string;
+      actor: string;
+    }
+  ) => sendJSON<UserCalc>('PATCH', `/api/user-calcs/${encodeURIComponent(id)}`, body),
 
   // ------------ What-if scenarios (Calc Studio — CS-c) ------------
 

@@ -981,6 +981,128 @@ export interface CalcGraph {
   edges: CalcGraphEdge[];
 }
 
+// ----------------- Model Canvas cockpit graph (Phase 7 MC1/MC2) -----------------
+//
+// The cockpit's editable graph (NOT the read-only dependency DAG above). It is
+// a visual layer over backend/calc/expr.py: a calc subgraph compiles to an
+// expression string, so the whole governance stack (validate/preview/trace/
+// scenario/lifecycle) is reused unchanged. Shapes mirror backend/calc/graph.py.
+
+/** Output kind of a node's value handle. ``null`` = the terminal output node
+ *  (it holds no value of its own). */
+export type CockpitHandleKind = 'value' | 'bool' | null;
+
+/** One typed input handle of a node type (from GET /api/calc-graph/node-types). */
+export interface CockpitInputHandle {
+  handle: string;
+  kind: CockpitHandleKind;
+}
+
+/** One calc-value node type's handle/config schema (the palette catalogue). */
+export interface CockpitNodeType {
+  type: string;
+  family: 'calc';
+  /** Fixed input handles, or 'variadic' for func nodes (in0,in1,…). */
+  inputs: CockpitInputHandle[] | 'variadic';
+  output: CockpitHandleKind;
+  config: string[];
+}
+
+/** One measure table in the palette (same allowlist validate/preview enforce). */
+export interface CockpitMeasureMeta {
+  table: string;
+  catalog_id: string;
+  measures: string[];
+  grains: Record<string, string[]>;
+  filters: Record<string, 'str' | 'int'>;
+}
+
+/** One governed parameter offered as a palette node (live value from the store). */
+export interface CockpitParamMeta {
+  key: string;
+  value: unknown;
+  type: string | null;
+  category: string | null;
+  unit: string | null;
+}
+
+/** One composable system calc offered as a palette node. */
+export interface CockpitCalcMeta {
+  id: string;
+  name: string | null;
+  process_id: string | null;
+}
+
+/** GET /api/calc-graph/node-types — the whole palette catalogue. */
+export interface CockpitNodeTypes {
+  node_types: CockpitNodeType[];
+  operators: string[];
+  comparators: string[];
+  functions: string[];
+  grains: string[];
+  measures: CockpitMeasureMeta[];
+  parameters: CockpitParamMeta[];
+  calcs: CockpitCalcMeta[];
+  non_composable: string[];
+}
+
+/** One node of a cockpit graph (position drives the React Flow layout). */
+export interface CockpitNode {
+  id: string;
+  type: string;
+  config: Record<string, unknown>;
+  position: { x: number; y: number };
+}
+
+/** One directed edge (source's output handle -> target's input handle). */
+export interface CockpitEdge {
+  source: string;
+  sourceHandle: string;
+  target: string;
+  targetHandle: string;
+}
+
+/** The editable canvas graph — POST bodies + GET /api/user-calcs/{id}/graph. */
+export interface CockpitGraph {
+  nodes: CockpitNode[];
+  edges: CockpitEdge[];
+}
+
+/** One structural validation error from POST /api/calc-graph/validate. */
+export interface CockpitGraphError {
+  message: string;
+  node_id: string | null;
+}
+
+/** POST /api/calc-graph/validate — every structural error collected at once. */
+export interface CockpitGraphValidation {
+  ok: boolean;
+  errors: CockpitGraphError[];
+  output_id: string | null;
+}
+
+/** Per-node value painted by POST /api/calc-graph/preview (a node whose
+ *  subgraph fails carries ok:false + its error instead of a value). */
+export interface CockpitNodeValue {
+  ok: boolean;
+  grain?: string;
+  result?: ExprResult;
+  expression: string;
+  error?: string;
+}
+
+/** POST /api/calc-graph/preview — compile + evaluate (traced); the whole-graph
+ *  result, a value per node, the raw trace and any per-node exceptions. With
+ *  ``overrides`` the whole evaluation runs under the scenario overlay. */
+export interface CockpitGraphPreview {
+  expression: string;
+  result: ExprResult;
+  grain: string;
+  nodes: Record<string, CockpitNodeValue>;
+  trace: TraceStep[];
+  exceptions: { node_id: string; message: string; pos: number | null }[];
+}
+
 // ----------------- What-if scenarios (Calc Studio CS-c) -----------------
 
 export type ScenarioStatus = 'draft' | 'in_review' | 'promoted' | 'discarded';

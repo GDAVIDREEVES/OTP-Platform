@@ -8,17 +8,18 @@ import AddIcon from '@mui/icons-material/Add';
 import { api } from '@/shared/api/client';
 import type { CalcDef, UserCalc, UserCalcStatus } from '@/shared/api/types';
 import CalcDetailDrawer from '../components/CalcDetailDrawer';
-import CalcBuilderDialog from '../components/CalcBuilderDialog';
 
 /** Calculations — the registry of every computed endpoint the platform serves
  *  (seeds/calculations/calculations.v1.json) PLUS the user-authored
- *  expressions (W4): "New calculation" opens the Builder; drafts/tested/
- *  in-review calcs live in the authoring pipeline until a DIFFERENT reviewer
- *  activates them, at which point they list in the registry with a
- *  user-defined chip. Row click opens the detail drawer: definition, resolved
- *  inputs, run history and "Run now". A `?calc={id}` query param auto-opens
- *  the drawer (the Lineage graph deep-links here). No figures are invented
- *  here — every row is read from GET /api/calcs / GET /api/user-calcs. */
+ *  expressions (W4): "New calculation" opens the COCKPIT (Phase 7 — the modal
+ *  Builder is retired from the authoring path; its term-picker logic now lives
+ *  inline in the cockpit inspector); drafts/tested/in-review calcs live in the
+ *  authoring pipeline until a DIFFERENT reviewer activates them, at which point
+ *  they list in the registry with a user-defined chip. Row click opens the
+ *  detail drawer: definition, resolved inputs, run history and "Run now". A
+ *  `?calc={id}` query param auto-opens the drawer (the Lineage graph deep-links
+ *  here). No figures are invented here — every row is read from GET /api/calcs
+ *  / GET /api/user-calcs. */
 
 const UCALC_CHIP: Record<UserCalcStatus, { label: string; color: 'default' | 'info' | 'warning' | 'success' }> = {
   draft: { label: 'draft', color: 'default' },
@@ -32,7 +33,6 @@ export default function CalculationsTab() {
   const [defs, setDefs] = useState<CalcDef[] | null>(null);
   const [userCalcs, setUserCalcs] = useState<UserCalc[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [builder, setBuilder] = useState<{ ucalc: UserCalc | null } | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const refresh = () => {
@@ -74,7 +74,7 @@ export default function CalculationsTab() {
       </Alert>
 
       <Stack direction="row" justifyContent="flex-end">
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setBuilder({ ucalc: null })}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/calc-studio/cockpit')}>
           New calculation
         </Button>
       </Stack>
@@ -119,8 +119,12 @@ export default function CalculationsTab() {
                             Awaiting checker — open review queue
                           </Button>
                         ) : (
-                          <Button size="small" variant="outlined" onClick={() => setBuilder({ ucalc: u })}>
-                            Open in Builder
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => navigate(`/calc-studio/cockpit?calc=${encodeURIComponent(u.id)}`)}
+                          >
+                            Open in cockpit
                           </Button>
                         )}
                       </TableCell>
@@ -209,13 +213,6 @@ export default function CalculationsTab() {
         onClose={closeDrawer}
         onChanged={() => void refresh()}
       />
-      {builder && (
-        <CalcBuilderDialog
-          ucalc={builder.ucalc}
-          onClose={() => setBuilder(null)}
-          onSaved={() => void refresh()}
-        />
-      )}
     </Stack>
   );
 }

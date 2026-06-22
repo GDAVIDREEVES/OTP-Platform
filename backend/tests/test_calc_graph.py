@@ -325,6 +325,73 @@ def test_preview_rejects_invalid_graph():
     assert r.status_code == 400
 
 
+def _param_times_two_graph(key: str) -> dict:
+    """param(key) * 2 -> output (a deterministic scalar graph for overlay tests)."""
+    return {
+        "nodes": [
+            {"id": "p", "type": "param", "config": {"key": key},
+             "position": {"x": 0, "y": 0}},
+            {"id": "two", "type": "const", "config": {"value": "2"},
+             "position": {"x": 0, "y": 0}},
+            {"id": "mul", "type": "op", "config": {"op": "*"},
+             "position": {"x": 0, "y": 0}},
+            {"id": "out", "type": "output", "config": {},
+             "position": {"x": 0, "y": 0}},
+        ],
+        "edges": [
+            {"source": "p", "sourceHandle": "out", "target": "mul",
+             "targetHandle": "a"},
+            {"source": "two", "sourceHandle": "out", "target": "mul",
+             "targetHandle": "b"},
+            {"source": "mul", "sourceHandle": "out", "target": "out",
+             "targetHandle": "in"},
+        ],
+    }
+
+
+def test_preview_scenario_overlay_paints_whatif_values(state_db):
+    """The MC2 Base⟷Scenario toggle: preview under an ``overrides`` overlay
+    re-evaluates the whole graph (and every node) with the what-if value, reusing
+    the EXISTING parameters.overrides contextvar — no new evaluator.
+
+    beat.rate_pct seeds to 10.0, so param(rate)*2 == 20 at base; overlaying
+    15.0 yields 30 on both the whole-graph result and the param node."""
+    parameters.seed_if_empty()
+    base_rate = parameters.get_param("beat.rate_pct")
+    assert Decimal(str(base_rate)) == Decimal("10.0")
+    g = _param_times_two_graph("beat.rate_pct")
+
+    base = client.post("/api/calc-graph/preview", json={"graph": g}).json()
+    assert Decimal(base["result"]["value_exact"]) == Decimal("20.0")
+    assert Decimal(base["nodes"]["p"]["result"]["value_exact"]) == Decimal("10.0")
+
+    scen = client.post(
+        "/api/calc-graph/preview",
+        json={"graph": g, "overrides": {"beat.rate_pct": 15.0}},
+    ).json()
+    assert Decimal(scen["result"]["value_exact"]) == Decimal("30.0")
+    assert Decimal(scen["nodes"]["p"]["result"]["value_exact"]) == Decimal("15.0")
+    # The param trace step is flagged overridden inside the overlay.
+    overridden = [s for s in scen["trace"] if s.get("step") == "param" and s.get("overridden")]
+    assert any(s["key"] == "beat.rate_pct" for s in overridden)
+
+    # The governed store is never written — the overlay is request-scoped only.
+    assert Decimal(str(parameters.get_param("beat.rate_pct"))) == Decimal("10.0")
+
+
+def test_preview_empty_overrides_is_byte_identical_to_base(state_db):
+    """An omitted / empty ``overrides`` is a pure no-op — the response is
+    identical to the plain base preview (golden non-regression for every
+    existing caller)."""
+    parameters.seed_if_empty()
+    g = _param_times_two_graph("beat.rate_pct")
+    plain = client.post("/api/calc-graph/preview", json={"graph": g}).json()
+    empty = client.post(
+        "/api/calc-graph/preview", json={"graph": g, "overrides": {}}
+    ).json()
+    assert plain == empty
+
+
 # --------------------------------------------------------- node-types --
 
 
