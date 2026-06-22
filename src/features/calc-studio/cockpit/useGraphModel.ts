@@ -15,7 +15,20 @@ import type {
   CockpitGraph,
   CockpitGraphValidation,
   CockpitGraphPreview,
+  StageGraphPreview,
 } from '@/shared/api/types';
+import { isStageKind } from './nodeMeta';
+
+/** Which family the current canvas graph belongs to (MC3). A graph with any
+ *  allocation stage node is an ``alloc`` stage graph; otherwise (with nodes)
+ *  it's a ``calc`` graph; empty is ``empty``. The two families never mix on one
+ *  canvas (the connection guard + backend validation reject cross-wires). */
+export type GraphFamily = 'calc' | 'alloc' | 'empty';
+
+export function graphFamilyOf(nodes: { data: { kind: string } }[]): GraphFamily {
+  if (nodes.length === 0) return 'empty';
+  return nodes.some((n) => isStageKind(n.data.kind)) ? 'alloc' : 'calc';
+}
 
 /** The cockpit graph model (MC2) — React Flow state ⟷ the backend graph API.
  *
@@ -98,6 +111,9 @@ export function useGraphModel() {
   const [validation, setValidation] = useState<CockpitGraphValidation | null>(null);
   const [preview, setPreview] = useState<CockpitGraphPreview | null>(null);
   const [scenarioPreview, setScenarioPreview] = useState<CockpitGraphPreview | null>(null);
+  const [stagePreview, setStagePreview] = useState<StageGraphPreview | null>(null);
+
+  const family = graphFamilyOf(nodes);
 
   // Palette catalogue (node-type schemas + live params/measures/calcs).
   const reloadNodeTypes = useCallback(() => {
@@ -138,6 +154,7 @@ export function useGraphModel() {
       // A structural edit invalidates the painted values until the next Run.
       setPreview(null);
       setScenarioPreview(null);
+      setStagePreview(null);
       return id;
     },
     []
@@ -155,6 +172,7 @@ export function useGraphModel() {
       );
       setPreview(null);
       setScenarioPreview(null);
+      setStagePreview(null);
     },
     []
   );
@@ -165,6 +183,7 @@ export function useGraphModel() {
     setSelectedId((sel) => (sel === id ? null : sel));
     setPreview(null);
     setScenarioPreview(null);
+    setStagePreview(null);
   }, []);
 
   /** Replace the whole graph (loading an existing calc's graph for round-trip). */
@@ -175,6 +194,7 @@ export function useGraphModel() {
     setSelectedId(null);
     setPreview(null);
     setScenarioPreview(null);
+    setStagePreview(null);
   }, []);
 
   const clearGraph = useCallback(() => {
@@ -184,6 +204,37 @@ export function useGraphModel() {
     setValidation(null);
     setPreview(null);
     setScenarioPreview(null);
+    setStagePreview(null);
+  }, []);
+
+  /** Seed an empty canvas with the full allocation stage pipeline (MC3) —
+   *  source→pool→benefit_test→allocate→markup→charge→recon, pre-wired in
+   *  canonical order and auto-laid-out left→right. One gesture replaces a fiddly
+   *  seven-drag chain; the user then configures each stage inline. */
+  const seedStageChain = useCallback(() => {
+    const ORDER = [
+      'source', 'pool', 'benefit_test', 'allocate', 'markup', 'charge', 'recon',
+    ];
+    const ids = ORDER.map(() => nextNodeId());
+    const newNodes: RFNode[] = ORDER.map((kind, i) => ({
+      id: ids[i],
+      type: 'cockpit',
+      position: { x: i * 210, y: 140 },
+      data: { kind, config: {} },
+    }));
+    const newEdges: RFEdge[] = ORDER.slice(1).map((_, i) => ({
+      id: `e_stage_${ids[i]}_${ids[i + 1]}`,
+      source: ids[i],
+      sourceHandle: 'out',
+      target: ids[i + 1],
+      targetHandle: 'in',
+    }));
+    setNodes(newNodes);
+    setEdges(newEdges);
+    setSelectedId(ids[0]);
+    setPreview(null);
+    setScenarioPreview(null);
+    setStagePreview(null);
   }, []);
 
   // ---- live validation (debounced) ----
@@ -208,9 +259,13 @@ export function useGraphModel() {
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
 
-  /** Run/Preview — paint base values; if ``overrides`` are supplied also fetch
-   *  the scenario pass so the dock + nodes can show the Δ. One always-visible
-   *  action (the cockpit's Run button). */
+  /** Run/Preview — ONE always-visible action that paints values onto nodes +
+   *  the dock. For a CALC graph it compiles + evaluates via the expr engine
+   *  (optionally under a scenario overlay → Δ). For an ALLOCATION stage graph it
+   *  compiles to an authored-pool definition and dry-runs Stages 1-7 in
+   *  isolation, painting the per-stage results (captured cost, exclusions,
+   *  allocated, markup, charges, recon zero-residual). No new evaluator either
+   *  way — the canvas reuses the existing engines. */
   const runPreview = useCallback(
     async (overrides?: Record<string, unknown>) => {
       if (runningRef.current) return;
@@ -218,14 +273,23 @@ export function useGraphModel() {
       setRunning(true);
       setRunError(null);
       const graph = toGraph(nodes, edges);
+      const fam = graphFamilyOf(nodes);
       try {
-        const base = await api.previewGraph(graph);
-        setPreview(base);
-        if (overrides && Object.keys(overrides).length) {
-          const scen = await api.previewGraph(graph, overrides);
-          setScenarioPreview(scen);
-        } else {
+        if (fam === 'alloc') {
+          const stage = await api.previewStageGraph(graph);
+          setStagePreview(stage);
+          setPreview(null);
           setScenarioPreview(null);
+        } else {
+          const base = await api.previewGraph(graph);
+          setPreview(base);
+          setStagePreview(null);
+          if (overrides && Object.keys(overrides).length) {
+            const scen = await api.previewGraph(graph, overrides);
+            setScenarioPreview(scen);
+          } else {
+            setScenarioPreview(null);
+          }
         }
       } catch (e) {
         setRunError(String(e));
@@ -255,9 +319,12 @@ export function useGraphModel() {
     removeNode,
     loadGraph,
     clearGraph,
+    seedStageChain,
     validation,
     preview,
     scenarioPreview,
+    stagePreview,
+    family,
     running,
     runError,
     runPreview,

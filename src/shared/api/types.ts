@@ -1033,6 +1033,19 @@ export interface CockpitCalcMeta {
   process_id: string | null;
 }
 
+/** One allocation STAGE node type (Phase 7 MC3) — the typed cost-to-charge
+ *  pipeline. ``flow_in``/``flow_out`` are the pipeline (source→…→recon) handles;
+ *  ``value_inputs`` are the numeric handles a calc-value subgraph may feed
+ *  (e.g. markup.pct); ``config`` is the authoring slice the stage owns. */
+export interface CockpitStageType {
+  type: string;
+  family: 'alloc';
+  flow_in: boolean;
+  flow_out: boolean;
+  value_inputs: string[];
+  config: string[];
+}
+
 /** GET /api/calc-graph/node-types — the whole palette catalogue. */
 export interface CockpitNodeTypes {
   node_types: CockpitNodeType[];
@@ -1044,6 +1057,9 @@ export interface CockpitNodeTypes {
   parameters: CockpitParamMeta[];
   calcs: CockpitCalcMeta[];
   non_composable: string[];
+  /** The allocation stage family (MC3) + its canonical order. */
+  stage_types: CockpitStageType[];
+  stage_order: string[];
 }
 
 /** One node of a cockpit graph (position drives the React Flow layout). */
@@ -1595,6 +1611,9 @@ export interface AuthoredPool {
   tested_at: string | null;
   activated_at: string | null;
   activated_by: string | null;
+  /** The canvas stage graph (Phase 7 MC3) when authored on the canvas, else
+   *  null (a hand-authored pool has no canonical stage layout). */
+  graph_json?: CockpitGraph | null;
 }
 
 /** GET /api/allocation/dimensions — distinct cost_center / profit_center /
@@ -1676,6 +1695,27 @@ export interface AuthoredTestResult {
   pool: AuthoredPool;
   dry_run: AuthoredDryRun;
   tested: boolean;
+}
+
+/** Per-stage result painted onto a stage node (Phase 7 MC3) — a loose bag keyed
+ *  on the stage node id; each stage exposes its own summary fields (captured
+ *  amount, exclusions, recipients, markup, charges, balanced/residual). */
+export type StagePreviewResult = Record<string, unknown>;
+
+/** POST /api/allocation/pools/preview-graph — compile a stage graph + dry-run it
+ *  (Stages 1-7 in isolation, nothing persists). ``stages`` maps each stage node
+ *  id to its result; ``ok:false`` carries the stage-order validation errors. */
+export interface StageGraphPreview {
+  ok: boolean;
+  errors?: CockpitGraphError[];
+  stages: Record<string, StagePreviewResult>;
+  balanced: boolean;
+  charges: AllocationCharge[];
+  recon: AuthoredReconRow[];
+  exceptions: AuthoredException[];
+  trace?: AuthoredTraceStep[];
+  total_charged_out?: string;
+  periods?: string[];
 }
 
 /** POST /api/allocation/authored-runs — a persisted authored run (flagged

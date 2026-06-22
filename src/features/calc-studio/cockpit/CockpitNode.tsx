@@ -9,8 +9,11 @@ import {
   inputHandlesFor,
   outputKindFor,
   handleColor,
+  stageInputsFor,
+  stageHasFlowOut,
+  isStageKind,
 } from './nodeMeta';
-import { nodeValueText, nodeDelta, deltaText } from './resultText';
+import { nodeValueText, nodeDelta, deltaText, stageResultText } from './resultText';
 
 /** The single custom React Flow node for the cockpit canvas (MC2). Every graph
  *  node renders through this component; the backend node type rides in
@@ -23,8 +26,9 @@ import { nodeValueText, nodeDelta, deltaText } from './resultText';
 
 function CockpitNodeInner({ id, data, selected }: NodeProps) {
   const { kind, config } = data as CockpitNodeData;
-  const { catalogue, preview, scenarioPreview, errorNodeIds } = useCanvasCtx();
+  const { catalogue, preview, scenarioPreview, stagePreview, errorNodeIds } = useCanvasCtx();
   const pres = presentationFor(kind);
+  const stage = isStageKind(kind);
 
   // A func node is variadic: the Canvas stamps data._wired = how many edges
   // already land on it, so the handle list shows every wired slot plus one open
@@ -32,15 +36,22 @@ function CockpitNodeInner({ id, data, selected }: NodeProps) {
   const wired = typeof (data as Record<string, unknown>)._wired === 'number'
     ? ((data as Record<string, unknown>)._wired as number)
     : 0;
-  const inputs = inputHandlesFor(kind, catalogue, wired);
-  const outKind = outputKindFor(kind, catalogue);
+  // Stage nodes draw a pipeline ``in`` (flow) + numeric (value) inputs and a
+  // pipeline ``out`` (except recon); calc nodes draw their typed value/bool ports.
+  const inputs: { handle: string; kind: 'value' | 'bool' | 'flow' | null }[] = stage
+    ? stageInputsFor(kind, catalogue)
+    : inputHandlesFor(kind, catalogue, wired);
+  const outKind: 'value' | 'bool' | 'flow' | null = stage
+    ? (stageHasFlowOut(kind, catalogue) ? 'flow' : null)
+    : outputKindFor(kind, catalogue);
 
   const nv = preview?.nodes[id];
-  const valueText = nodeValueText(nv);
-  const failed = nv && !nv.ok;
+  const sv = stagePreview?.stages?.[id];
+  const valueText = stage ? stageResultText(kind, sv) : nodeValueText(nv);
+  const failed = !stage && nv && !nv.ok;
   const flagged = errorNodeIds.has(id);
 
-  const delta = deltaText(nodeDelta(nv, scenarioPreview?.nodes[id]));
+  const delta = stage ? null : deltaText(nodeDelta(nv, scenarioPreview?.nodes[id]));
 
   // Stack input handles down the left edge, evenly spaced.
   const rowH = 100 / (inputs.length + 1);
@@ -123,11 +134,14 @@ function CockpitNodeInner({ id, data, selected }: NodeProps) {
         {kind !== 'output' && valueText !== null && (
           <Typography
             variant="caption"
-            sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12, color: 'primary.main', display: 'block', mt: 0.5 }}
+            sx={{
+              fontFamily: 'monospace', fontWeight: 700, fontSize: 12, display: 'block', mt: 0.5,
+              color: stage && kind === 'recon' && !sv?.balanced ? 'error.main' : 'primary.main',
+            }}
             noWrap
             title={valueText}
           >
-            = {valueText}
+            {stage ? '' : '= '}{valueText}
           </Typography>
         )}
         {failed && (

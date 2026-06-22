@@ -447,6 +447,7 @@ CREATE TABLE IF NOT EXISTS authored_pools (
   id              TEXT PRIMARY KEY,                -- "AP-1", "AP-2", ...
   name            TEXT NOT NULL,
   definition_json TEXT NOT NULL,                   -- full authoring object (JSON)
+  graph_json      TEXT,                            -- Phase 7 MC3: canvas stage graph (visual layer; definition is source of truth)
   status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','tested','in_review','active')),
   version         INTEGER NOT NULL DEFAULT 1,
   process_id      TEXT,                            -- optional process binding

@@ -12,7 +12,7 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
-import type { Scenario, UserCalc } from '@/shared/api/types';
+import type { AuthoredPool, AuthoredPoolStatus, Scenario, UserCalc } from '@/shared/api/types';
 import { useGraphModel } from './useGraphModel';
 import Canvas from './Canvas';
 import NodePalette from './NodePalette';
@@ -37,6 +37,10 @@ const STATUS_COLOR: Record<UserCalc['status'], 'default' | 'info' | 'warning' | 
   draft: 'default', tested: 'info', in_review: 'warning', active: 'success',
 };
 
+const POOL_STATUS_COLOR: Record<AuthoredPoolStatus, 'default' | 'info' | 'warning' | 'success'> = {
+  draft: 'default', tested: 'info', in_review: 'warning', active: 'success',
+};
+
 export default function CockpitPage() {
   const user = useSessionUser();
   const toast = useToast();
@@ -45,10 +49,15 @@ export default function CockpitPage() {
 
   // The user-calc this canvas is bound to (null = unsaved new calc).
   const [saved, setSaved] = useState<UserCalc | null>(null);
+  // The authored pool this canvas is bound to when it's an ALLOCATION stage graph
+  // (MC3 — the alloc-family analogue of `saved`).
+  const [savedPool, setSavedPool] = useState<AuthoredPool | null>(null);
   const [name, setName] = useState('');
   const [processId, setProcessId] = useState(DEFAULT_PROCESS);
   const [outputGrain, setOutputGrain] = useState('group');
   const [busy, setBusy] = useState<'save' | 'test' | 'submit' | null>(null);
+
+  const isAlloc = model.family === 'alloc';
 
   // Split-button menu anchor.
   const [menuOpen, setMenuOpen] = useState(false);
@@ -177,18 +186,84 @@ export default function CockpitPage() {
     }
   };
 
-  // The split-button's primary action follows the lifecycle state.
+  // ---- allocation stage-graph lifecycle (MC3) via the authored-pool path ----
+  // The stage graph compiles to an authored-pool definition server-side, so
+  // Save/Test/Submit reuse the EXISTING PB2 lifecycle (draft → tested → review →
+  // active, maker-checker at allocpool:{id}) — no new engine. The pool's name is
+  // the canvas name field; the graph is persisted alongside the definition.
+  const savePool = async () => {
+    if (!graphValid) { toast.show('Fix the stage graph before saving — see Exceptions.', 'error'); return; }
+    setBusy('save');
+    try {
+      const graph = model.toGraph();
+      const next = savedPool
+        ? await api.updateAuthoredPoolGraph(savedPool.id, user.id, graph)
+        : await api.createAuthoredPoolGraph(graph, user.id, processId);
+      setSavedPool(next);
+      toast.show(`Saved ${next.id} v${next.version} (${next.status}) — recorded at allocpool:${next.id}`, 'success');
+    } catch (e) {
+      toast.show(`Save failed: ${String(e)}`, 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const testPool = async () => {
+    if (!savedPool) { toast.show('Save the draft pool before testing.', 'info'); return; }
+    setBusy('test');
+    try {
+      const res = await api.testAuthoredPool(savedPool.id, user.id);
+      setSavedPool(res.pool);
+      if (res.tested) {
+        toast.show(`Dry-run Balanced — ${res.pool.id} is now tested`, 'success');
+      } else {
+        const blocks = res.dry_run.exceptions.filter((x) => x.severity === 'BLOCK').length;
+        toast.show(`Dry-run not sound (${blocks} BLOCK) — pool stays a draft`, 'warning');
+      }
+    } catch (e) {
+      toast.show(`Test run failed: ${String(e)}`, 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const submitPool = async () => {
+    if (!savedPool) return;
+    setBusy('submit');
+    try {
+      const next = await api.submitAuthoredPoolActivation(savedPool.id, user.id);
+      setSavedPool(next);
+      toast.show(`${next.id} queued for review — a DIFFERENT reviewer must approve (maker-checker)`, 'info');
+    } catch (e) {
+      toast.show(`Submit failed: ${String(e)}`, 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // The split-button's primary action follows the lifecycle state, branching on
+  // the canvas family (calc → user-calc path; alloc → authored-pool path).
   const primary = useMemo(() => {
+    if (isAlloc) {
+      if (!savedPool) return { key: 'save' as const, label: 'Save draft pool', fn: savePool, enabled: graphValid && name.trim() !== '' };
+      if (savedPool.status === 'draft' || savedPool.status === 'tested') {
+        if (savedPool.status === 'tested') return { key: 'submit' as const, label: 'Submit for activation', fn: submitPool, enabled: true };
+        return { key: 'test' as const, label: 'Test run', fn: testPool, enabled: true };
+      }
+      if (savedPool.status === 'in_review') return { key: 'save' as const, label: 'In review', fn: async () => undefined, enabled: false };
+      return { key: 'save' as const, label: 'Save new version', fn: savePool, enabled: graphValid };
+    }
     if (!saved) return { key: 'save' as const, label: 'Save draft', fn: saveDraft, enabled: graphValid && name.trim() !== '' };
     if (saved.status === 'draft') return { key: 'test' as const, label: 'Test run', fn: testRun, enabled: true };
     if (saved.status === 'tested') return { key: 'submit' as const, label: 'Submit for activation', fn: submitActivation, enabled: true };
     if (saved.status === 'in_review') return { key: 'save' as const, label: 'In review', fn: async () => undefined, enabled: false };
     return { key: 'save' as const, label: 'Save new version', fn: saveDraft, enabled: graphValid };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saved, graphValid, name, model]);
+  }, [isAlloc, saved, savedPool, graphValid, name, model]);
 
   const newCalc = () => {
     setSaved(null);
+    setSavedPool(null);
     setName('');
     setOutputGrain('group');
     setProcessId(DEFAULT_PROCESS);
@@ -211,38 +286,54 @@ export default function CockpitPage() {
       >
         <TextField
           size="small"
-          placeholder="Calculation name"
+          placeholder={isAlloc ? 'Pool name' : 'Calculation name'}
           value={name}
           onChange={(e) => setName(e.target.value)}
           sx={{ width: 220 }}
         />
-        <TextField
-          select size="small" label="Output grain" value={outputGrain}
-          onChange={(e) => setOutputGrain(e.target.value)} sx={{ width: 150 }}
-        >
-          {GRAINS.map((g) => <MenuItem key={g} value={g}>{g}</MenuItem>)}
-        </TextField>
-        {saved && (
+        {!isAlloc && (
+          <TextField
+            select size="small" label="Output grain" value={outputGrain}
+            onChange={(e) => setOutputGrain(e.target.value)} sx={{ width: 150 }}
+          >
+            {GRAINS.map((g) => <MenuItem key={g} value={g}>{g}</MenuItem>)}
+          </TextField>
+        )}
+        {isAlloc && (
+          <Chip size="small" color="primary" variant="outlined" label="allocation pool"
+            sx={{ height: 22, fontWeight: 700 }} />
+        )}
+        {!isAlloc && saved && (
           <Stack direction="row" spacing={0.5} alignItems="center">
             <Chip size="small" variant="outlined" label={saved.id} sx={{ height: 22, fontFamily: 'monospace' }} />
             <Chip size="small" variant="outlined" label={`v${saved.version}`} sx={{ height: 22 }} />
             <Chip size="small" color={STATUS_COLOR[saved.status]} label={saved.status} sx={{ height: 22, fontWeight: 700 }} />
           </Stack>
         )}
+        {isAlloc && savedPool && (
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <Chip size="small" variant="outlined" label={savedPool.id} sx={{ height: 22, fontFamily: 'monospace' }} />
+            <Chip size="small" variant="outlined" label={`v${savedPool.version}`} sx={{ height: 22 }} />
+            <Chip size="small" color={POOL_STATUS_COLOR[savedPool.status]} label={savedPool.status} sx={{ height: 22, fontWeight: 700 }} />
+          </Stack>
+        )}
 
         <Box sx={{ flex: 1 }} />
 
-        {/* Base ⟷ Scenario toggle */}
-        <ToggleButtonGroup
-          size="small"
-          exclusive
-          value={mode}
-          onChange={(_, v) => v && setMode(v)}
-        >
-          <ToggleButton value="base" sx={{ px: 1.5 }}>Base</ToggleButton>
-          <ToggleButton value="scenario" sx={{ px: 1.5 }} disabled={scenarios.length === 0}>Scenario</ToggleButton>
-        </ToggleButtonGroup>
-        {mode === 'scenario' && (
+        {/* Base ⟷ Scenario toggle — calc graphs only (a stage graph is run
+            through the allocation engine, not the scenario-overlay evaluator). */}
+        {!isAlloc && (
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={mode}
+            onChange={(_, v) => v && setMode(v)}
+          >
+            <ToggleButton value="base" sx={{ px: 1.5 }}>Base</ToggleButton>
+            <ToggleButton value="scenario" sx={{ px: 1.5 }} disabled={scenarios.length === 0}>Scenario</ToggleButton>
+          </ToggleButtonGroup>
+        )}
+        {!isAlloc && mode === 'scenario' && (
           <TextField
             select size="small" label="Scenario" value={scenarioId}
             onChange={(e) => setScenarioId(e.target.value)} sx={{ width: 200 }}
@@ -282,6 +373,28 @@ export default function CockpitPage() {
             <Grow {...TransitionProps}>
               <Paper elevation={3}>
                 <ClickAwayListener onClickAway={() => setMenuOpen(false)}>
+                  {isAlloc ? (
+                  <MenuList dense>
+                    <MenuItem
+                      disabled={!graphValid || name.trim() === '' || savedPool?.status === 'in_review'}
+                      onClick={() => { setMenuOpen(false); void savePool(); }}
+                    >
+                      Save {savedPool ? 'new version' : 'draft pool'}
+                    </MenuItem>
+                    <MenuItem
+                      disabled={!savedPool || !(savedPool.status === 'draft' || savedPool.status === 'tested')}
+                      onClick={() => { setMenuOpen(false); void testPool(); }}
+                    >
+                      Test run (dry-run Stages 1-7)
+                    </MenuItem>
+                    <MenuItem
+                      disabled={!savedPool || savedPool.status !== 'tested'}
+                      onClick={() => { setMenuOpen(false); void submitPool(); }}
+                    >
+                      Submit for activation
+                    </MenuItem>
+                  </MenuList>
+                  ) : (
                   <MenuList dense>
                     <MenuItem
                       disabled={!graphValid || name.trim() === '' || saved?.status === 'in_review'}
@@ -302,6 +415,7 @@ export default function CockpitPage() {
                       Submit for activation
                     </MenuItem>
                   </MenuList>
+                  )}
                 </ClickAwayListener>
               </Paper>
             </Grow>
@@ -348,9 +462,15 @@ export default function CockpitPage() {
         </Tooltip>
       </Stack>
 
-      {saved?.status === 'active' && (
+      {!isAlloc && saved?.status === 'active' && (
         <Alert severity="success" variant="outlined" sx={{ mx: 1.5, mt: 1, py: 0 }}>
           {saved.id} is active. Editing the canvas and saving creates a new draft version (re-test + re-approval).
+        </Alert>
+      )}
+      {isAlloc && savedPool?.status === 'active' && (
+        <Alert severity="success" variant="outlined" sx={{ mx: 1.5, mt: 1, py: 0 }}>
+          {savedPool.id} is active (a governed experiment, flagged authored). It runs via the authored
+          allocation run — the governed seeded allocation stays cent-exact and is never touched.
         </Alert>
       )}
 

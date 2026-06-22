@@ -96,6 +96,7 @@ import type {
   CapturePreview,
   AuthoredTestResult,
   AuthoredRunResult,
+  StageGraphPreview,
   WaterfallRun,
   WaterfallRunDetail,
   PlAdjusted,
@@ -654,12 +655,43 @@ export const api = {
   previewCaptureRule: (rule: AuthoredCaptureRule & { source?: string }) =>
     sendJSON<CapturePreview>('POST', '/api/allocation/pools/preview', rule),
 
+  /** Compile a canvas STAGE GRAPH (Phase 7 MC3) + dry-run it (Stages 1-7 in
+   *  isolation) — per-stage results (captured cost, exclusions, allocated,
+   *  markup, charges, recon zero-residual) keyed on the stage node id. No persist. */
+  previewStageGraph: (graph: CockpitGraph, source?: string) =>
+    sendJSON<StageGraphPreview>('POST', '/api/allocation/pools/preview-graph', {
+      graph,
+      ...(source ? { source } : {}),
+    }),
+
+  /** The canvas stage graph for an authored pool (its stored graph_json), or
+   *  null when it was hand-authored (the definition stays the source of truth). */
+  authoredPoolGraph: (poolId: string) =>
+    getJSON<CockpitGraph | null>(`/api/allocation/pools/${encodeURIComponent(poolId)}/graph`),
+
   /** Create a draft authored pool (structurally validated up front). */
   createAuthoredPool: (definition: AuthoredPoolDefinition, actor: string, processId?: string) =>
     sendJSON<AuthoredPool>('POST', '/api/allocation/pools', {
       definition,
       actor,
       process_id: processId,
+    }),
+
+  /** Create a draft authored pool FROM A CANVAS STAGE GRAPH (Phase 7 MC3 — the
+   *  graph compiles to a definition first; both persist, the definition is SoT). */
+  createAuthoredPoolGraph: (graph: CockpitGraph, actor: string, processId?: string) =>
+    sendJSON<AuthoredPool>('POST', '/api/allocation/pools', {
+      graph,
+      actor,
+      process_id: processId,
+    }),
+
+  /** Edit an authored pool's stage graph (resets the test gate; an active pool
+   *  versions + returns to draft). */
+  updateAuthoredPoolGraph: (poolId: string, actor: string, graph: CockpitGraph) =>
+    sendJSON<AuthoredPool>('PATCH', `/api/allocation/pools/${encodeURIComponent(poolId)}`, {
+      actor,
+      graph,
     }),
 
   /** Edit a pool (drafts in place; an active pool versions + returns to draft). */

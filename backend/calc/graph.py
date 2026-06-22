@@ -88,6 +88,61 @@ NODE_TYPES: dict[str, dict[str, Any]] = {
                "config": ()},
 }
 
+# --- Allocation stage-node catalogue (Phase 7 MC3) ----------------------------
+# An ALLOCATION stage graph is a visual layer over an ``authored_pools``
+# definition (PB2) — there is NO new engine here either. The seven stages form a
+# linear pipeline in the OECD Ch.VII / §1.482-9 cost-to-charge ORDER:
+#
+#     source -> pool -> benefit_test -> allocate -> markup -> charge -> recon
+#
+# Stages are wired through a third handle KIND, ``flow`` (distinct from the
+# calc-value ``value``/``bool``), so a stage can never connect to a calc node and
+# vice-versa; the canonical order is enforced because each stage's ``in`` flow
+# handle must come from exactly its predecessor in the sequence. Each stage
+# carries the slice of the authoring object it owns; ``allocate`` and ``markup``
+# additionally expose a NUMERIC ``value`` input handle that a calc-value subgraph
+# may feed (the bound subgraph compiles to an ``expr.py`` string evaluated at run
+# time — e.g. a governed-parameter-driven markup %), so the two families compose
+# at exactly the documented seams and nowhere else.
+_FLOW = "flow"
+
+#: The canonical stage order (head -> tail). Index in this tuple == the stage's
+#: position; a stage's ``in`` may only be fed by the stage one position earlier.
+STAGE_ORDER = (
+    "source", "pool", "benefit_test", "allocate", "markup", "charge", "recon",
+)
+
+#: Stage node specs. ``flow_in``/``flow_out`` are the pipeline handles; ``value``
+#: lists optional calc-bindable numeric input handles (kind ``value``); ``config``
+#: is the authoring slice each stage owns.
+STAGE_TYPES: dict[str, dict[str, Any]] = {
+    "source": {"family": "alloc", "flow_in": False, "flow_out": True,
+               "value": (), "config": ("cost_capture_rule",)},
+    "pool": {"family": "alloc", "flow_in": True, "flow_out": True,
+             "value": (), "config": ("name", "provider_entity_id", "service_line",
+                                      "characterization", "cost_base_definition")},
+    "benefit_test": {"family": "alloc", "flow_in": True, "flow_out": True,
+                     "value": (), "config": ("beneficiaries", "exclusions")},
+    "allocate": {"family": "alloc", "flow_in": True, "flow_out": True,
+                 "value": ("weight",), "config": ("key_factor",)},
+    "markup": {"family": "alloc", "flow_in": True, "flow_out": True,
+               "value": ("pct",), "config": ("markup_policies",)},
+    "charge": {"family": "alloc", "flow_in": True, "flow_out": True,
+               "value": (), "config": ()},
+    "recon": {"family": "alloc", "flow_in": True, "flow_out": False,
+              "value": (), "config": ()},
+}
+
+
+def _is_stage(typ: str | None) -> bool:
+    return typ in STAGE_TYPES
+
+
+def _is_stage_graph(graph: dict[str, Any]) -> bool:
+    """A graph is an ALLOCATION stage graph if it contains any stage node. A
+    graph mixing families is rejected by validation (never silently coerced)."""
+    return any(_is_stage(n.get("type")) for n in (graph.get("nodes") or []))
+
 
 class GraphError(ValueError):
     """A graph that cannot be validated or compiled — carries a message and,
@@ -172,7 +227,16 @@ def validate_graph(graph: dict[str, Any]) -> dict[str, Any]:
     """Validate a calc graph. Returns ``{"ok": bool, "errors": [{message,
     node_id}], "output_id": str|None}``. Collects EVERY structural error so the
     canvas can surface them all at once; an unknown node type is fatal (it would
-    poison every downstream check) and returns immediately."""
+    poison every downstream check) and returns immediately.
+
+    A graph containing any ALLOCATION stage node is an allocation stage graph and
+    is validated by :func:`validate_stage_graph` instead (stage-order rules) — the
+    return shape is normalised to ``{ok, errors, output_id}`` so callers need not
+    branch (a stage graph has no calc output, so ``output_id`` is ``None``)."""
+    if _is_stage_graph(graph):
+        rep = validate_stage_graph(graph)
+        return {"ok": rep["ok"], "errors": rep["errors"], "output_id": None}
+
     errors: list[dict[str, Any]] = []
 
     try:
@@ -543,3 +607,263 @@ def expr_to_graph(expression: str) -> dict[str, Any]:
     b._edge(root, out, "in")
     b.layout()
     return {"nodes": b.nodes, "edges": b.edges}
+
+
+# ============================================================================
+# Allocation stage graphs (Phase 7 MC3)
+# ----------------------------------------------------------------------------
+# A stage graph compiles to an authored-pool ``definition`` (the SAME object
+# PB2's preview/test/run consume) — the canvas adds NO new allocation engine.
+# ``validate_stage_graph`` enforces the canonical stage order via the ``flow``
+# handles; ``stage_graph_to_pool_definition`` assembles the definition, compiling
+# any calc-value subgraph bound into a stage's numeric input to an ``expr.py``
+# string stored alongside the literal (evaluated at run time, never guessed).
+# ============================================================================
+
+
+def _stage_index(graph: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """``{node_id: node}`` over the STAGE nodes only (calc-value nodes that feed
+    numeric inputs are indexed separately by the wiring walk)."""
+    return {n["id"]: n for n in (graph.get("nodes") or []) if _is_stage(n.get("type"))}
+
+
+def _stage_flow_edges(
+    graph: dict[str, Any], stages: dict[str, dict[str, Any]]
+) -> dict[str, str]:
+    """``{target_stage_id: source_stage_id}`` for the pipeline (``flow``) edges —
+    a stage's ``in`` handle. Raises on a non-stage source feeding a flow input or
+    a doubly-wired flow input (a stage takes exactly one predecessor)."""
+    flow: dict[str, str] = {}
+    for e in graph.get("edges") or []:
+        if e.get("targetHandle") != "in":
+            continue
+        tgt = e.get("target")
+        if tgt not in stages:
+            continue  # an output node's 'in' — handled by the calc validator
+        src = e.get("source")
+        if src not in stages:
+            raise GraphError(
+                f"stage {stages[tgt]['type']!r} input must come from another "
+                f"stage, not {src!r}", tgt)
+        if tgt in flow:
+            raise GraphError(
+                f"stage {stages[tgt]['type']!r} has more than one predecessor", tgt)
+        flow[tgt] = src
+    return flow
+
+
+def validate_stage_graph(graph: dict[str, Any]) -> dict[str, Any]:
+    """Validate an ALLOCATION stage graph. Returns ``{"ok", "errors":[{message,
+    node_id}], "order":[stage_id…]}``. Enforces: every node is a stage or a
+    calc-value node feeding a stage NUMERIC input; exactly one of each stage
+    type; the seven stages present (no silent omission); the flow edges form the
+    canonical chain source→…→recon with each stage fed only by its predecessor.
+    Collects every error so the canvas can surface them at once."""
+    errors: list[dict[str, Any]] = []
+
+    try:
+        all_nodes = _nodes(graph)  # dup-id / missing-id guard (shared)
+    except GraphError as e:
+        return {"ok": False, "errors": [{"message": e.message, "node_id": e.node_id}],
+                "order": []}
+
+    stages = _stage_index(graph)
+    # Every node must be a stage OR a known calc-value node (the binding subgraph).
+    for nid, n in all_nodes.items():
+        typ = n.get("type")
+        if not _is_stage(typ) and typ not in NODE_TYPES:
+            return {"ok": False, "errors": [{
+                "message": f"unknown node type {typ!r}", "node_id": nid}],
+                "order": []}
+
+    # Exactly one of each stage type, all seven present.
+    by_type: dict[str, list[str]] = {t: [] for t in STAGE_ORDER}
+    for nid, n in stages.items():
+        by_type[n["type"]].append(nid)
+    for t in STAGE_ORDER:
+        if len(by_type[t]) == 0:
+            errors.append({"message": f"stage graph is missing its {t!r} stage",
+                           "node_id": None})
+        elif len(by_type[t]) > 1:
+            for nid in by_type[t]:
+                errors.append({"message": f"stage graph must have exactly one "
+                               f"{t!r} stage (found {len(by_type[t])})", "node_id": nid})
+
+    # A calc graph must not declare an output node inside a stage graph.
+    for nid, n in all_nodes.items():
+        if n.get("type") == "output":
+            errors.append({"message": "a stage graph has no output node — its "
+                           "terminal is the recon stage", "node_id": nid})
+
+    try:
+        flow = _stage_flow_edges(graph, stages)
+    except GraphError as e:
+        errors.append({"message": e.message, "node_id": e.node_id})
+        flow = {}
+
+    # Canonical order: stage at position i (i>0) must be fed by the stage at i-1.
+    order: list[str] = []
+    if all(len(by_type[t]) == 1 for t in STAGE_ORDER):
+        ids = {t: by_type[t][0] for t in STAGE_ORDER}
+        order = [ids[t] for t in STAGE_ORDER]
+        for i, t in enumerate(STAGE_ORDER):
+            sid = ids[t]
+            if i == 0:
+                if sid in flow:
+                    errors.append({"message": "the source stage is the head — it "
+                                   "takes no predecessor", "node_id": sid})
+                continue
+            prev_t = STAGE_ORDER[i - 1]
+            fed = flow.get(sid)
+            if fed is None:
+                errors.append({"message": f"{t!r} stage is not wired to its "
+                               f"predecessor {prev_t!r}", "node_id": sid})
+            elif fed != ids[prev_t]:
+                got = stages[fed]["type"] if fed in stages else fed
+                errors.append({"message": f"{t!r} stage must follow {prev_t!r}, "
+                               f"but is wired after {got!r} (out-of-order stage "
+                               "connection)", "node_id": sid})
+
+    # Calc-value bindings into stage numeric inputs: the source must be a
+    # calc-value node and the target handle a declared numeric input of the stage.
+    for e in graph.get("edges") or []:
+        handle = e.get("targetHandle")
+        tgt, src = e.get("target"), e.get("source")
+        if tgt not in stages or handle == "in":
+            continue
+        numeric = STAGE_TYPES[stages[tgt]["type"]]["value"]
+        if handle not in numeric:
+            errors.append({"message": f"{stages[tgt]['type']!r} stage has no "
+                           f"numeric input {handle!r} (accepts: "
+                           f"{', '.join(numeric) or 'none'})", "node_id": tgt})
+            continue
+        if src not in all_nodes or _is_stage(all_nodes[src].get("type")):
+            errors.append({"message": f"{stages[tgt]['type']}.{handle} must be fed "
+                           "by a calc-value subgraph, not a stage", "node_id": tgt})
+
+    # Per-stage config presence (no silent defaults) — compile to the authoring
+    # object and run the AUTHORED-POOL validator (the single source of truth for
+    # the definition shape), so an under-specified stage surfaces here exactly as
+    # it would BLOCK at engine time. Deferred import: state.authored_pools imports
+    # this module, so the dependency points one way only.
+    if not errors:
+        try:
+            definition = stage_graph_to_pool_definition(graph)
+        except GraphError as e:
+            errors.append({"message": e.message, "node_id": e.node_id})
+        else:
+            import state.authored_pools as authored_pools
+            for msg in authored_pools.validate_definition(definition):
+                errors.append({"message": msg, "node_id": None})
+
+    return {"ok": not errors, "errors": errors, "order": order}
+
+
+def _bound_expr(
+    graph: dict[str, Any], stage_id: str, handle: str,
+    all_nodes: dict[str, dict[str, Any]],
+) -> str | None:
+    """If a calc-value subgraph is wired into ``stage_id.handle``, compile that
+    subgraph to an ``expr.py`` string (evaluated at run time). Returns ``None``
+    when the handle is unbound. The bound subgraph is the calc graph rooted at the
+    feeding node, so we wrap it in a synthetic ``output`` and reuse the calc
+    compiler — no new emission logic."""
+    src: str | None = None
+    for e in graph.get("edges") or []:
+        if e.get("target") == stage_id and e.get("targetHandle") == handle:
+            src = e.get("source")
+            break
+    if src is None:
+        return None
+    # Build a calc sub-graph: every reachable calc-value node + a fresh output.
+    reach: set[str] = set()
+    stack = [src]
+    incoming_all: dict[str, list[tuple[str, str]]] = {}
+    for e in graph.get("edges") or []:
+        incoming_all.setdefault(e["target"], []).append((e["source"], e["targetHandle"]))
+    while stack:
+        cur = stack.pop()
+        if cur in reach or cur not in all_nodes or _is_stage(all_nodes[cur].get("type")):
+            continue
+        reach.add(cur)
+        for s, _h in incoming_all.get(cur, []):
+            stack.append(s)
+    sub_nodes = [all_nodes[n] for n in reach]
+    sub_edges = [
+        e for e in (graph.get("edges") or [])
+        if e["source"] in reach and e["target"] in reach
+    ]
+    out_id = f"__bound_out_{stage_id}_{handle}"
+    sub_nodes = list(sub_nodes) + [
+        {"id": out_id, "type": "output", "config": {}, "position": {"x": 0, "y": 0}}]
+    sub_edges = list(sub_edges) + [
+        {"source": src, "sourceHandle": "out", "target": out_id, "targetHandle": "in"}]
+    try:
+        return graph_to_expr({"nodes": sub_nodes, "edges": sub_edges})
+    except GraphError as e:
+        raise GraphError(
+            f"calc binding into {all_nodes[stage_id]['type']}.{handle} is invalid: "
+            f"{e.message}", stage_id)
+
+
+def stage_graph_to_pool_definition(graph: dict[str, Any]) -> dict[str, Any]:
+    """Compile an allocation stage graph into an authored-pool ``definition`` —
+    the exact object ``state/authored_pools.validate_definition`` and the PB2
+    preview/test/run path consume. The stage CONFIG slices assemble the
+    definition; a calc-value subgraph bound into a numeric input is compiled to an
+    ``expr.py`` string stored alongside its literal (``markup_pct_expr`` /
+    ``weight_expr``) and evaluated at run time. Under-specified config is NEVER
+    defaulted — a missing required field raises (and surfaces in validation)."""
+    all_nodes = _nodes(graph)
+    stages = _stage_index(graph)
+    by_type: dict[str, dict[str, Any]] = {}
+    for n in stages.values():
+        t = n["type"]
+        if t in by_type:
+            raise GraphError(f"stage graph has more than one {t!r} stage", n["id"])
+        by_type[t] = n
+    missing = [t for t in STAGE_ORDER if t not in by_type]
+    if missing:
+        raise GraphError(
+            f"stage graph cannot compile — missing stage(s): {', '.join(missing)}")
+
+    def cfg(t: str) -> dict[str, Any]:
+        return _config(by_type[t])
+
+    pool = cfg("pool")
+    source = cfg("source")
+    benefit = cfg("benefit_test")
+    allocate = cfg("allocate")
+    markup = cfg("markup")
+
+    definition: dict[str, Any] = {
+        "name": pool.get("name"),
+        "provider_entity_id": pool.get("provider_entity_id"),
+        "service_line": pool.get("service_line"),
+        "characterization": pool.get("characterization"),
+        "cost_base_definition": pool.get("cost_base_definition"),
+        "cost_capture_rule": source.get("cost_capture_rule") or {},
+        "beneficiaries": benefit.get("beneficiaries") or [],
+        "key": {"key_factor": allocate.get("key_factor")},
+        "exclusions": benefit.get("exclusions") or [],
+        "markup_policies": [dict(mp) for mp in (markup.get("markup_policies") or [])],
+    }
+
+    # Calc-bound markup % — a single bound expr applies to every markup policy
+    # (the common "all jurisdictions priced off one governed driver" case). The
+    # literal markup_pct stays as the fallback the validator checks; the engine
+    # reads markup_pct_expr first at run time when present.
+    pct_expr = _bound_expr(graph, by_type["markup"]["id"], "pct", all_nodes)
+    if pct_expr is not None:
+        if not definition["markup_policies"]:
+            raise GraphError(
+                "markup stage binds a calc % but declares no policy to apply it to",
+                by_type["markup"]["id"])
+        for mp in definition["markup_policies"]:
+            mp["markup_pct_expr"] = pct_expr
+
+    weight_expr = _bound_expr(graph, by_type["allocate"]["id"], "weight", all_nodes)
+    if weight_expr is not None:
+        definition["key"]["weight_expr"] = weight_expr
+
+    return definition

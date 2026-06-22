@@ -17,21 +17,34 @@ from pydantic import BaseModel
 
 
 class AuthoredPoolIn(BaseModel):
-    """Create a draft authored pool. ``definition`` is the authoring object
-    (validated by state/authored_pools.validate_definition)."""
+    """Create a draft authored pool from EITHER an authoring object OR a canvas
+    stage graph (Phase 7 MC3). ``definition`` is the authoring object (validated
+    by state/authored_pools.validate_definition); ``graph`` is the stage graph
+    that compiles to the same object. Supply exactly one (the store enforces it)."""
 
-    definition: dict[str, Any]
+    definition: dict[str, Any] | None = None
+    graph: dict[str, Any] | None = None
     actor: str
     process_id: str | None = None
 
 
 class AuthoredPoolPatch(BaseModel):
     """Edit an authored pool (drafts in place; an active pool versions + returns
-    to draft). A definition change invalidates the test gate."""
+    to draft) from EITHER a definition OR a canvas stage graph. A definition
+    change invalidates the test gate."""
 
     actor: str
     definition: dict[str, Any] | None = None
+    graph: dict[str, Any] | None = None
     process_id: str | None = None
+
+
+class StageGraphIn(BaseModel):
+    """A canvas allocation stage graph to preview (no persist) — compiled to an
+    authored-pool definition and dry-run for per-stage results."""
+
+    graph: dict[str, Any]
+    source: str = "actual"
 
 
 class CaptureRuleIn(BaseModel):

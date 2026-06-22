@@ -72,6 +72,19 @@ def node_types():
         for d in calc_registry.defs()
         if d["id"] not in expr._NON_COMPOSABLE
     ]
+    # Allocation stage family (MC3): the typed pipeline nodes + their canonical
+    # order + each stage's numeric (calc-bindable) input handles + config slice.
+    stage_types = [
+        {
+            "type": t,
+            "family": spec["family"],
+            "flow_in": spec["flow_in"],
+            "flow_out": spec["flow_out"],
+            "value_inputs": list(spec["value"]),
+            "config": list(spec["config"]),
+        }
+        for t, spec in graph.STAGE_TYPES.items()
+    ]
     return {
         "node_types": types,
         "operators": list(graph._OP_SYMBOLS),
@@ -82,6 +95,8 @@ def node_types():
         "parameters": params,
         "calcs": calcs,
         "non_composable": sorted(expr._NON_COMPOSABLE),
+        "stage_types": stage_types,
+        "stage_order": list(graph.STAGE_ORDER),
     }
 
 

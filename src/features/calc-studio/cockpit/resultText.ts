@@ -1,4 +1,5 @@
-import type { ExprResult, CockpitNodeValue } from '@/shared/api/types';
+import type { ExprResult, CockpitNodeValue, StagePreviewResult } from '@/shared/api/types';
+import { fmtAmount } from '../allocationLib';
 
 /** A compact one-line rendering of an evaluated expression result for a node
  *  badge or a dock cell. Scalars show the exact decimal; a grained result shows
@@ -48,6 +49,45 @@ function scalarExact(nv: CockpitNodeValue | undefined): number | null {
   if (exact == null) return null;
   const n = Number(exact);
   return Number.isFinite(n) ? n : null;
+}
+
+/** The one-line value painted on an allocation STAGE node (MC3), from the
+ *  per-stage dry-run result keyed by stage kind. Money fields use the exact
+ *  decimal formatter; everything is from the engine (nothing recomputed). */
+export function stageResultText(
+  kind: string,
+  r: StagePreviewResult | undefined
+): string | null {
+  if (!r) return null;
+  const num = (k: string) => (r[k] != null ? String(r[k]) : null);
+  switch (kind) {
+    case 'source': {
+      const amt = num('captured_amount');
+      return amt != null ? `${fmtAmount(amt)} · ${r.line_count ?? 0} lines` : null;
+    }
+    case 'pool':
+      return r.provider_entity_id != null ? `provider ${r.provider_entity_id}` : null;
+    case 'benefit_test': {
+      const excl = num('total_exclusions');
+      return `${r.beneficiary_count ?? 0} beneficiary(ies)${excl != null ? ` · excl ${fmtAmount(excl)}` : ''}`;
+    }
+    case 'allocate':
+      return `${r.key_factor ?? '?'} → ${r.recipient_count ?? 0} recipient(s)`;
+    case 'markup': {
+      const m = num('total_markup');
+      return m != null ? `markup ${fmtAmount(m)}` : null;
+    }
+    case 'charge': {
+      const t = num('total_charged_out');
+      return `${r.charge_count ?? 0} charge(s)${t != null ? ` · ${fmtAmount(t)}` : ''}`;
+    }
+    case 'recon': {
+      const res = num('residual');
+      return `${r.balanced ? 'Balanced' : 'Break'}${res != null ? ` · residual ${fmtAmount(res)}` : ''}`;
+    }
+    default:
+      return null;
+  }
 }
 
 /** Format a Δ for display (sign + locale grouping; the underlying values are

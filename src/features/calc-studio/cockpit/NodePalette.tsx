@@ -96,7 +96,7 @@ function Group({
 export default function NodePalette({ model }: { model: GraphModel }) {
   const user = useSessionUser();
   const toast = useToast();
-  const { nodeTypes: cat, addNode, reloadNodeTypes } = model;
+  const { nodeTypes: cat, addNode, reloadNodeTypes, seedStageChain, family } = model;
   const [q, setQ] = useState('');
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editVal, setEditVal] = useState('');
@@ -127,6 +127,15 @@ export default function NodePalette({ model }: { model: GraphModel }) {
   const comparators = useMemo(() => (cat?.comparators ?? []).filter((o) => match(`compare ${o}`) || match(o)), [cat, needle]);
   const functions = useMemo(() => (cat?.functions ?? []).filter((f) => match(f) || match('function')), [cat, needle]);
   const showStructural = match('if') || match('const') || match('constant') || match('output') || match('operation');
+  const stageTypes = useMemo(
+    () => (cat?.stage_types ?? []).filter((s) => match(s.type) || match('allocation stage') || match('pool')),
+    [cat, needle]
+  );
+  // The two families never mix on one canvas — only offer the calc-into-stage
+  // value subgraphs once a stage graph exists; offer stage seeding only on an
+  // empty/alloc canvas.
+  const allocCanvas = family === 'alloc';
+  const calcCanvas = family === 'calc';
 
   const saveDriver = async (key: string) => {
     setSavingKey(key);
@@ -288,10 +297,59 @@ export default function NodePalette({ model }: { model: GraphModel }) {
             </>
           )}
         </Group>
+
+        {/* Allocation stages (MC3) — the typed cost-to-charge pipeline. */}
+        <Group title="Allocation stages" count={stageTypes.length} defaultExpanded={allocCanvas}>
+          {!calcCanvas && (
+            <Box sx={{ px: 1, py: 0.5 }}>
+              <Chip
+                size="small"
+                color="primary"
+                variant="outlined"
+                label="+ Add stage pipeline"
+                onClick={() => seedStageChain()}
+                sx={{ cursor: 'pointer', fontWeight: 700 }}
+              />
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>
+                Seeds source → … → recon in canonical order. Configure each stage inline.
+              </Typography>
+            </Box>
+          )}
+          {calcCanvas && (
+            <Typography variant="caption" sx={{ color: 'text.secondary', px: 1, py: 0.5, display: 'block' }}>
+              This canvas holds a calc graph — clear it (New) to build an allocation pool.
+            </Typography>
+          )}
+          {!calcCanvas && stageTypes.map((s) => (
+            <PaletteItem
+              key={`stage-${s.type}`}
+              kind={s.type}
+              config={{}}
+              label={STAGE_LABELS[s.type] ?? s.type}
+              onAdd={() => addCentered(s.type, {})}
+              sub={
+                <Typography variant="caption" sx={{ color: 'text.secondary' }} noWrap>
+                  {s.value_inputs.length ? `calc-bindable: ${s.value_inputs.join(', ')}` : 'pipeline stage'}
+                </Typography>
+              }
+            />
+          ))}
+        </Group>
       </Box>
     </Box>
   );
 }
+
+/** Human labels for the allocation stage palette rows. */
+const STAGE_LABELS: Record<string, string> = {
+  source: 'Source (capture rule)',
+  pool: 'Pool (metadata)',
+  benefit_test: 'Benefit test (exclusions)',
+  allocate: 'Allocate (key)',
+  markup: 'Markup (policy)',
+  charge: 'Charge',
+  recon: 'Recon (zero residual)',
+};
 
 function EmptyHint() {
   return (

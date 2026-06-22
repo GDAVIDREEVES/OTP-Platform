@@ -3,8 +3,9 @@ import {
   Box, Button, Chip, Divider, MenuItem, Stack, TextField, Typography,
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import { presentationFor } from './nodeMeta';
+import { presentationFor, isStageKind } from './nodeMeta';
 import { resultText } from './resultText';
+import StageInspector from './StageInspector';
 import type { GraphModel } from './useGraphModel';
 
 /** Right pane (MC2) — INLINE config for the selected node. No modal dialogs
@@ -79,6 +80,9 @@ export default function NodeInspector({ model }: { model: GraphModel }) {
       <Divider />
 
       <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5 }}>
+        {isStageKind(kind) ? (
+          <StageInspector model={model} node={selectedNode} />
+        ) : (
         <Stack spacing={1.5}>
           {/* ---- param ---- */}
           {kind === 'param' && (
@@ -252,6 +256,7 @@ export default function NodeInspector({ model }: { model: GraphModel }) {
             </>
           )}
         </Stack>
+        )}
       </Box>
     </Box>
   );

@@ -14,7 +14,15 @@ import '@xyflow/react/dist/style.css';
 import { Box } from '@mui/material';
 import CockpitNode from './CockpitNode';
 import { CanvasContext } from './canvasContext';
-import { presentationFor, outputKindFor, inputHandlesFor } from './nodeMeta';
+import {
+  presentationFor,
+  outputKindFor,
+  inputHandlesFor,
+  stageInputsFor,
+  stageHasFlowOut,
+  isStageKind,
+  STAGE_ORDER,
+} from './nodeMeta';
 import type { GraphModel, RFNode } from './useGraphModel';
 
 /** A palette drag payload (set in NodePalette.onDragStart, read on drop). */
@@ -44,6 +52,7 @@ function CanvasInner({ model }: { model: GraphModel }) {
     setSelectedId,
     preview,
     scenarioPreview,
+    stagePreview,
     validation,
   } = model;
 
@@ -89,16 +98,39 @@ function CanvasInner({ model }: { model: GraphModel }) {
       const tgt = nodeById[target];
       if (!src || !tgt) return false;
 
-      // Kind compatibility: the source's output kind must match the target
-      // input handle's accepted kind.
-      const srcOut = outputKindFor(src.data.kind, catalogue);
-      const tgtInputs = inputHandlesFor(tgt.data.kind, catalogue, 99);
-      const want = tgtInputs.find((h) => h.handle === targetHandle)?.kind;
-      if (want != null && srcOut != null && want !== srcOut) return false;
+      const srcStage = isStageKind(src.data.kind);
+      const tgtStage = isStageKind(tgt.data.kind);
 
-      // Single-input: each target handle takes exactly one wire (onConnect
-      // replaces, but block dragging onto an output node's absent input twice).
-      // (Replacement is handled in onConnect; nothing extra needed here.)
+      // ---- allocation stage-order rules (MC3) ----
+      if (tgtStage) {
+        if (targetHandle === 'in') {
+          // The pipeline ``in`` accepts ONLY the immediately-preceding stage's
+          // pipeline ``out`` — this is what enforces the canonical order on the
+          // canvas; an out-of-order or cross-family wire is rejected outright.
+          if (!srcStage || !stageHasFlowOut(src.data.kind, catalogue)) return false;
+          const ti = STAGE_ORDER.indexOf(tgt.data.kind as (typeof STAGE_ORDER)[number]);
+          const si = STAGE_ORDER.indexOf(src.data.kind as (typeof STAGE_ORDER)[number]);
+          if (ti <= 0 || si !== ti - 1) return false;
+        } else {
+          // A numeric (value) input is fed by a calc-value subgraph only.
+          const numeric = stageInputsFor(tgt.data.kind, catalogue)
+            .filter((h) => h.kind === 'value')
+            .map((h) => h.handle);
+          if (!numeric.includes(targetHandle ?? '')) return false;
+          if (srcStage) return false;
+          if (outputKindFor(src.data.kind, catalogue) !== 'value') return false;
+        }
+      } else if (srcStage) {
+        // A stage ``out`` can only feed another stage's ``in`` (handled above);
+        // it never feeds a calc node.
+        return false;
+      } else {
+        // ---- calc-to-calc kind compatibility (MC2, unchanged) ----
+        const srcOut = outputKindFor(src.data.kind, catalogue);
+        const tgtInputs = inputHandlesFor(tgt.data.kind, catalogue, 99);
+        const want = tgtInputs.find((h) => h.handle === targetHandle)?.kind;
+        if (want != null && srcOut != null && want !== srcOut) return false;
+      }
 
       // Acyclic: walk the existing dependency edges from `target`; if we can
       // already reach `source`, this new edge would close a cycle.
@@ -143,7 +175,7 @@ function CanvasInner({ model }: { model: GraphModel }) {
   );
 
   return (
-    <CanvasContext.Provider value={{ catalogue, preview, scenarioPreview, errorNodeIds }}>
+    <CanvasContext.Provider value={{ catalogue, preview, scenarioPreview, stagePreview, errorNodeIds }}>
       <Box
         ref={wrapperRef}
         sx={{ width: '100%', height: '100%', position: 'relative' }}

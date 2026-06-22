@@ -30,6 +30,7 @@ from schemas.authored_pools import (
     CaptureRuleIn,
     MakerIn,
     RunAuthoredIn,
+    StageGraphIn,
 )
 
 router = APIRouter()
@@ -39,7 +40,9 @@ def _http_error(e: ValueError) -> HTTPException:
     msg = str(e)
     if msg.startswith("unknown authored pool"):
         return HTTPException(status_code=404, detail=msg)
-    if msg.startswith("invalid authored pool"):
+    if (msg.startswith("invalid authored pool")
+            or msg.startswith("invalid stage graph")
+            or msg.startswith("supply exactly one")):
         return HTTPException(status_code=400, detail=msg)
     return HTTPException(status_code=409, detail=msg)
 
@@ -103,15 +106,31 @@ def preview_capture(payload: CaptureRuleIn):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/api/allocation/pools/preview-graph")
+def preview_stage_graph(payload: StageGraphIn):
+    """Compile an allocation STAGE GRAPH (Phase 7 MC3) to an authored-pool
+    definition and dry-run it through the REAL Stages 1-7 in isolation, returning
+    PER-STAGE results (captured cost, exclusions, allocated recipients, markup,
+    charges, recon zero-residual) keyed on the stage node id — what the cockpit
+    paints onto each stage node + dock. Nothing persists. A structurally-invalid
+    graph returns ``ok:false`` + the stage-order errors (no silent default)."""
+    try:
+        return runner.stage_graph_dry_run(payload.graph, source=payload.source)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ------------------------------------------------------------------ writes --
 
 
 @router.post("/api/allocation/pools")
 def create_pool(payload: AuthoredPoolIn):
+    """Create a draft authored pool from EITHER a ``definition`` OR a canvas stage
+    ``graph`` (the graph compiles to the same definition — one PB2 path)."""
     try:
         return authored_pools.create_authored_pool(
-            definition=payload.definition, actor=payload.actor,
-            process_id=payload.process_id,
+            definition=payload.definition, graph_json=payload.graph,
+            actor=payload.actor, process_id=payload.process_id,
         )
     except ValueError as e:
         raise _http_error(e)
@@ -125,12 +144,22 @@ def get_pool(pool_id: str):
     return p
 
 
+@router.get("/api/allocation/pools/{pool_id}/graph")
+def get_pool_graph(pool_id: str):
+    """The canvas stage graph for an authored pool (MC3) — its stored graph_json
+    when authored on the canvas. 404 if the pool is unknown; ``null`` when it was
+    hand-authored (no canonical stage layout — the definition stays the SoT)."""
+    if authored_pools.get_authored_pool(pool_id) is None:
+        raise HTTPException(status_code=404, detail=f"unknown authored pool: {pool_id}")
+    return authored_pools.get_authored_pool_graph(pool_id)
+
+
 @router.patch("/api/allocation/pools/{pool_id}")
 def update_pool(pool_id: str, payload: AuthoredPoolPatch):
     try:
         return authored_pools.update_authored_pool(
             pool_id, actor=payload.actor, definition=payload.definition,
-            process_id=payload.process_id,
+            graph_json=payload.graph, process_id=payload.process_id,
         )
     except ValueError as e:
         raise _http_error(e)

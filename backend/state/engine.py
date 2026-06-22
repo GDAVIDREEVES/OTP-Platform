@@ -53,6 +53,9 @@ def get_conn() -> sqlite3.Connection:
 _ADDITIVE_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # (table, column, column-def) — Phase 7 MC1 canvas graph storage.
     ("user_calculations", "graph_json", "TEXT"),
+    # Phase 7 MC3 — allocation stage-graph storage (visual layer; the compiled
+    # definition stays the source of truth, the graph is the canvas view).
+    ("authored_pools", "graph_json", "TEXT"),
 )
 
 

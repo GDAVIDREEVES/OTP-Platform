@@ -3,8 +3,9 @@ import {
   Alert, Box, Chip, Stack, Tab, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Tabs, Typography,
 } from '@mui/material';
-import { presentationFor, configSummary } from './nodeMeta';
-import { resultText, nodeDelta, deltaText } from './resultText';
+import { presentationFor, configSummary, isStageKind } from './nodeMeta';
+import { resultText, nodeDelta, deltaText, stageResultText } from './resultText';
+import { fmtAmount } from '../allocationLib';
 import type { GraphModel } from './useGraphModel';
 
 /** Bottom pane (MC2) — the Alteryx "Results" window. Three views over the last
@@ -16,11 +17,14 @@ import type { GraphModel } from './useGraphModel';
  */
 
 export default function ResultsDock({ model }: { model: GraphModel }) {
-  const { nodes, preview, scenarioPreview, validation, running, runError } = model;
+  const { nodes, preview, scenarioPreview, stagePreview, family, validation, running, runError } = model;
   const [view, setView] = useState<'values' | 'output' | 'exceptions'>('values');
+  const isAlloc = family === 'alloc';
 
+  const stageExceptions = stagePreview?.exceptions ?? [];
   const errorCount = (validation && !validation.ok ? validation.errors.length : 0)
-    + (preview?.exceptions.length ?? 0);
+    + (preview?.exceptions.length ?? 0)
+    + (isAlloc ? stageExceptions.filter((e) => e.severity === 'BLOCK').length : 0);
 
   const rows = useMemo(
     () =>
@@ -38,6 +42,20 @@ export default function ResultsDock({ model }: { model: GraphModel }) {
           };
         }),
     [nodes, preview, scenarioPreview]
+  );
+
+  // Stage rows in canonical pipeline order (MC3) — each stage node + its result.
+  const stageRows = useMemo(
+    () =>
+      nodes
+        .filter((n) => isStageKind(n.data.kind))
+        .map((n) => ({
+          id: n.id,
+          kind: n.data.kind,
+          summary: configSummary(n.data.kind, n.data.config),
+          result: stagePreview?.stages?.[n.id],
+        })),
+    [nodes, stagePreview]
   );
 
   const hasScenario = scenarioPreview !== null;
@@ -68,8 +86,47 @@ export default function ResultsDock({ model }: { model: GraphModel }) {
           <Alert severity="error" variant="outlined" sx={{ m: 1 }}>{runError}</Alert>
         )}
 
-        {/* ---- Values ---- */}
-        {view === 'values' && (
+        {/* ---- Values (allocation stage graph) ---- */}
+        {view === 'values' && isAlloc && (
+          stageRows.length === 0 ? (
+            <Empty text="Seed the allocation pipeline and press Run to dry-run each stage here." />
+          ) : !stagePreview ? (
+            <Empty text="Press Run to dry-run Stages 1-7 in isolation — each stage's result lands here." />
+          ) : (
+            <TableContainer>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Stage</TableCell>
+                    <TableCell>Config</TableCell>
+                    <TableCell align="right">Result</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {stageRows.map((r) => (
+                    <TableRow key={r.id} hover>
+                      <TableCell>
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <Box sx={{ width: 16, height: 16, borderRadius: '4px', bgcolor: presentationFor(r.kind).accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
+                            {presentationFor(r.kind).glyph}
+                          </Box>
+                          <Typography variant="caption" sx={{ fontWeight: 700 }}>{presentationFor(r.kind).label}</Typography>
+                        </Stack>
+                      </TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.summary}</TableCell>
+                      <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                        {stageResultText(r.kind, r.result) ?? '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )
+        )}
+
+        {/* ---- Values (calc graph) ---- */}
+        {view === 'values' && !isAlloc && (
           rows.length === 0 ? (
             <Empty text="Add nodes and press Run to paint per-node values here." />
           ) : !preview ? (
@@ -115,8 +172,40 @@ export default function ResultsDock({ model }: { model: GraphModel }) {
           )
         )}
 
-        {/* ---- Output ---- */}
-        {view === 'output' && (
+        {/* ---- Output (allocation stage graph) ---- */}
+        {view === 'output' && isAlloc && (
+          !stagePreview ? (
+            <Empty text="The pool's dry-run summary appears here after a Run." />
+          ) : (
+            <Box sx={{ p: 1.5 }}>
+              <Stack direction="row" spacing={3} alignItems="baseline" sx={{ flexWrap: 'wrap' }}>
+                <Box>
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>Recon</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: stagePreview.balanced ? 'success.main' : 'error.main' }}>
+                    {stagePreview.balanced ? 'Balanced · zero residual' : 'Break'}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>Charged out</Typography>
+                  <Typography variant="h6" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                    {stagePreview.total_charged_out != null ? fmtAmount(stagePreview.total_charged_out) : '—'}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>Periods</Typography>
+                  <Typography variant="body1" sx={{ fontFamily: 'monospace' }}>{(stagePreview.periods ?? []).join(', ') || '—'}</Typography>
+                </Box>
+              </Stack>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
+                Compiled to an authored-pool definition and dry-run through the real Stages 1-7 in
+                isolation (PB2) — nothing persisted. The governed allocation is untouched.
+              </Typography>
+            </Box>
+          )
+        )}
+
+        {/* ---- Output (calc graph) ---- */}
+        {view === 'output' && !isAlloc && (
           !preview ? (
             <Empty text="The whole-graph result appears here after a Run." />
           ) : (
@@ -162,6 +251,13 @@ export default function ResultsDock({ model }: { model: GraphModel }) {
                 <Alert key={`e${i}`} severity="error" variant="outlined">
                   <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: 12.5 }}>
                     {e.node_id}: {e.message}
+                  </Typography>
+                </Alert>
+              ))}
+              {isAlloc && stageExceptions.map((e, i) => (
+                <Alert key={`s${i}`} severity={e.severity === 'BLOCK' ? 'error' : 'warning'} variant="outlined">
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: 12.5 }}>
+                    {e.rule_id} ({e.severity}): {e.message}
                   </Typography>
                 </Alert>
               ))}
