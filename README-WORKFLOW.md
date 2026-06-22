@@ -2,8 +2,8 @@
 
 How the solution is actually used, end to end. Four connected flows: the
 **operating close cycle** (operator → reviewer → director), the **calculation
-governance loop** (Calc Studio, including the Calculation Builder), the
-**allocation run** (cost → charge), and the **TP waterfall** (charges applied
+governance loop** (Calc Studio, now home to the drag-and-drop **Cockpit** canvas),
+the **allocation run** (cost → charge), and the **TP waterfall** (charges applied
 to entity P&L *before* TP decisions). Everything below writes to the same
 hash-chained audit trail; any record's evidence packet is at
 `/evidence/{record_ref}`.
@@ -43,20 +43,27 @@ hash-chained audit trail; any record's evidence packet is at
 | 8 | **Document & defend** | OTP-32/33/37 (Local File, Master File, §6662), OTP-34 (CbCR), OTP-39/40/50 (APA/audit/MAP cases) | Documentation rolls up per entity; controversy cases link to their supporting doc packs; every case carries a checklist + audit trail. |
 | 9 | **Prove any number** | `/evidence/{ref}` | Event history, before/after diffs, linked postings, the **process-lineage timeline** ("set by OTP-5 → flagged OTP-20 → adjusted OTP-16 → approved"), chain verification. |
 
-## Flow 2 — Calculation governance (Calc Studio, 10 min)
+## Flow 2 — Calculation governance from the Cockpit (Calc Studio, 8 min)
+
+**One surface, fewer clicks.** Calc Studio opens on the **Cockpit** (`/calc-studio/cockpit`)
+— an Alteryx-style drag-and-drop canvas that *is* the build loop. There is no more
+open-a-modal-Builder then tab-hop: author, run, scenario-test and submit a calculation
+without leaving the canvas. The canvas is a **visual layer over the existing engines** —
+a calc graph compiles to the same `calc/expr.py` expression (and lands as a
+`user_calculations` record), so it inherits validation, trace, scenarios, maker-checker
+activation and the audit chain unchanged. The old tabs remain as **drill-downs** (steps 7-9).
 
 | # | Step | Where | What happens |
 |---|------|-------|--------------|
-| 1 | **Browse the registry** | `/calc-studio/calculations` | Every computed result (CSA, BEAT, WHT, profit split, forecast…) is a managed calculation: definition, pseudo-formula, inputs with provenance, owner, version. |
-| 2 | **Run & trace** | "Run now" in the detail drawer | Executes the real calculation; the run lands in the **Runs** job console and the audit trail; the **trace** walks every step (e.g. CSA: aggregate → projected sales → pool → RAB shares → true-ups) with the parameters used. |
-| 3 | **Manage drivers** | `/calc-studio/drivers` | The 12+ governed parameters (growth rates, thresholds, mappings). Edit one → downstream calcs change instantly → the edit is audited at `param:{key}` with before/after. |
-| 4 | **What-if safely** | `/calc-studio/scenarios` | Create a scenario (e.g. CSA growth 8% → 10%), **Compare** → Base \| Scenario \| Δ side-by-side. Governed values are never touched. |
-| 5 | **Promote with control** | Scenario → Promote | Routes to the review queue; a *different* reviewer approves; only then are the parameters applied — each individually audited. Discard throws the sandbox away. |
-| 6 | **Author your own calculation** | `/calc-studio/calculations` → **New calculation** | The Calculation Builder: name/grain/process binding, then build the formula from **term pickers** — governed parameters, warehouse measures (`segment_pl.*` with grain + filters), composable system calcs — inserted into a syntax-checked **formula bar** (live validation on every keystroke; Decimal math, no eval). |
-| 7 | **Preview before saving** | Builder → **Preview** | Evaluates the expression server-side without persisting anything ("Show"): result at its grain plus the full trace — every `param`/`measure`/`calc` term with the value it resolved to. |
-| 8 | **Activate with control** | Save draft → **Test run** → **Submit for activation** | The test run is the gate (an untested formula can never be submitted); submission queues a `ucalc:{id}` item in `/review`; a **different** reviewer approves; only then is the calculation **active** in the registry (kind *user-defined*) — runnable, traceable, scenario-capable like any system calc. Editing an active calc bumps the version and starts the cycle again. |
-| 9 | **See the model map** | `/calc-studio/lineage` | The dependency DAG: data sources → parameters → calculations → processes, colored by provenance (real / assumed / fabricated). Click through to evidence, calcs, or processes. |
-| 10 | **Check data honesty** | `/calc-studio/provenance` | Every fabricated magnitude in the demo, listed and linked — nothing is buried. |
+| 1 | **Drag in your terms** | Cockpit ▸ **Palette → Canvas** | One drag drops a node — a governed **parameter** (the palette shows its live value), a warehouse **measure** (`segment_pl.*` with grain + filters), a composable **calc**, or a **constant**. No dialog. |
+| 2 | **Wire an operation** | Drop an **op / func / if** node, draw edges | Connect terms into an arithmetic flow (`×`, `÷`, `sum`, `if`…). Typed handles enforce validity (a comparison only feeds an `if` condition); the terminal **output** node is the calc's result. Configure any node **inline in the inspector** — zero modals in the build loop. |
+| 3 | **Run — values paint live** | Cockpit ▸ **▶ Run/Preview** (always visible) | The graph compiles to an expression, evaluates server-side, and **per-node values paint onto the canvas** (each node shows the value its subgraph computes); the **Results / Trace dock** shows the whole-graph result, the step trace and any V-rule exceptions. Nothing persists. |
+| 4 | **What-if in place** | Cockpit ▸ **Base ⟷ Scenario** toggle | Flip to Scenario and the graph re-runs under the scenario's parameter overrides (the same overlay a scenario run uses) — the **Δ paints on the nodes**. No trip to the Scenarios tab for the common case; governed values are never touched. |
+| 5 | **Edit a driver in place** | Palette ▸ a parameter's inline edit | The common governed-parameter change routes through the existing `param:{key}` audit right from the palette — no detour to the Drivers tab. |
+| 6 | **Save → Test → Submit, one split-button** | Cockpit ▸ split-button | **Save** persists the draft (the graph is stored alongside the compiled expression, which stays the source of truth). **Test** is the gate — an untested calc can never be submitted. **Submit for activation** queues a `ucalc:{id}` item in `/review`; a **different** reviewer approves; only then is the calculation **active** in the registry — runnable, traceable and scenario-capable exactly like a system calc. Editing an active calc bumps the version and restarts the cycle. |
+| 7 | **Allocations on the same canvas** | Cockpit ▸ **Allocation stages** | The typed pipeline (Source → Pool → Benefit-test → Allocate → Markup → Charge → Recon) drags onto the *same* canvas; a calc subgraph can bind a stage's numeric input (e.g. a governed-driver markup %). It compiles to an `authored_pools` definition and runs Stages 1-7 — see Flow 3b. |
+| 8 | **Drill down to the registry / drivers / scenarios** | `/calc-studio/calculations`, `/drivers`, `/scenarios`, `/runs` | The reference tabs still exist: browse every managed calculation (CSA, BEAT, WHT…) with its trace, manage the 12+ governed parameters, build and **promote** full scenarios with maker-checker, and read the Runs job console. |
+| 9 | **See the model map & data honesty** | `/calc-studio/lineage`, `/provenance` | The dependency DAG (sources → parameters → calculations → processes, colored by provenance) and every fabricated magnitude listed and linked — nothing buried. |
 
 ## Flow 3 — An allocation run (cost → charge, 10 min)
 

@@ -133,3 +133,73 @@ unknown/under-specified config → the same V-rule BLOCK behavior (no silent def
 House rules: Decimal money; append-only; no silent defaults; audit every mutation; golden
 non-regression (governed allocation + existing endpoints unchanged); full pytest + typecheck/build per
 increment; never hand-edit `backend/allocation/generated/`.
+
+## Decisions (settled during build, MC1→MC4)
+
+These are the choices the implementation made within the approved design, plus the MC4
+verification evidence. Recorded so the rationale survives the diff.
+
+1. **The expression is the source of truth; the graph is a stored view.** A calc graph
+   compiles to a `calc/expr.py` string at create/update time and that string is what
+   `user_calculations` persists (alongside `graph_json`). `graph_to_expr` always
+   parenthesises binary ops so the emitted string re-parses to the identical AST — the
+   **expr↔graph round-trip is an identity** (verified live in MC4: a graph → expr → graph →
+   expr returns the byte-identical expression). A formula-only calc still visualises because
+   `expr_to_graph` regenerates a graph on demand. There is exactly **one evaluation path**
+   downstream of the compile step.
+
+2. **Two node families, never mixed in one graph.** A graph containing any allocation stage
+   node is an *allocation* graph (validated by `validate_stage_graph`, no calc `output`
+   node); a graph with an `output` node and no stage nodes is a *calc* graph. The only seam
+   between them is a calc-value subgraph **binding a stage's numeric input** (`markup.pct`,
+   `allocate.weight`), which compiles to an `expr.py` string evaluated at run time. A graph
+   that mixes families incoherently is rejected, never coerced.
+
+3. **No silent defaults — under-specification is a BLOCK, exactly like the engines.** Stage
+   config is compiled to an `authored_pools` definition and run through
+   `authored_pools.validate_definition` (the single source of truth for the definition
+   shape), so an under-specified stage surfaces the *same* V-rule/validation error it would
+   at engine time. Out-of-order or missing stage wiring is a precise error with the offending
+   `node_id` (verified live: wiring `allocate` straight after `pool` is rejected with
+   "'allocate' stage must follow 'benefit_test'"). Typed handles (`value`/`bool`/`flow`)
+   prevent invalid connections before a run is ever attempted.
+
+4. **Scenario overrides are native JSON values, not strings.** The Base⟷Scenario toggle
+   passes the scenario's `{param_key: value}` overrides straight into the existing
+   `parameters.overrides()` contextvar — the same overlay a scenario run uses — and
+   `get_param` returns the value verbatim into the expression. Override values are therefore
+   stored and sent as **numbers** (as the scenarios subsystem already stores them), never as
+   strings (a string would be rejected by the Decimal evaluator — correct, no-silent-coercion
+   behaviour). The cockpit reuses stored scenario records, so this is automatic.
+
+5. **The cockpit is the default Calc Studio landing; the reference tabs are drill-downs.**
+   `/calc-studio` opens on the cockpit (`CalcStudioWorkspace` defaults `active` to `cockpit`).
+   The standalone Builder modal is retired *as the authoring entry point* — its term-picker
+   logic was lifted into the inline inspector. The reference tabs (Calculations, Drivers,
+   Scenarios, Runs, Lineage, Data Catalog, Provenance, Allocations, Waterfall) are **not
+   deleted** this phase; they remain reachable as drill-downs (the explicit "no full
+   tab-ectomy" scope guard held).
+
+6. **Runnability of an authored object is its existing lifecycle, unchanged.** An active
+   user-calc runs via the registry (`POST /api/calcs/{id}/run` → `_run_user`), trace-collected
+   and scenario-capable, *not* via `calc()` composition (`calc()` references registered system
+   calculations only — by design). An authored pool runs via the authored-run path, isolated
+   and flagged `authored`. The cockpit adds no run path of its own.
+
+### MC4 verification (live, end-to-end)
+
+Driven over a real FastAPI app against an isolated temp state DB, both families:
+
+* **Calc loop** — drag `measure(segment_pl.revenue, group)` × `param(csa.pct_mult)` → output;
+  preview painted per-node values (m, p, x) + whole-graph result + a 3-step trace;
+  Base⟷Scenario re-preview painted a Δ; create-from-graph → draft (expression = compiled SoT);
+  Test → `tested`; Submit → `in_review`; **different-actor approval** (maker self-approve
+  blocked by SoD) → `active`; the active calc ran + traced + ran-under-overrides via the
+  registry.
+* **Allocation loop** — drag Source(cost-capture over CC) → Pool → Benefit-test → Allocate →
+  Markup → Charge → Recon; preview-graph captured `2,292,280.00` cost and reconciled to **zero
+  residual**; out-of-order wiring rejected; create-from-graph → draft; Test → `tested`; Submit
+  → different-actor approval → `active`; authored run launched.
+* **Golden** — with the authored stage-graph pool **active in the same DB**, the governed
+  allocation across all four billing periods is **cent-exact: FY gross == 14,344,773.26**.
+  All existing endpoints byte-identical; full pytest + typecheck + build green.
