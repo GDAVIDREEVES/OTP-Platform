@@ -4,14 +4,18 @@ import { Box, Stack, Typography } from '@mui/material';
 import type { CockpitNodeData } from './useGraphModel';
 import { useCanvasCtx } from './canvasContext';
 import {
-  presentationFor,
+  presentationForFamily,
   configSummary,
+  datasetSourceSummary,
   inputHandlesFor,
   outputKindFor,
   handleColor,
   stageInputsFor,
   stageHasFlowOut,
   isStageKind,
+  isDatasetKind,
+  datasetInputsFor,
+  type HandleKind,
 } from './nodeMeta';
 import { nodeValueText, nodeDelta, deltaText, stageResultText } from './resultText';
 
@@ -26,9 +30,12 @@ import { nodeValueText, nodeDelta, deltaText, stageResultText } from './resultTe
 
 function CockpitNodeInner({ id, data, selected }: NodeProps) {
   const { kind, config } = data as CockpitNodeData;
-  const { catalogue, preview, scenarioPreview, stagePreview, errorNodeIds } = useCanvasCtx();
-  const pres = presentationFor(kind);
-  const stage = isStageKind(kind);
+  const { catalogue, preview, scenarioPreview, stagePreview, family, errorNodeIds } = useCanvasCtx();
+  const pres = presentationForFamily(kind, family);
+  // A node belongs to the DATASET family when the canvas family is dataset and
+  // its kind is a data-prep kind (disambiguates the shared ``source``).
+  const dataset = family === 'dataset' && isDatasetKind(kind);
+  const stage = !dataset && isStageKind(kind);
 
   // A func node is variadic: the Canvas stamps data._wired = how many edges
   // already land on it, so the handle list shows every wired slot plus one open
@@ -36,22 +43,28 @@ function CockpitNodeInner({ id, data, selected }: NodeProps) {
   const wired = typeof (data as Record<string, unknown>)._wired === 'number'
     ? ((data as Record<string, unknown>)._wired as number)
     : 0;
+  // Dataset nodes draw RELATION handles (in / left / right) + a relation out
+  // (every node but a source has inputs; all but a terminal emit a relation).
   // Stage nodes draw a pipeline ``in`` (flow) + numeric (value) inputs and a
   // pipeline ``out`` (except recon); calc nodes draw their typed value/bool ports.
-  const inputs: { handle: string; kind: 'value' | 'bool' | 'flow' | null }[] = stage
-    ? stageInputsFor(kind, catalogue)
-    : inputHandlesFor(kind, catalogue, wired);
-  const outKind: 'value' | 'bool' | 'flow' | null = stage
-    ? (stageHasFlowOut(kind, catalogue) ? 'flow' : null)
-    : outputKindFor(kind, catalogue);
+  const inputs: { handle: string; kind: HandleKind }[] = dataset
+    ? datasetInputsFor(kind)
+    : stage
+      ? stageInputsFor(kind, catalogue)
+      : inputHandlesFor(kind, catalogue, wired);
+  const outKind: HandleKind = dataset
+    ? 'relation'
+    : stage
+      ? (stageHasFlowOut(kind, catalogue) ? 'flow' : null)
+      : outputKindFor(kind, catalogue);
 
-  const nv = preview?.nodes[id];
+  const nv = !dataset && !stage ? preview?.nodes[id] : undefined;
   const sv = stagePreview?.stages?.[id];
-  const valueText = stage ? stageResultText(kind, sv) : nodeValueText(nv);
-  const failed = !stage && nv && !nv.ok;
+  const valueText = dataset ? null : stage ? stageResultText(kind, sv) : nodeValueText(nv);
+  const failed = !stage && !dataset && nv && !nv.ok;
   const flagged = errorNodeIds.has(id);
 
-  const delta = stage ? null : deltaText(nodeDelta(nv, scenarioPreview?.nodes[id]));
+  const delta = stage || dataset ? null : deltaText(nodeDelta(nv, scenarioPreview?.nodes[id]));
 
   // Stack input handles down the left edge, evenly spaced.
   const rowH = 100 / (inputs.length + 1);
@@ -129,7 +142,7 @@ function CockpitNodeInner({ id, data, selected }: NodeProps) {
           variant="caption"
           sx={{ fontFamily: 'monospace', fontSize: 11.5, color: '#475569', display: 'block', wordBreak: 'break-word' }}
         >
-          {configSummary(kind, config)}
+          {dataset && kind === 'source' ? datasetSourceSummary(config) : configSummary(kind, config)}
         </Typography>
         {kind !== 'output' && valueText !== null && (
           <Typography

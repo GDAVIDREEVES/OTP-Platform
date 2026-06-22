@@ -97,6 +97,12 @@ import type {
   AuthoredTestResult,
   AuthoredRunResult,
   StageGraphPreview,
+  DatasetSourcesCatalog,
+  DatasetPreview,
+  DatasetValidation,
+  AuthoredDataset,
+  AuthoredDatasetStatus,
+  AuthoredDatasetTestResult,
   WaterfallRun,
   WaterfallRunDetail,
   PlAdjusted,
@@ -737,6 +743,67 @@ export const api = {
    *  run is a domain outcome (200, status "failed" + exception report). */
   runAuthoredAllocation: (body: { actor: string; period: string; source?: string }) =>
     sendJSON<AuthoredRunResult>('POST', '/api/allocation/authored-runs', body),
+
+  // ------------ Dataset / data-prep layer (Phase 8 DS1/DS2/DS3) ------------
+
+  /** The dataset palette catalogue: every source (warehouse views + the
+   *  fabricated cost lines + active authored datasets) with columns + provenance
+   *  + join keys, the data-prep node types, and the journal's distinct GL/CC/PC
+   *  value lists. Pure read. */
+  datasetSources: () => getJSON<DatasetSourcesCatalog>('/api/dataset/sources'),
+
+  /** Structural + allowlist validation of a dataset graph (acyclic, single
+   *  terminal, allowlisted columns/ops/keys) — nothing persists, no SQL runs. */
+  validateDataset: (graph: CockpitGraph) =>
+    sendJSON<DatasetValidation>('POST', '/api/dataset/validate', { graph }),
+
+  /** Compile a dataset graph to ONE parameterized DuckDB query + run it ->
+   *  {columns, rows (sample), row_count}. A graph problem returns a precise 400
+   *  {message, node_id}. Nothing persists — the cockpit's tabular preview. */
+  previewDataset: (graph: CockpitGraph, sampleLimit?: number) =>
+    sendJSON<DatasetPreview>('POST', '/api/dataset/preview', {
+      graph,
+      ...(sampleLimit ? { sample_limit: sampleLimit } : {}),
+    }),
+
+  /** Authored datasets (governed, reusable data-prep graphs), newest first. */
+  authoredDatasets: (status?: AuthoredDatasetStatus) =>
+    getJSON<AuthoredDataset[]>('/api/datasets', status ? { status } : {}),
+
+  /** One authored dataset (404 if unknown). */
+  authoredDataset: (datasetId: string) =>
+    getJSON<AuthoredDataset>(`/api/datasets/${encodeURIComponent(datasetId)}`),
+
+  /** Create a draft authored dataset from a data-prep ``graph`` (the source of
+   *  truth — it compiles to SQL). Structurally validated up front. */
+  createAuthoredDataset: (body: {
+    name: string;
+    definition: CockpitGraph;
+    description?: string;
+    process_id?: string;
+    actor: string;
+  }) => sendJSON<AuthoredDataset>('POST', '/api/datasets', body),
+
+  /** Edit a dataset's graph (resets the test gate; an active dataset versions +
+   *  returns to draft). */
+  updateAuthoredDataset: (
+    datasetId: string,
+    body: { name?: string; description?: string; definition?: CockpitGraph;
+            process_id?: string; actor: string }
+  ) => sendJSON<AuthoredDataset>('PATCH', `/api/datasets/${encodeURIComponent(datasetId)}`, body),
+
+  /** Compile + run the dataset graph (no persist). On success it is marked
+   *  ``tested`` — the gate submit-activation requires. Returns the preview. */
+  testAuthoredDataset: (datasetId: string, actor: string) =>
+    sendJSON<AuthoredDatasetTestResult>(
+      'POST', `/api/datasets/${encodeURIComponent(datasetId)}/test`, { actor }),
+
+  /** Submit a tested dataset for activation: status → in_review + one pending
+   *  maker-checker item at dataset:{id}. A DIFFERENT reviewer must approve. */
+  submitAuthoredDatasetActivation: (datasetId: string, maker: string) =>
+    sendJSON<AuthoredDataset>(
+      'POST', `/api/datasets/${encodeURIComponent(datasetId)}/submit-activation`,
+      { maker }),
 
   // ------------ TP waterfall + post-charge P&L (Phase 5 W1/W2) ------------
 

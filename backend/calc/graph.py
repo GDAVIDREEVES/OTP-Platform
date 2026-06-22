@@ -73,6 +73,15 @@ NODE_TYPES: dict[str, dict[str, Any]] = {
                 "config": ("ref", "grain", "filters")},
     "calc": {"family": "calc", "inputs": {}, "output": _VALUE,
              "config": ("calc_id", "output_key")},
+    # The dataset->calc BRIDGE (Phase 8 DS3): a calc-value LEAF that runs a
+    # dataset subgraph (or an ACTIVE authored dataset) aggregating to a single
+    # scalar and feeds that Decimal into the calc graph. It carries NO new
+    # evaluator — the dataset compiles to one safe parameterized DuckDB query
+    # (calc/dataset.py), and the boundary node emits the resolved scalar as a
+    # Decimal literal into the expr.py string (exactly like a const). So a
+    # formula/graph calc can consume journal-grained GL/CC/PC data.
+    "dataset_value": {"family": "calc", "inputs": {}, "output": _VALUE,
+                      "config": ("dataset_id", "graph", "column")},
     "const": {"family": "calc", "inputs": {}, "output": _VALUE,
               "config": ("value",)},
     "op": {"family": "calc", "inputs": {"a": _VALUE, "b": _VALUE},
@@ -321,6 +330,15 @@ def _check_node(
                 Decimal(str(cfg["value"]))
             except Exception:  # noqa: BLE001
                 err(f"const node value {cfg['value']!r} is not a number")
+    elif typ == "dataset_value":
+        # Structural gate only (no DB run in validation): exactly one source.
+        # The scalar-shape + numeric checks run at emit/preview time (where the
+        # value is painted), surfacing a precise per-node error there.
+        has_graph = cfg.get("graph") is not None
+        has_id = cfg.get("dataset_id") is not None
+        if has_graph == has_id:
+            err("dataset_value node needs exactly one of config.graph (an inline "
+                "dataset subgraph) or config.dataset_id (an active authored dataset)")
     elif typ == "op":
         if cfg.get("op") not in _OP_SYMBOLS:
             err(f"op node needs config.op in {_OP_SYMBOLS}, got {cfg.get('op')!r}")
@@ -386,6 +404,78 @@ def _is_acyclic(
     return all(color[nid] != WHITE or visit(nid) for nid in nodes)
 
 
+# --- dataset->calc bridge (DS3) ------------------------------------------------
+
+
+def _resolve_dataset_scalar(cfg: dict[str, Any], nid: str) -> "Decimal":
+    """Run the dataset a ``dataset_value`` node references and return the single
+    scalar it produces (a Decimal, money-exact). The node carries EITHER an
+    inline dataset ``graph`` (a dataset subgraph terminating in an aggregate-to-
+    single-value) OR a ``dataset_id`` (an ACTIVE authored dataset); ``column``
+    picks which output column is the scalar (defaulting to the sole measure when
+    the dataset has exactly one).
+
+    The dataset compiles to ONE safe parameterized DuckDB query and runs through
+    ``calc/dataset.py`` (DuckDB stays the engine — no new evaluator). A dataset
+    that yields zero rows, more than one row, or a non-numeric / null cell is a
+    precise error (never a guessed default). Deferred import keeps the dataset
+    compiler off this module's import path."""
+    from decimal import Decimal, InvalidOperation
+    import calc.dataset as dataset  # deferred: keep dataset off the import path
+
+    graph = cfg.get("graph")
+    dataset_id = cfg.get("dataset_id")
+    if (graph is None) == (dataset_id is None):
+        raise GraphError(
+            "dataset_value node needs exactly one of config.graph (an inline "
+            "dataset subgraph) or config.dataset_id (an active authored dataset)",
+            nid)
+    if dataset_id is not None:
+        # Reference an active authored dataset via the dataset/{id} source node —
+        # the compiler resolves + inlines it (and rejects a non-active id).
+        graph = {"nodes": [{"id": "_dsv", "type": "source",
+                            "config": {"table": f"dataset/{dataset_id}"}}],
+                 "edges": []}
+    try:
+        result = dataset.run_dataset(graph, sample_limit=2)
+    except dataset.DatasetError as e:
+        raise GraphError(
+            f"dataset_value node could not run its dataset: {e.message}", nid)
+
+    columns = result["columns"]
+    rows = result["rows"]
+    if result["row_count"] != 1 or len(rows) != 1:
+        raise GraphError(
+            f"dataset_value node expects a dataset that aggregates to ONE row, "
+            f"got {result['row_count']} — add an aggregate stage", nid)
+    column = cfg.get("column")
+    if column is None:
+        # Default to the sole column only when the dataset has exactly one
+        # (otherwise the author must say which scalar — no silent default).
+        if len(columns) != 1:
+            raise GraphError(
+                f"dataset_value node needs config.column — the dataset has "
+                f"{len(columns)} columns ({', '.join(columns)})", nid)
+        column = columns[0]
+    elif column not in columns:
+        raise GraphError(
+            f"dataset_value column {column!r} is not an output of this dataset "
+            f"(available: {', '.join(columns)})", nid)
+    raw = rows[0].get(column)
+    if raw is None:
+        raise GraphError(
+            f"dataset_value column {column!r} is null — no scalar to feed the "
+            "calc", nid)
+    if isinstance(raw, bool):
+        raise GraphError(
+            f"dataset_value column {column!r} is a boolean, not a number", nid)
+    try:
+        return Decimal(str(raw))
+    except (InvalidOperation, ValueError, TypeError):
+        raise GraphError(
+            f"dataset_value column {column!r} is not numeric (got {raw!r})", nid)
+
+
 # --- graph -> expr -------------------------------------------------------------
 
 
@@ -445,6 +535,12 @@ def _emit(
         # Decimal-faithful literal: emit the canonical string of the config value.
         from decimal import Decimal
         return str(Decimal(str(cfg["value"])))
+    if typ == "dataset_value":
+        # The dataset->calc bridge: run the dataset to its single scalar and emit
+        # that Decimal as a literal (the dataset is the engine; the boundary node
+        # turns its scalar into a const the expr string consumes). No float ever
+        # touches the math — the value is the exact Decimal string.
+        return str(_resolve_dataset_scalar(cfg, nid))
     if typ == "op":
         a = _emit(wired["a"], nodes, incoming)
         b = _emit(wired["b"], nodes, incoming)

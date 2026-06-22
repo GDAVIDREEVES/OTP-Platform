@@ -17,17 +17,20 @@ import type {
   CockpitGraphPreview,
   StageGraphPreview,
 } from '@/shared/api/types';
-import { isStageKind } from './nodeMeta';
+import { familyOfNodes } from './nodeMeta';
+import type { DatasetPreview } from '@/shared/api/types';
 
-/** Which family the current canvas graph belongs to (MC3). A graph with any
- *  allocation stage node is an ``alloc`` stage graph; otherwise (with nodes)
- *  it's a ``calc`` graph; empty is ``empty``. The two families never mix on one
- *  canvas (the connection guard + backend validation reject cross-wires). */
-export type GraphFamily = 'calc' | 'alloc' | 'empty';
+/** Which family the current canvas graph belongs to. A graph with any allocation
+ *  stage node is an ``alloc`` stage graph; one with any data-prep node is a
+ *  ``dataset`` graph (DS3); otherwise (with nodes) it's a ``calc`` graph; empty
+ *  is ``empty``. The three families never mix on one canvas (the connection
+ *  guard + backend validation reject cross-wires). */
+export type GraphFamily = 'calc' | 'alloc' | 'dataset' | 'empty';
 
-export function graphFamilyOf(nodes: { data: { kind: string } }[]): GraphFamily {
-  if (nodes.length === 0) return 'empty';
-  return nodes.some((n) => isStageKind(n.data.kind)) ? 'alloc' : 'calc';
+export function graphFamilyOf(
+  nodes: { data: { kind: string; config?: Record<string, unknown> } }[]
+): GraphFamily {
+  return familyOfNodes(nodes);
 }
 
 /** The cockpit graph model (MC2) — React Flow state ⟷ the backend graph API.
@@ -112,6 +115,7 @@ export function useGraphModel() {
   const [preview, setPreview] = useState<CockpitGraphPreview | null>(null);
   const [scenarioPreview, setScenarioPreview] = useState<CockpitGraphPreview | null>(null);
   const [stagePreview, setStagePreview] = useState<StageGraphPreview | null>(null);
+  const [datasetPreview, setDatasetPreview] = useState<DatasetPreview | null>(null);
 
   const family = graphFamilyOf(nodes);
 
@@ -155,6 +159,7 @@ export function useGraphModel() {
       setPreview(null);
       setScenarioPreview(null);
       setStagePreview(null);
+      setDatasetPreview(null);
       return id;
     },
     []
@@ -173,6 +178,7 @@ export function useGraphModel() {
       setPreview(null);
       setScenarioPreview(null);
       setStagePreview(null);
+      setDatasetPreview(null);
     },
     []
   );
@@ -184,6 +190,7 @@ export function useGraphModel() {
     setPreview(null);
     setScenarioPreview(null);
     setStagePreview(null);
+    setDatasetPreview(null);
   }, []);
 
   /** Replace the whole graph (loading an existing calc's graph for round-trip). */
@@ -195,6 +202,7 @@ export function useGraphModel() {
     setPreview(null);
     setScenarioPreview(null);
     setStagePreview(null);
+    setDatasetPreview(null);
   }, []);
 
   const clearGraph = useCallback(() => {
@@ -205,6 +213,7 @@ export function useGraphModel() {
     setPreview(null);
     setScenarioPreview(null);
     setStagePreview(null);
+    setDatasetPreview(null);
   }, []);
 
   /** Seed an empty canvas with the full allocation stage pipeline (MC3) —
@@ -235,37 +244,75 @@ export function useGraphModel() {
     setPreview(null);
     setScenarioPreview(null);
     setStagePreview(null);
+    setDatasetPreview(null);
   }, []);
 
   // ---- live validation (debounced) ----
+  // A DATASET graph validates against the dataset allowlist compiler
+  // (/api/dataset/validate); calc + alloc graphs validate against the
+  // calc-graph validator. The validation shape is normalised to
+  // CockpitGraphValidation either way (output_id is null for a dataset).
   const graphSig = JSON.stringify(toGraph(nodes, edges));
+  const famSig = graphFamilyOf(nodes);
   useEffect(() => {
     if (nodes.length === 0) {
       setValidation(null);
       return undefined;
     }
     let cancelled = false;
+    const g = JSON.parse(graphSig) as CockpitGraph;
     const t = setTimeout(() => {
-      api
-        .validateGraph(JSON.parse(graphSig) as CockpitGraph)
+      const p = famSig === 'dataset'
+        ? api.validateDataset(g).then((v) => ({
+            ok: v.ok, errors: v.errors, output_id: null,
+          }))
+        : api.validateGraph(g);
+      p
         .then((v) => { if (!cancelled) setValidation(v); })
         .catch(() => { if (!cancelled) setValidation(null); });
     }, 300);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [graphSig, nodes.length]);
+  }, [graphSig, famSig, nodes.length]);
 
   // ---- preview (Run/Preview) ----
   const runningRef = useRef(false);
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
 
+  /** Build the dataset subgraph rooted at ``rootId`` (every upstream relation
+   *  node reachable from it) so a single node can be previewed as the terminal
+   *  output — the tabular preview shows exactly what flows out of that node. */
+  const datasetSubgraph = useCallback(
+    (rootId: string): CockpitGraph => {
+      const full = toGraph(nodes, edges);
+      const byId: Record<string, (typeof full.nodes)[number]> = {};
+      full.nodes.forEach((n) => { byId[n.id] = n; });
+      const incoming: Record<string, string[]> = {};
+      full.edges.forEach((e) => { (incoming[e.target] ??= []).push(e.source); });
+      const keep = new Set<string>();
+      const stack = [rootId];
+      while (stack.length) {
+        const cur = stack.pop() as string;
+        if (keep.has(cur) || !byId[cur]) continue;
+        keep.add(cur);
+        (incoming[cur] ?? []).forEach((s) => stack.push(s));
+      }
+      return {
+        nodes: full.nodes.filter((n) => keep.has(n.id)),
+        edges: full.edges.filter((e) => keep.has(e.source) && keep.has(e.target)),
+      };
+    },
+    [nodes, edges]
+  );
+
   /** Run/Preview — ONE always-visible action that paints values onto nodes +
    *  the dock. For a CALC graph it compiles + evaluates via the expr engine
    *  (optionally under a scenario overlay → Δ). For an ALLOCATION stage graph it
    *  compiles to an authored-pool definition and dry-runs Stages 1-7 in
-   *  isolation, painting the per-stage results (captured cost, exclusions,
-   *  allocated, markup, charges, recon zero-residual). No new evaluator either
-   *  way — the canvas reuses the existing engines. */
+   *  isolation. For a DATASET graph it compiles to ONE parameterized DuckDB query
+   *  and runs it → a tabular preview (columns + sample rows + row count) for the
+   *  selected node's subgraph (or the terminal). No new engine any way — the
+   *  canvas reuses the existing evaluators. */
   const runPreview = useCallback(
     async (overrides?: Record<string, unknown>) => {
       if (runningRef.current) return;
@@ -280,10 +327,23 @@ export function useGraphModel() {
           setStagePreview(stage);
           setPreview(null);
           setScenarioPreview(null);
+          setDatasetPreview(null);
+        } else if (fam === 'dataset') {
+          // Preview the SELECTED dataset node's subgraph (Run shows what flows
+          // out of the node you're inspecting); fall back to the whole graph.
+          const sel = selectedId && nodes.some((n) => n.id === selectedId)
+            ? selectedId : null;
+          const sub = sel ? datasetSubgraph(sel) : graph;
+          const result = await api.previewDataset(sub);
+          setDatasetPreview(result);
+          setPreview(null);
+          setScenarioPreview(null);
+          setStagePreview(null);
         } else {
           const base = await api.previewGraph(graph);
           setPreview(base);
           setStagePreview(null);
+          setDatasetPreview(null);
           if (overrides && Object.keys(overrides).length) {
             const scen = await api.previewGraph(graph, overrides);
             setScenarioPreview(scen);
@@ -298,7 +358,7 @@ export function useGraphModel() {
         setRunning(false);
       }
     },
-    [nodes, edges]
+    [nodes, edges, selectedId, datasetSubgraph]
   );
 
   const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
@@ -324,10 +384,12 @@ export function useGraphModel() {
     preview,
     scenarioPreview,
     stagePreview,
+    datasetPreview,
     family,
     running,
     runError,
     runPreview,
+    datasetSubgraph,
     toGraph: () => toGraph(nodes, edges),
   };
 }

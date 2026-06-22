@@ -10,6 +10,7 @@ import type {
   AllocationDimensionOption,
   AllocationDimensions,
   AllocationEntityRow,
+  AuthoredDataset,
   AuthoredExclusion,
   AuthoredMarkupPolicy,
   StagePreviewResult,
@@ -34,6 +35,9 @@ interface CaptureRule {
   profit_centers?: string[] | null;
   cost_elements?: string[] | null;
   split_pct?: string | null;
+  /** DS3: an active authored dataset supplies the cost base (then the CC/PC/
+   *  element pickers act only as an optional further filter). */
+  dataset_id?: string | null;
 }
 
 function DimensionPicker({
@@ -81,11 +85,13 @@ export default function StageInspector({
 
   const [dims, setDims] = useState<AllocationDimensions | null>(null);
   const [entities, setEntities] = useState<AllocationEntityRow[]>([]);
+  const [activeDatasets, setActiveDatasets] = useState<AuthoredDataset[]>([]);
   useEffect(() => {
     api.allocationDimensions().then(setDims).catch(() => setDims(null));
     api.reference<{ rows: AllocationEntityRow[] }>('allocation_entities')
       .then((s) => setEntities(s.rows))
       .catch(() => setEntities([]));
+    api.authoredDatasets('active').then(setActiveDatasets).catch(() => setActiveDatasets([]));
   }, []);
 
   // Is a numeric input handle of this stage bound to a calc-value subgraph?
@@ -113,6 +119,22 @@ export default function StageInspector({
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>Loading dimensions…</Typography>
         ) : (
           <>
+            {/* DS3: an active authored dataset as the cost base (vs the seed cost
+                lines). When set, the dimension pickers become an optional filter. */}
+            <TextField select size="small" fullWidth label="Cost base (dataset, optional)"
+              value={String(rule.dataset_id ?? '')}
+              onChange={(e) => setRule({ dataset_id: e.target.value || null })}
+              helperText={rule.dataset_id
+                ? 'Active dataset supplies the Source-stage cost base (dimension filters optional)'
+                : 'Default: the fabricated seed cost lines'}>
+              <MenuItem value="">— seed cost lines —</MenuItem>
+              {activeDatasets.map((d) => (
+                <MenuItem key={d.id} value={d.id}>{d.id} · {d.name}</MenuItem>
+              ))}
+              {Boolean(rule.dataset_id) && !activeDatasets.some((d) => d.id === rule.dataset_id) && (
+                <MenuItem value={String(rule.dataset_id)}>{String(rule.dataset_id)}</MenuItem>
+              )}
+            </TextField>
             <DimensionPicker label="Cost centers" options={dims.cost_centers}
               value={rule.cost_centers ?? []} onChange={(v) => setRule({ cost_centers: v.length ? v : null })} />
             <DimensionPicker label="Profit centers" options={dims.profit_centers}

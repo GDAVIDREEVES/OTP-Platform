@@ -1060,6 +1060,109 @@ export interface CockpitNodeTypes {
   /** The allocation stage family (MC3) + its canonical order. */
   stage_types: CockpitStageType[];
   stage_order: string[];
+  /** The dataset / data-prep family (Phase 8 DS2/DS3) — the source/filter/
+   *  aggregate/join/union/derive/select node types + the ACTIVE authored
+   *  datasets offered as ``dataset/{id}`` sources. */
+  dataset_node_types: DatasetNodeType[];
+  dataset_sources: DatasetSource[];
+}
+
+// ----------------- Dataset / data-prep layer (Phase 8) -----------------
+
+/** One dataset / data-prep node type (relation handles, distinct family). The
+ *  compiler in calc/dataset.py is the single source of truth for the config
+ *  shape; this mirrors it so the palette never offers a node the compiler would
+ *  reject. ``ops``/``funcs``/``hows`` carry the allowed predicate ops / aggregate
+ *  functions / join types for the matching node type. */
+export interface DatasetNodeType {
+  type: 'source' | 'filter' | 'aggregate' | 'join' | 'union' | 'derive' | 'select';
+  family: 'dataset';
+  inputs: number;
+  output: 'relation';
+  config: string[];
+  ops?: string[];
+  funcs?: string[];
+  hows?: string[];
+}
+
+/** One source column (role + SQL type) in the dataset palette. */
+export interface DatasetSourceColumn {
+  name: string;
+  role: 'dimension' | 'measure';
+  type: string;
+}
+
+/** One dataset SOURCE — a warehouse view, the fabricated cost lines, or an
+ *  ACTIVE authored dataset (``dataset/{id}``). ``provenance`` distinguishes real
+ *  warehouse data from the fabricated seed and authored datasets. */
+export interface DatasetSource {
+  table: string;
+  view: string | null;
+  label: string;
+  provenance: 'real' | 'fabricated' | 'authored';
+  catalog_id: string;
+  columns: DatasetSourceColumn[];
+  measures: string[];
+  join_keys: string[];
+  dimensions: string[];
+  /** Present only for authored-dataset sources. */
+  dataset_id?: string;
+}
+
+/** GET /api/dataset/sources — the dataset palette catalogue. */
+export interface DatasetSourcesCatalog {
+  tables: DatasetSource[];
+  datasets: DatasetSource[];
+  node_types: DatasetNodeType[];
+  filter_ops: string[];
+  agg_funcs: string[];
+  arith_ops: string[];
+  /** The real distinct GL / CC / PC value lists for the journal. */
+  journal_distinct: Record<string, (string | number)[]>;
+}
+
+/** POST /api/dataset/preview & /api/datasets/preview — the tabular preview. */
+export interface DatasetPreview {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  row_count: number;
+}
+
+/** POST /api/dataset/validate — structural + allowlist validation report. */
+export interface DatasetValidation {
+  ok: boolean;
+  errors: { message: string; node_id: string | null }[];
+  output_columns: string[];
+}
+
+export type AuthoredDatasetStatus = 'draft' | 'tested' | 'in_review' | 'active';
+
+/** One authored dataset record (SQLite authored_datasets) — a saved, governed,
+ *  reusable data-prep graph (draft → tested → in_review → active, maker-checker
+ *  at dataset:{id}). The ``graph`` is the source of truth (compiles to SQL). */
+export interface AuthoredDataset {
+  id: string;
+  name: string;
+  description: string | null;
+  graph: CockpitGraph;
+  process_id: string | null;
+  status: AuthoredDatasetStatus;
+  version: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string | null;
+  tested_graph_hash: string | null;
+  tested_at: string | null;
+  activated_at: string | null;
+  activated_by: string | null;
+}
+
+/** POST /api/datasets/{id}/test — the preview plus the (maybe updated) dataset
+ *  and whether the test gate now holds. */
+export interface AuthoredDatasetTestResult {
+  dataset: AuthoredDataset;
+  result: DatasetPreview;
+  tested: boolean;
 }
 
 /** One node of a cockpit graph (position drives the React Flow layout). */
@@ -1555,6 +1658,11 @@ export interface AuthoredCaptureRule {
   profit_centers?: string[] | null;
   cost_elements?: string[] | null;
   split_pct?: string | null;
+  /** The dataset->allocation bridge (Phase 8 DS3): an ACTIVE authored dataset
+   *  (cost-line-shaped) supplies the Source-stage cost base instead of the seed
+   *  cost lines. When set, the CC/PC/element predicates become an optional
+   *  further filter over the dataset's rows. */
+  dataset_id?: string | null;
 }
 
 /** The allocation key factor — factor values are computed from the warehouse

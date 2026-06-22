@@ -12,7 +12,10 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
-import type { AuthoredPool, AuthoredPoolStatus, Scenario, UserCalc } from '@/shared/api/types';
+import type {
+  AuthoredDataset, AuthoredDatasetStatus, AuthoredPool, AuthoredPoolStatus,
+  Scenario, UserCalc,
+} from '@/shared/api/types';
 import { useGraphModel } from './useGraphModel';
 import Canvas from './Canvas';
 import NodePalette from './NodePalette';
@@ -41,6 +44,10 @@ const POOL_STATUS_COLOR: Record<AuthoredPoolStatus, 'default' | 'info' | 'warnin
   draft: 'default', tested: 'info', in_review: 'warning', active: 'success',
 };
 
+const DATASET_STATUS_COLOR: Record<AuthoredDatasetStatus, 'default' | 'info' | 'warning' | 'success'> = {
+  draft: 'default', tested: 'info', in_review: 'warning', active: 'success',
+};
+
 export default function CockpitPage() {
   const user = useSessionUser();
   const toast = useToast();
@@ -52,12 +59,15 @@ export default function CockpitPage() {
   // The authored pool this canvas is bound to when it's an ALLOCATION stage graph
   // (MC3 — the alloc-family analogue of `saved`).
   const [savedPool, setSavedPool] = useState<AuthoredPool | null>(null);
+  // The authored dataset this canvas is bound to when it's a DATASET graph (DS3).
+  const [savedDataset, setSavedDataset] = useState<AuthoredDataset | null>(null);
   const [name, setName] = useState('');
   const [processId, setProcessId] = useState(DEFAULT_PROCESS);
   const [outputGrain, setOutputGrain] = useState('group');
   const [busy, setBusy] = useState<'save' | 'test' | 'submit' | null>(null);
 
   const isAlloc = model.family === 'alloc';
+  const isDataset = model.family === 'dataset';
 
   // Split-button menu anchor.
   const [menuOpen, setMenuOpen] = useState(false);
@@ -241,9 +251,68 @@ export default function CockpitPage() {
     }
   };
 
+  // ---- dataset-graph lifecycle (DS3) via the authored-dataset path ----
+  // A dataset graph compiles to ONE safe parameterized DuckDB query server-side,
+  // so Save/Test/Submit reuse the EXISTING DS2 lifecycle (draft → tested →
+  // review → active, maker-checker at dataset:{id}) — no new engine. The graph is
+  // the source of truth.
+  const saveDataset = async () => {
+    if (!graphValid) { toast.show('Fix the dataset before saving — see Exceptions.', 'error'); return; }
+    if (name.trim() === '') { toast.show('Name the dataset before saving.', 'error'); return; }
+    setBusy('save');
+    try {
+      const graph = model.toGraph();
+      const next = savedDataset
+        ? await api.updateAuthoredDataset(savedDataset.id, { definition: graph, actor: user.id })
+        : await api.createAuthoredDataset({ name: name.trim(), definition: graph, process_id: processId, actor: user.id });
+      setSavedDataset(next);
+      toast.show(`Saved ${next.id} v${next.version} (${next.status}) — recorded at dataset:${next.id}`, 'success');
+    } catch (e) {
+      toast.show(`Save failed: ${String(e)}`, 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const testDataset = async () => {
+    if (!savedDataset) { toast.show('Save the draft dataset before testing.', 'info'); return; }
+    setBusy('test');
+    try {
+      const res = await api.testAuthoredDataset(savedDataset.id, user.id);
+      setSavedDataset(res.dataset);
+      toast.show(`Compile + run passed (${res.result.row_count} rows) — ${res.dataset.id} is now tested`, 'success');
+    } catch (e) {
+      toast.show(`Test run failed: ${String(e)}`, 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const submitDataset = async () => {
+    if (!savedDataset) return;
+    setBusy('submit');
+    try {
+      const next = await api.submitAuthoredDatasetActivation(savedDataset.id, user.id);
+      setSavedDataset(next);
+      toast.show(`${next.id} queued for review — a DIFFERENT reviewer must approve (maker-checker)`, 'info');
+    } catch (e) {
+      toast.show(`Submit failed: ${String(e)}`, 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   // The split-button's primary action follows the lifecycle state, branching on
-  // the canvas family (calc → user-calc path; alloc → authored-pool path).
+  // the canvas family (calc → user-calc path; alloc → authored-pool path;
+  // dataset → authored-dataset path).
   const primary = useMemo(() => {
+    if (isDataset) {
+      if (!savedDataset) return { key: 'save' as const, label: 'Save draft dataset', fn: saveDataset, enabled: graphValid && name.trim() !== '' };
+      if (savedDataset.status === 'draft') return { key: 'test' as const, label: 'Test run (compile + run)', fn: testDataset, enabled: true };
+      if (savedDataset.status === 'tested') return { key: 'submit' as const, label: 'Submit for activation', fn: submitDataset, enabled: true };
+      if (savedDataset.status === 'in_review') return { key: 'save' as const, label: 'In review', fn: async () => undefined, enabled: false };
+      return { key: 'save' as const, label: 'Save new version', fn: saveDataset, enabled: graphValid };
+    }
     if (isAlloc) {
       if (!savedPool) return { key: 'save' as const, label: 'Save draft pool', fn: savePool, enabled: graphValid && name.trim() !== '' };
       if (savedPool.status === 'draft' || savedPool.status === 'tested') {
@@ -259,11 +328,12 @@ export default function CockpitPage() {
     if (saved.status === 'in_review') return { key: 'save' as const, label: 'In review', fn: async () => undefined, enabled: false };
     return { key: 'save' as const, label: 'Save new version', fn: saveDraft, enabled: graphValid };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAlloc, saved, savedPool, graphValid, name, model]);
+  }, [isAlloc, isDataset, saved, savedPool, savedDataset, graphValid, name, model]);
 
   const newCalc = () => {
     setSaved(null);
     setSavedPool(null);
+    setSavedDataset(null);
     setName('');
     setOutputGrain('group');
     setProcessId(DEFAULT_PROCESS);
@@ -286,12 +356,12 @@ export default function CockpitPage() {
       >
         <TextField
           size="small"
-          placeholder={isAlloc ? 'Pool name' : 'Calculation name'}
+          placeholder={isAlloc ? 'Pool name' : isDataset ? 'Dataset name' : 'Calculation name'}
           value={name}
           onChange={(e) => setName(e.target.value)}
           sx={{ width: 220 }}
         />
-        {!isAlloc && (
+        {!isAlloc && !isDataset && (
           <TextField
             select size="small" label="Output grain" value={outputGrain}
             onChange={(e) => setOutputGrain(e.target.value)} sx={{ width: 150 }}
@@ -302,6 +372,17 @@ export default function CockpitPage() {
         {isAlloc && (
           <Chip size="small" color="primary" variant="outlined" label="allocation pool"
             sx={{ height: 22, fontWeight: 700 }} />
+        )}
+        {isDataset && (
+          <Chip size="small" color="secondary" variant="outlined" label="dataset"
+            sx={{ height: 22, fontWeight: 700 }} />
+        )}
+        {isDataset && savedDataset && (
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <Chip size="small" variant="outlined" label={savedDataset.id} sx={{ height: 22, fontFamily: 'monospace' }} />
+            <Chip size="small" variant="outlined" label={`v${savedDataset.version}`} sx={{ height: 22 }} />
+            <Chip size="small" color={DATASET_STATUS_COLOR[savedDataset.status]} label={savedDataset.status} sx={{ height: 22, fontWeight: 700 }} />
+          </Stack>
         )}
         {!isAlloc && saved && (
           <Stack direction="row" spacing={0.5} alignItems="center">
@@ -320,9 +401,10 @@ export default function CockpitPage() {
 
         <Box sx={{ flex: 1 }} />
 
-        {/* Base ⟷ Scenario toggle — calc graphs only (a stage graph is run
-            through the allocation engine, not the scenario-overlay evaluator). */}
-        {!isAlloc && (
+        {/* Base ⟷ Scenario toggle — calc graphs only (a stage graph runs through
+            the allocation engine, a dataset through DuckDB — neither uses the
+            scenario-overlay evaluator). */}
+        {!isAlloc && !isDataset && (
           <ToggleButtonGroup
             size="small"
             exclusive
@@ -333,7 +415,7 @@ export default function CockpitPage() {
             <ToggleButton value="scenario" sx={{ px: 1.5 }} disabled={scenarios.length === 0}>Scenario</ToggleButton>
           </ToggleButtonGroup>
         )}
-        {!isAlloc && mode === 'scenario' && (
+        {!isAlloc && !isDataset && mode === 'scenario' && (
           <TextField
             select size="small" label="Scenario" value={scenarioId}
             onChange={(e) => setScenarioId(e.target.value)} sx={{ width: 200 }}
@@ -373,7 +455,28 @@ export default function CockpitPage() {
             <Grow {...TransitionProps}>
               <Paper elevation={3}>
                 <ClickAwayListener onClickAway={() => setMenuOpen(false)}>
-                  {isAlloc ? (
+                  {isDataset ? (
+                  <MenuList dense>
+                    <MenuItem
+                      disabled={!graphValid || name.trim() === '' || savedDataset?.status === 'in_review'}
+                      onClick={() => { setMenuOpen(false); void saveDataset(); }}
+                    >
+                      Save {savedDataset ? 'new version' : 'draft dataset'}
+                    </MenuItem>
+                    <MenuItem
+                      disabled={!savedDataset || !(savedDataset.status === 'draft' || savedDataset.status === 'tested')}
+                      onClick={() => { setMenuOpen(false); void testDataset(); }}
+                    >
+                      Test run (compile + run)
+                    </MenuItem>
+                    <MenuItem
+                      disabled={!savedDataset || savedDataset.status !== 'tested'}
+                      onClick={() => { setMenuOpen(false); void submitDataset(); }}
+                    >
+                      Submit for activation
+                    </MenuItem>
+                  </MenuList>
+                  ) : isAlloc ? (
                   <MenuList dense>
                     <MenuItem
                       disabled={!graphValid || name.trim() === '' || savedPool?.status === 'in_review'}
@@ -471,6 +574,13 @@ export default function CockpitPage() {
         <Alert severity="success" variant="outlined" sx={{ mx: 1.5, mt: 1, py: 0 }}>
           {savedPool.id} is active (a governed experiment, flagged authored). It runs via the authored
           allocation run — the governed seeded allocation stays cent-exact and is never touched.
+        </Alert>
+      )}
+      {isDataset && savedDataset?.status === 'active' && (
+        <Alert severity="success" variant="outlined" sx={{ mx: 1.5, mt: 1, py: 0 }}>
+          {savedDataset.id} is active — referenceable as a source in another dataset, as a calc
+          dataset-value, and as an allocation pool cost base. Editing the canvas and saving creates a
+          new draft version (re-test + re-approval).
         </Alert>
       )}
 

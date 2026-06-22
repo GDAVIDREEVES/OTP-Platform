@@ -660,7 +660,12 @@ def _authored_cost_line_matches(
     pcs = rule.get("profit_centers") or []
     els = rule.get("cost_elements") or []
     if not (ccs or pcs or els):
-        return False
+        # A dataset-sourced rule (DS3) IS the deliberate capture — the active
+        # dataset's rows are the cost base, so an unconstrained dataset rule
+        # matches every (already dataset-scoped) line. A rule with neither
+        # predicates nor a dataset matches nothing (a pool must capture
+        # something deliberately).
+        return bool(rule.get("dataset_id"))
     if ccs and line.get("cost_center") not in ccs:
         return False
     if pcs and line.get("profit_center") not in pcs:
@@ -681,8 +686,15 @@ def preview_capture_rule(
     An optional ``split_pct`` (Decimal string in (0, 1]) scales the captured
     amount: only that fraction of each matched line is pooled (the remainder
     stays with its existing pool / out of scope). No silent default — if
-    ``split_pct`` is present it must parse to a value in (0, 1]."""
+    ``split_pct`` is present it must parse to a value in (0, 1].
+
+    DS3: when the rule names a ``dataset_id`` and no explicit ``dataset`` was
+    passed, the cost base is that active authored dataset (mapped to cost-line
+    shape), so the captured amount ties out to the dataset's ``SUM(amount)``."""
     split = _parse_split_pct(rule.get("split_pct"))
+    if dataset is None and rule.get("dataset_id"):
+        dataset = dataset_sourced_dataset(
+            {"cost_capture_rule": dict(rule)}, source=source)
     lines = dataset["cost_lines"][source] if dataset else load_demo_dataset()["cost_lines"][source]
     captured = ZERO
     count = 0
@@ -716,6 +728,151 @@ def _parse_split_pct(raw: Any) -> Decimal:
         raise ValueError(
             f"cost_capture_rule.split_pct must be in (0, 1], got {split}")
     return split
+
+
+# ----------------------------------------------------------------------------
+# Phase 8 DS3 — dataset->allocation BRIDGE. A cost-capture rule may name an
+# authored ``dataset_id`` whose ACTIVE, cost-line-shaped dataset supplies the
+# Source-stage cost base instead of the fabricated seed cost_lines: the user
+# built a cost pool by joining/filtering the ACDOCA journal (or any source) into
+# the (provider, cost_center, profit_center, cost_element, amount, period) shape.
+# The dataset compiles to ONE safe parameterized DuckDB query (calc/dataset.py)
+# — DuckDB stays the engine; this just MAPS each output row to the engine's
+# cost-line schema so the unchanged Stages 1-7 consume it. The governed seeded
+# allocation never reads a dataset, so it stays cent-exact (golden).
+# ----------------------------------------------------------------------------
+
+#: The cost-line columns the engine needs, mapped from the dataset's output. Each
+#: target column lists the accepted source names in priority order (the spec's
+#: short names OR the seed's exact names) so a dataset shaped either way works.
+_DATASET_COST_LINE_COLUMNS: dict[str, tuple[str, ...]] = {
+    "provider_entity_id": ("provider_entity_id", "provider"),
+    "company_code": ("company_code", "provider_entity_id", "provider"),
+    "cost_center": ("cost_center",),
+    "profit_center": ("profit_center",),
+    "cost_element": ("cost_element",),
+    "amount_local": ("amount_local", "amount"),
+    "currency_local": ("currency_local", "currency"),
+    "fiscal_period": ("fiscal_period", "period"),
+}
+
+
+def _pick(row: Mapping[str, Any], names: tuple[str, ...]) -> Any:
+    for n in names:
+        if n in row and row[n] is not None:
+            return row[n]
+    return None
+
+
+#: Valid 1_CostLine.function enum (V-R2) — a dataset-sourced line carries its
+#: pool's service_line when it is a recognised function, else this catch-all
+#: (never a silent invalid value that would BLOCK at Stage 1's schema check).
+_DATASET_LINE_FUNCTION_FALLBACK = "Management"
+
+
+def dataset_cost_lines(
+    dataset_id: str, *, source: str = "actual", function: str | None = None,
+) -> list[dict]:
+    """Run an ACTIVE authored dataset and map its rows to engine cost-line shape.
+
+    The dataset must be cost-line-shaped: each row must carry a provider, a
+    cost_center, an amount and a fiscal period (profit_center / cost_element /
+    currency are optional). A missing required field is a precise error — never
+    a silent default. ``amount_local`` is kept as an exact decimal string so the
+    captured cost ties out to the dataset's ``SUM(amount)`` to the cent.
+
+    ``function`` (the pool's service_line) stamps each line's 1_CostLine.function
+    when it is a recognised V-R2 enum value, else a valid catch-all — so a
+    dataset cost base never trips the Stage-1 schema gate on an arbitrary label.
+
+    Only the ``actual`` ledger is sourced from a dataset (the demo's true-up
+    budget variant is a seed concept); a non-actual ``source`` yields no lines.
+    Deferred imports keep the dataset modules off the hot import path."""
+    import calc.dataset as dataset_mod
+    import state.authored_datasets as authored_datasets
+    from allocation.generated.types import ENUM_VALUES
+
+    valid_functions = set(ENUM_VALUES.get("function / service_line", ()))
+    fn = function if function in valid_functions else _DATASET_LINE_FUNCTION_FALLBACK
+
+    record = authored_datasets.get_authored_dataset(dataset_id)
+    if record is None:
+        raise ValueError(f"cost_capture_rule.dataset_id {dataset_id!r} is unknown")
+    if record["status"] != "active":
+        raise ValueError(
+            f"cost_capture_rule.dataset_id {dataset_id!r} is {record['status']} — "
+            "only an ACTIVE authored dataset can supply a pool cost base")
+    if source != "actual":
+        return []
+    try:
+        # No sample cap — the cost base is the WHOLE dataset (small demo data).
+        result = dataset_mod.run_dataset(record["graph"], sample_limit=10_000_000)
+    except dataset_mod.DatasetError as e:
+        raise ValueError(
+            f"cost_capture_rule.dataset_id {dataset_id!r} failed to run: {e.message}")
+
+    lines: list[dict] = []
+    for i, row in enumerate(result["rows"]):
+        mapped: dict[str, Any] = {}
+        for target, candidates in _DATASET_COST_LINE_COLUMNS.items():
+            mapped[target] = _pick(row, candidates)
+        for required in ("provider_entity_id", "cost_center", "amount_local",
+                         "fiscal_period"):
+            if mapped[required] is None:
+                raise ValueError(
+                    f"dataset {dataset_id!r} row {i} is not cost-line-shaped: "
+                    f"missing {required} (a dataset cost base needs provider, "
+                    "cost_center, amount and period columns)")
+        amt = Decimal(str(mapped["amount_local"])).quantize(Decimal("0.01"))
+        cc = str(mapped["cost_center"])
+        period = str(mapped["fiscal_period"])
+        line = {
+            "cost_line_id": f"DS::{dataset_id}::{i}::{cc}::{period}",
+            "provider_entity_id": str(mapped["provider_entity_id"]),
+            "company_code": str(mapped["company_code"]),
+            "cost_center": cc,
+            "profit_center": str(mapped["profit_center"])
+            if mapped["profit_center"] is not None else "",
+            "cost_element": str(mapped["cost_element"])
+            if mapped["cost_element"] is not None else "",
+            "cost_nature": "Other",
+            "function": fn,
+            "amount_local": str(amt),
+            "currency_local": str(mapped["currency_local"] or "USD"),
+            "posting_date": _month_end(period),
+            "fiscal_period": period,
+            "fiscal_year": period[:4],
+            "flow_type": "Service",
+            "charge_method": "Indirect",
+            "pass_through_flag": False,
+            "source_document_ref": f"DS::{dataset_id}::{i}",
+        }
+        lines.append(line)
+    return lines
+
+
+def dataset_sourced_dataset(
+    definition: Mapping[str, Any], *, source: str = "actual",
+    base: Mapping[str, Any] | None = None,
+) -> Mapping[str, Any] | None:
+    """If a pool's capture rule names a ``dataset_id``, return a demo-dataset-
+    shaped object whose ``cost_lines[source]`` come from that active authored
+    dataset (everything else copied from the demo dataset so entities / key
+    values resolve). Returns ``None`` when the rule has no dataset_id (the caller
+    then uses the seed cost lines). The CC/PC/element predicates of the rule
+    still apply as an OPTIONAL further filter at capture time (handled by the
+    existing ``_authored_cost_line_matches``); when the rule is dataset-only the
+    matcher treats it as "no predicate constraint" so the dataset IS the pool."""
+    capture = definition.get("cost_capture_rule") or {}
+    dataset_id = capture.get("dataset_id")
+    if not dataset_id:
+        return None
+    base = base or load_demo_dataset()
+    lines = dataset_cost_lines(
+        dataset_id, source=source, function=definition.get("service_line"))
+    merged = dict(base)
+    merged["cost_lines"] = {source: lines, "budget": []}
+    return merged
 
 
 def _authored_key_factor_values(
@@ -1002,8 +1159,10 @@ def authored_pool_periods(
     dataset: Mapping[str, Any] | None = None,
 ) -> list[str]:
     """The billing periods an authored pool's capture rule touches (the
-    distinct fiscal periods of the matched cost lines), ascending."""
-    dataset = dataset or load_demo_dataset()
+    distinct fiscal periods of the matched cost lines), ascending. DS3: a
+    dataset-sourced rule's periods come from the active authored dataset."""
+    if dataset is None:
+        dataset = dataset_sourced_dataset(definition, source=source) or load_demo_dataset()
     capture = definition.get("cost_capture_rule") or {}
     return sorted({
         str(line["fiscal_period"])
@@ -1024,8 +1183,13 @@ def dry_run_authored_pool(
     policy / participation gap surfaces as the corresponding V-rule.
 
     A pool whose capture rule matches NO cost lines is a domain error (nothing
-    to charge) — reported as an empty-capture block, never a silent success."""
-    dataset = dataset or load_demo_dataset()
+    to charge) — reported as an empty-capture block, never a silent success.
+
+    DS3: when the capture rule names a ``dataset_id`` and no explicit ``dataset``
+    is passed, the active authored dataset (cost-line-shaped) supplies the cost
+    base — the same Stages 1-7 run over it unchanged."""
+    if dataset is None:
+        dataset = dataset_sourced_dataset(definition, source=source) or load_demo_dataset()
     periods = authored_pool_periods(definition, source=source, dataset=dataset)
     if not periods:
         return {
@@ -1102,7 +1266,10 @@ def stage_graph_dry_run(
         return {"ok": False, "errors": rep["errors"], "stages": {},
                 "balanced": False, "charges": [], "recon": [], "exceptions": []}
     definition = graph.stage_graph_to_pool_definition(dict(stage_graph))
-    dataset = dataset or load_demo_dataset()
+    # DS3: a Source stage whose capture rule names a dataset_id sources its cost
+    # base from that active authored dataset; otherwise the seed cost lines.
+    if dataset is None:
+        dataset = dataset_sourced_dataset(definition, source=source) or load_demo_dataset()
 
     # Stage node ids by type (validated to be exactly one of each above).
     ids = {n["type"]: n["id"] for n in stage_graph["nodes"]
@@ -1170,7 +1337,7 @@ def run_authored_allocation(
     if pools is None:
         import state.authored_pools as authored_pools
         pools = [p for p in authored_pools.list_authored_pools(status="active")]
-    dataset = dataset or load_demo_dataset()
+    base_dataset = dataset or load_demo_dataset()
     period = str(period)
     period_bounds(period)
     cfg = {**DEFAULT_CONFIG, "scope": {}, "authored": True}
@@ -1193,13 +1360,20 @@ def run_authored_allocation(
     for pool in pools:
         definition = pool.get("definition") or pool
         pool_id = pool.get("id") or pool.get("pool_id")
-        periods = authored_pool_periods(definition, source=source, dataset=dataset)
+        # DS3: a pool whose capture rule names a dataset_id sources its cost base
+        # from that active authored dataset (mapped to cost-line shape); else the
+        # seed demo dataset. The governed run never reaches here.
+        pool_dataset = (
+            (dataset_sourced_dataset(definition, source=source, base=base_dataset)
+             if dataset is None else dataset)
+            or base_dataset)
+        periods = authored_pool_periods(definition, source=source, dataset=pool_dataset)
         if period not in periods:
             continue
         in_scope_pool_ids.append(pool_id)
         overlay = build_authored_overlay(
             {"pool_id": pool_id, "name": pool.get("name"), "definition": definition},
-            periods=[period], source=source, dataset=dataset)
+            periods=[period], source=source, dataset=pool_dataset)
         ex = _execute_period(overlay, period, source, cfg)
         s6 = stage6_chargeout(
             {"charges": ex["charges5"]},

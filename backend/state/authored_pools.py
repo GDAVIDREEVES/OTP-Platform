@@ -143,10 +143,17 @@ def validate_definition(definition: dict[str, Any]) -> list[str]:
         errors.append("cost_base_definition is required")
 
     capture = definition.get("cost_capture_rule") or {}
-    if not (capture.get("cost_centers") or capture.get("profit_centers")
-            or capture.get("cost_elements")):
+    # The dataset->allocation BRIDGE (Phase 8 DS3): a capture rule may instead
+    # name an authored ``dataset_id`` whose ACTIVE, cost-line-shaped dataset
+    # supplies the Source-stage cost base (the user built a cost pool by
+    # joining/filtering the ACDOCA journal). When a dataset is the source the
+    # CC/PC/element predicates become an OPTIONAL further filter over it, so they
+    # are no longer required — the dataset IS the deliberate capture.
+    if not (capture.get("dataset_id") or capture.get("cost_centers")
+            or capture.get("profit_centers") or capture.get("cost_elements")):
         errors.append("cost_capture_rule must constrain at least one of "
-                      "cost_centers / profit_centers / cost_elements")
+                      "cost_centers / profit_centers / cost_elements, or name a "
+                      "dataset_id (an active authored dataset as the cost base)")
     split = capture.get("split_pct")
     if split is not None:
         try:
