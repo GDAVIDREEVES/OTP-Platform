@@ -80,6 +80,9 @@ const navItems = [
 interface Props {
   pageTitle: string;
   children: React.ReactNode;
+  /** Drop the main content padding (full-bleed) — the Calc Studio cockpit lays
+   *  out its own 3-pane shell edge-to-edge. */
+  disableContentPadding?: boolean;
 }
 
 /** Render "Data as of …" using a relative phrase that auto-rolls. */
@@ -95,7 +98,7 @@ function formatAsOf(d: Date): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export default function AppShell({ pageTitle, children }: Props) {
+export default function AppShell({ pageTitle, children, disableContentPadding = false }: Props) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
@@ -469,7 +472,7 @@ export default function AppShell({ pageTitle, children }: Props) {
           component="main"
           sx={{
             flex: 1,
-            p: { xs: 2, md: 3 },
+            p: disableContentPadding ? 0 : { xs: 2, md: 3 },
             minWidth: 0,
           }}
         >

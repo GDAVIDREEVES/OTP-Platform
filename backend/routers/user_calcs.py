@@ -97,6 +97,7 @@ def create_user_calc(payload: UserCalcIn):
     try:
         return user_calcs.create_user_calc(
             name=payload.name, expression=payload.expression,
+            graph_json=payload.graph,
             description=payload.description, process_id=payload.process_id,
             output_grain=payload.output_grain, actor=payload.actor,
         )
@@ -112,12 +113,24 @@ def get_user_calc(ucalc_id: str):
     return u
 
 
+@router.get("/api/user-calcs/{ucalc_id}/graph")
+def get_user_calc_graph(ucalc_id: str):
+    """The canvas graph for a calculation: its stored ``graph_json`` when it was
+    authored on the canvas, else ``expr_to_graph(expression)`` so a formula calc
+    still visualises (the expression is the source of truth)."""
+    g = user_calcs.get_user_calc_graph(ucalc_id)
+    if g is None:
+        raise HTTPException(status_code=404, detail=f"unknown user calculation: {ucalc_id}")
+    return g
+
+
 @router.patch("/api/user-calcs/{ucalc_id}")
 def update_user_calc(ucalc_id: str, payload: UserCalcPatch):
     try:
         return user_calcs.update_user_calc(
             ucalc_id, actor=payload.actor, name=payload.name,
             description=payload.description, expression=payload.expression,
+            graph_json=payload.graph,
             output_grain=payload.output_grain, process_id=payload.process_id,
         )
     except ValueError as e:

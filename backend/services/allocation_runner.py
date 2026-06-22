@@ -750,6 +750,30 @@ def _authored_key_factor_values(
     return out
 
 
+def _resolve_bound_pct(mp: Mapping[str, Any], pool_id: str, i: int) -> Any:
+    """The effective markup % for a policy: a canvas-authored policy may carry a
+    ``markup_pct_expr`` (a calc/expr.py string compiled from a bound calc-value
+    subgraph). When present it is evaluated to a Decimal through the UNCHANGED
+    evaluator (so a governed-parameter-driven markup is real, not guessed) and
+    overrides the literal ``markup_pct``. A non-scalar / malformed binding is a
+    domain error (BLOCK), never a silent default."""
+    bound = mp.get("markup_pct_expr")
+    if not bound:
+        return mp.get("markup_pct")
+    from calc import expr  # local: keep expr off the hot import path
+    try:
+        value = expr.evaluate(str(bound))
+    except expr.ExprError as exc:
+        raise ValueError(
+            f"authored pool {pool_id}: markup policy {i} calc binding failed: "
+            f"{exc.message}") from exc
+    if not isinstance(value, Decimal):
+        raise ValueError(
+            f"authored pool {pool_id}: markup policy {i} calc binding must be a "
+            f"scalar number, got {type(value).__name__}")
+    return str(value)
+
+
 def build_authored_overlay(
     pool: Mapping[str, Any], *, periods: list[str],
     source: str = "actual", dataset: Mapping[str, Any] | None = None,
@@ -903,11 +927,15 @@ def build_authored_overlay(
 
     # markup policies: per (jurisdiction, regime, pct) as authored. No silent
     # default — a beneficiary jurisdiction with no policy will hit V-M1 BLOCK.
+    # A policy authored on the canvas with a calc-bound % carries ``markup_pct_expr``
+    # (a calc/expr.py string compiled from the bound subgraph); it is evaluated to
+    # a Decimal at RUN time and overrides the literal, so a governed-parameter-
+    # driven markup feeds the engine through the unchanged evaluator.
     markup_policies = []
     for i, mp in enumerate(definition.get("markup_policies") or []):
         jur = mp.get("jurisdiction")
         regime = mp.get("regime")
-        pct = mp.get("markup_pct")
+        pct = _resolve_bound_pct(mp, pool_id, i)
         if jur is None or regime is None or pct is None:
             raise ValueError(
                 f"authored pool {pool_id}: markup policy {i} needs jurisdiction, "
@@ -1045,6 +1073,86 @@ def dry_run_authored_pool(
         "trace": list(steps),
         "balanced": balanced,
         "total_charged_out": str(total),
+    }
+
+
+def stage_graph_dry_run(
+    stage_graph: Mapping[str, Any], *, pool_id: str = "AP-CANVAS",
+    source: str = "actual", dataset: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Dry-run an allocation STAGE GRAPH (Phase 7 MC3) and shape the results
+    PER-STAGE so the cockpit can paint each stage node. The stage graph compiles
+    to an authored-pool definition (``calc.graph.stage_graph_to_pool_definition``)
+    and runs through the unchanged :func:`dry_run_authored_pool` — there is no new
+    engine. The per-stage map keys on the stage NODE id:
+
+      * source       -> captured cost (the cost-capture rule's matched subset)
+      * pool         -> provider + pool name
+      * benefit_test -> beneficiary count + total exclusions
+      * allocate     -> the key factor + recipient count
+      * markup       -> total markup priced
+      * charge       -> charge count + gross charged out
+      * recon        -> balanced + residual (zero on a sound pool)
+
+    Under-specification BLOCKS via the same V-rules — never a silent default."""
+    import calc.graph as graph  # local: keep graph off the hot import path
+
+    rep = graph.validate_stage_graph(dict(stage_graph))
+    if not rep["ok"]:
+        return {"ok": False, "errors": rep["errors"], "stages": {},
+                "balanced": False, "charges": [], "recon": [], "exceptions": []}
+    definition = graph.stage_graph_to_pool_definition(dict(stage_graph))
+    dataset = dataset or load_demo_dataset()
+
+    # Stage node ids by type (validated to be exactly one of each above).
+    ids = {n["type"]: n["id"] for n in stage_graph["nodes"]
+           if graph._is_stage(n.get("type"))}
+
+    capture_rule = definition.get("cost_capture_rule") or {}
+    captured = preview_capture_rule(capture_rule, source=source, dataset=dataset)
+
+    dry = dry_run_authored_pool(
+        definition, pool_id=pool_id, name=definition.get("name"),
+        source=source, dataset=dataset)
+
+    total_markup = sum((Decimal(str(r["total_markup"])) for r in dry["recon"]), ZERO)
+    total_excl = sum((Decimal(str(r["total_exclusions"])) for r in dry["recon"]), ZERO)
+    residual = sum(
+        (Decimal(str(r["unallocated_residual"])) for r in dry["recon"]), ZERO)
+    recipients = sorted({c["recipient_entity_id"] for c in dry["charges"]})
+
+    stages = {
+        ids["source"]: {
+            "captured_amount": captured["captured_amount"],
+            "line_count": captured["line_count"],
+            "by_entity": captured["by_entity"]},
+        ids["pool"]: {
+            "provider_entity_id": definition.get("provider_entity_id"),
+            "name": definition.get("name")},
+        ids["benefit_test"]: {
+            "beneficiary_count": len(definition.get("beneficiaries") or []),
+            "total_exclusions": str(total_excl)},
+        ids["allocate"]: {
+            "key_factor": (definition.get("key") or {}).get("key_factor"),
+            "recipient_count": len(recipients)},
+        ids["markup"]: {"total_markup": str(total_markup)},
+        ids["charge"]: {
+            "charge_count": len(dry["charges"]),
+            "total_charged_out": dry["total_charged_out"]},
+        ids["recon"]: {
+            "balanced": dry["balanced"], "residual": str(residual),
+            "periods": dry["periods"]},
+    }
+    return {
+        "ok": True,
+        "stages": stages,
+        "balanced": dry["balanced"],
+        "charges": dry["charges"],
+        "recon": dry["recon"],
+        "exceptions": dry["exceptions"],
+        "trace": dry["trace"],
+        "total_charged_out": dry["total_charged_out"],
+        "periods": dry["periods"],
     }
 
 

@@ -30,10 +30,12 @@ decide() hook); submit_for_activation defers the import instead.
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import datetime, timezone
 from typing import Any
 
 import calc.expr as expr
+import calc.graph as graph
 import calc.trace as trace
 import state.audit as audit
 import state.lineage as lineage
@@ -70,6 +72,44 @@ def _validate_expression(expression: str) -> dict[str, Any]:
     return report
 
 
+def _compile_source(
+    expression: str | None, graph_def: dict[str, Any] | None
+) -> tuple[str, str | None]:
+    """Resolve the (expression, graph_json) pair an author supplied EITHER way.
+
+    The canvas is a visual layer: when a graph is given it is compiled to an
+    ``expr.py`` expression FIRST (``graph.graph_to_expr``), so everything
+    downstream — validate / evaluate / test / scenario — runs the single,
+    existing expression path. Both the compiled expression and the graph JSON
+    are persisted (the expression stays the source of truth). Supplying neither,
+    or both, is an explicit error (no silent default)."""
+    if (expression is None) == (graph_def is None):
+        raise ValueError(
+            "supply exactly one of expression or graph"
+        )
+    if graph_def is not None:
+        try:
+            compiled = graph.graph_to_expr(graph_def)
+        except graph.GraphError as e:
+            raise ValueError(f"invalid graph: {e.message}")
+        return compiled, json.dumps(graph_def)
+    return expression, None  # type: ignore[return-value]
+
+
+def get_user_calc_graph(ucalc_id: str) -> dict[str, Any] | None:
+    """The canvas graph for a calculation: the stored ``graph_json`` when it was
+    authored on the canvas, else ``expr_to_graph(expression)`` so a formula calc
+    still visualises (the expression is the source of truth, so the graph can
+    always be regenerated). ``None`` if the calculation is unknown."""
+    row = get_user_calc(ucalc_id)
+    if row is None:
+        return None
+    stored = row.get("graph_json")
+    if stored:
+        return json.loads(stored)
+    return graph.expr_to_graph(row["expression"])
+
+
 def list_user_calcs(status: str | None = None) -> list[dict[str, Any]]:
     """User calculations optionally filtered by status, newest first."""
     sql = "SELECT * FROM user_calculations"
@@ -92,16 +132,21 @@ def get_user_calc(ucalc_id: str) -> dict[str, Any] | None:
 def create_user_calc(
     *,
     name: str,
-    expression: str,
     actor: str,
+    expression: str | None = None,
+    graph_json: dict[str, Any] | None = None,
     description: str | None = None,
     process_id: str | None = None,
     output_grain: str = "group",
 ) -> dict[str, Any]:
+    """Create a draft calculation from EITHER an expression OR a canvas graph
+    (the graph compiles to an expression first; both are persisted, the
+    expression is the source of truth)."""
     if output_grain not in expr.GRAINS:
         raise ValueError(
             f"invalid output_grain: {output_grain!r} (allowed: {', '.join(expr.GRAINS)})"
         )
+    expression, graph_text = _compile_source(expression, graph_json)
     _validate_expression(expression)
     now = _now()
     with LOCK:
@@ -109,9 +154,10 @@ def create_user_calc(
         uid = _next_id(conn)
         conn.execute(
             "INSERT INTO user_calculations (id, name, description, process_id, "
-            "output_grain, expression, status, version, created_by, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, 'draft', 1, ?, ?)",
-            (uid, name, description, process_id, output_grain, expression, actor, now),
+            "output_grain, expression, graph_json, status, version, created_by, "
+            "created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', 1, ?, ?)",
+            (uid, name, description, process_id, output_grain, expression,
+             graph_text, actor, now),
         )
         conn.commit()
         record = get_user_calc(uid)
@@ -130,19 +176,31 @@ def update_user_calc(
     name: str | None = None,
     description: str | None = None,
     expression: str | None = None,
+    graph_json: dict[str, Any] | None = None,
     output_grain: str | None = None,
     process_id: str | None = None,
 ) -> dict[str, Any]:
     """Edit a calculation. Drafts/tested edit in place; editing an ACTIVE
     calculation bumps the version and returns it to draft (re-test +
     re-approval required). A formula or grain change always invalidates the
-    test gate. In-review calculations are frozen until the checker decides."""
+    test gate. In-review calculations are frozen until the checker decides.
+
+    The formula may be edited via EITHER ``expression`` OR ``graph_json`` (the
+    graph compiles to an expression first — one downstream path; supplying both
+    is rejected). An expression-only edit clears any stored graph (they would
+    otherwise drift)."""
     if output_grain is not None and output_grain not in expr.GRAINS:
         raise ValueError(
             f"invalid output_grain: {output_grain!r} (allowed: {', '.join(expr.GRAINS)})"
         )
-    if expression is not None:
-        _validate_expression(expression)
+    if expression is not None and graph_json is not None:
+        raise ValueError("supply at most one of expression or graph")
+    new_expression: str | None = expression
+    new_graph_text: str | None = None
+    formula_supplied = expression is not None or graph_json is not None
+    if formula_supplied:
+        new_expression, new_graph_text = _compile_source(expression, graph_json)
+        _validate_expression(new_expression)
     with LOCK:
         conn = get_conn()
         before = get_user_calc(ucalc_id)
@@ -152,7 +210,8 @@ def update_user_calc(
             raise ValueError(
                 f"user calculation {ucalc_id} is in_review — wait for the decision"
             )
-        new_expression = expression if expression is not None else before["expression"]
+        new_expression = new_expression if formula_supplied else before["expression"]
+        graph_text = new_graph_text if formula_supplied else before.get("graph_json")
         new_grain = output_grain if output_grain is not None else before["output_grain"]
         formula_changed = (
             new_expression != before["expression"] or new_grain != before["output_grain"]
@@ -169,13 +228,13 @@ def update_user_calc(
             tested_hash = tested_at = None
         conn.execute(
             "UPDATE user_calculations SET name = ?, description = ?, process_id = ?, "
-            "output_grain = ?, expression = ?, status = ?, version = ?, "
+            "output_grain = ?, expression = ?, graph_json = ?, status = ?, version = ?, "
             "tested_expr_hash = ?, tested_at = ?, updated_at = ? WHERE id = ?",
             (
                 name if name is not None else before["name"],
                 description if description is not None else before["description"],
                 process_id if process_id is not None else before["process_id"],
-                new_grain, new_expression, status, version,
+                new_grain, new_expression, graph_text, status, version,
                 tested_hash, tested_at, _now(), ucalc_id,
             ),
         )

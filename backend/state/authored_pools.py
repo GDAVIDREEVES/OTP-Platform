@@ -73,10 +73,48 @@ def _def_hash(definition: dict[str, Any]) -> str:
 
 def _to_dict(row: Any) -> dict[str, Any]:
     """Row -> API dict: parse definition_json into ``definition``, drop the raw
-    column so the API shape matches the frontend type directly."""
+    column so the API shape matches the frontend type directly. ``graph_json``
+    (the canvas stage graph, MC3) is parsed too when present (else ``None``)."""
     d = {k: row[k] for k in row.keys()}
     d["definition"] = json.loads(d.pop("definition_json")) if d.get("definition_json") else {}
+    if "graph_json" in d:
+        d["graph_json"] = json.loads(d["graph_json"]) if d["graph_json"] else None
     return d
+
+
+def _compile_source(
+    definition: dict[str, Any] | None, graph_json: dict[str, Any] | None
+) -> tuple[dict[str, Any], str | None]:
+    """Resolve the (definition, graph_json text) an author supplied EITHER way
+    (Phase 7 MC3). The canvas is a visual layer: when a stage graph is given it
+    compiles to the SAME authoring object (``calc.graph.stage_graph_to_pool_
+    definition``) the hand-built Pool Builder produces, so everything downstream
+    (validate / preview / test / run / maker-checker) is the one PB2 path. Both
+    the compiled definition and the graph JSON persist (the definition stays the
+    source of truth). Supplying neither, or both, is an explicit error."""
+    if (definition is None) == (graph_json is None):
+        raise ValueError("supply exactly one of definition or graph")
+    if graph_json is not None:
+        import calc.graph as graph  # local: keep graph off the module import path
+        try:
+            compiled = graph.stage_graph_to_pool_definition(graph_json)
+        except graph.GraphError as e:
+            raise ValueError(f"invalid stage graph: {e.message}")
+        return compiled, json.dumps(graph_json)
+    return definition, None  # type: ignore[return-value]
+
+
+def get_authored_pool_graph(pool_id: str) -> dict[str, Any] | None:
+    """The canvas stage graph for an authored pool: the stored ``graph_json`` when
+    it was authored on the canvas, else ``None`` (a hand-authored pool has no
+    canonical stage layout — the definition stays the source of truth). Returns
+    ``None`` for an unknown pool too."""
+    row = get_conn().execute(
+        "SELECT graph_json FROM authored_pools WHERE id = ?", (pool_id,)
+    ).fetchone()
+    if row is None or not row["graph_json"]:
+        return None
+    return json.loads(row["graph_json"])
 
 
 def _next_id(conn: Any) -> str:
@@ -168,11 +206,15 @@ def get_authored_pool(pool_id: str) -> dict[str, Any] | None:
 
 
 def create_authored_pool(
-    *, definition: dict[str, Any], actor: str, process_id: str | None = None,
+    *, definition: dict[str, Any] | None = None, actor: str,
+    process_id: str | None = None, graph_json: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Create a draft authored pool. The definition is structurally validated
-    up front (every error raised at once); the engine-level gates (V-M1/V-K1/
-    V-X1) are exercised by the dry-run at test time."""
+    """Create a draft authored pool from EITHER an authoring object OR a canvas
+    stage graph (MC3 — the graph compiles to a definition first; both persist,
+    the definition is the source of truth). The definition is structurally
+    validated up front (every error raised at once); the engine-level gates
+    (V-M1/V-K1/V-X1) are exercised by the dry-run at test time."""
+    definition, graph_text = _compile_source(definition, graph_json)
     errors = validate_definition(definition)
     if errors:
         raise ValueError("invalid authored pool: " + "; ".join(errors))
@@ -182,10 +224,10 @@ def create_authored_pool(
         conn = get_conn()
         pid = _next_id(conn)
         conn.execute(
-            "INSERT INTO authored_pools (id, name, definition_json, process_id, "
-            "status, version, created_by, created_at) "
-            "VALUES (?, ?, ?, ?, 'draft', 1, ?, ?)",
-            (pid, name, json.dumps(definition), process_id, actor, now),
+            "INSERT INTO authored_pools (id, name, definition_json, graph_json, "
+            "process_id, status, version, created_by, created_at) "
+            "VALUES (?, ?, ?, ?, ?, 'draft', 1, ?, ?)",
+            (pid, name, json.dumps(definition), graph_text, process_id, actor, now),
         )
         conn.commit()
         record = get_authored_pool(pid)
@@ -199,13 +241,20 @@ def create_authored_pool(
 
 def update_authored_pool(
     pool_id: str, *, actor: str, definition: dict[str, Any] | None = None,
-    process_id: str | None = None,
+    process_id: str | None = None, graph_json: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Edit a pool. Drafts/tested edit in place; editing an ACTIVE pool bumps
-    the version and returns it to draft (re-test + re-approval required). Any
-    definition change invalidates the test gate. In-review pools are frozen
-    until the checker decides."""
-    if definition is not None:
+    """Edit a pool from EITHER an authoring object OR a canvas stage graph (MC3).
+    Drafts/tested edit in place; editing an ACTIVE pool bumps the version and
+    returns it to draft (re-test + re-approval required). Any definition change
+    invalidates the test gate. In-review pools are frozen until the checker
+    decides. When a graph is supplied it recompiles to the definition and the
+    stored graph is refreshed; a definition-only edit nulls a stale stored graph
+    (the canvas view is no longer authoritative)."""
+    formula_supplied = definition is not None or graph_json is not None
+    new_graph_text: str | None = None
+    if formula_supplied:
+        definition, new_graph_text = _compile_source(
+            definition if graph_json is None else None, graph_json)
         errors = validate_definition(definition)
         if errors:
             raise ValueError("invalid authored pool: " + "; ".join(errors))
@@ -219,6 +268,14 @@ def update_authored_pool(
                 f"authored pool {pool_id} is in_review — wait for the decision")
         new_def = definition if definition is not None else before["definition"]
         def_changed = _canonical(new_def) != _canonical(before["definition"])
+        # Graph storage: a graph edit stores the new graph; a definition-only edit
+        # that changed the definition invalidates a stale stored graph (else keep).
+        if graph_json is not None:
+            graph_text = new_graph_text
+        elif def_changed:
+            graph_text = None
+        else:
+            graph_text = json.dumps(before["graph_json"]) if before.get("graph_json") else None
         version = before["version"]
         status = before["status"]
         tested_hash, tested_at = before["tested_def_hash"], before["tested_at"]
@@ -231,10 +288,11 @@ def update_authored_pool(
             tested_hash = tested_at = None
         conn.execute(
             "UPDATE authored_pools SET name = ?, definition_json = ?, "
-            "process_id = ?, status = ?, version = ?, tested_def_hash = ?, "
-            "tested_at = ?, updated_at = ? WHERE id = ?",
+            "graph_json = ?, process_id = ?, status = ?, version = ?, "
+            "tested_def_hash = ?, tested_at = ?, updated_at = ? WHERE id = ?",
             (
                 new_def.get("name") or before["name"], json.dumps(new_def),
+                graph_text,
                 process_id if process_id is not None else before["process_id"],
                 status, version, tested_hash, tested_at, _now(), pool_id,
             ),
