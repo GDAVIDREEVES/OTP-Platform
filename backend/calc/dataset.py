@@ -67,15 +67,39 @@ class DatasetError(ValueError):
 # Each entry:
 #   view:        physical DuckDB relation name (db._VIEWS / the materialized rel)
 #   provenance:  "real" (warehouse parquet) | "fabricated" (the cost_lines seed)
-#   columns:     name -> {"role": "dimension"|"measure", "type": <sql type>}
+#   columns:     name -> {"role": "dimension"|"measure", "type": <sql type>,
+#                         "group": <UI group label>}
 #   join_keys:   columns usable as join keys (subset of columns)
-#   dimensions:  columns whose distinct values the palette may enumerate
+#   dimensions:  columns whose distinct values the palette MAY enumerate (the
+#                low-cardinality dimensions — a small, browsable, draggable value
+#                set; high-cardinality dims like document numbers are NOT here so
+#                the palette never tries to enumerate ~50k distinct values).
 #   measures:    derived = [c for c, m in columns if m["role"] == "measure"]
 # Column names here are the ONLY identifiers the compiler will emit — values are
 # always bound. Adding a column here is the one place to widen the surface.
+#
+# DS5 widens the journal to a COMPREHENSIVE, GROUPED set of the ~36 meaningful,
+# populated ACDOCA fields (each verified >5% filled, >1 distinct) — NOT the
+# hundreds of mostly-null SAP columns. Every dimension column carries a ``group``
+# label so the palette can render the fields organised (Entity & partner /
+# Account / Cost & profit center / Amounts / Currency / Document / Dates &
+# period), and the value-enumerable low-cardinality dimensions are listed in
+# ``dimensions`` (so the palette can offer their actual G/L-account / cost-center
+# / profit-center / … VALUES as draggable chips, each a bound filter param).
 
 _DIM = "dimension"
 _MEAS = "measure"
+
+# Journal field groups (DS5) — the palette renders the journal's ~36 ACDOCA
+# fields under these labels so the user can browse them organised, not as a flat
+# 36-row wall. Order here is the display order.
+_G_ENTITY = "Entity & partner"
+_G_ACCOUNT = "Account"
+_G_CC_PC = "Cost & profit center"
+_G_AMOUNTS = "Amounts"
+_G_CURRENCY = "Currency"
+_G_DOCUMENT = "Document"
+_G_DATES = "Dates & period"
 
 DATASET_TABLES: dict[str, dict[str, Any]] = {
     # The journal — a curated, generous, REAL ACDOCA subset. Dimensions the user
@@ -89,28 +113,63 @@ DATASET_TABLES: dict[str, dict[str, Any]] = {
         "catalog_id": "warehouse:journal_entries",
         "label": "Journal (ACDOCA)",
         "columns": {
-            # dimensions
-            "RBUKRS": {"role": _DIM, "type": "VARCHAR"},   # company code (entity)
-            "RACCT": {"role": _DIM, "type": "VARCHAR"},     # G/L account
-            "RCNTR": {"role": _DIM, "type": "VARCHAR"},     # cost center
-            "PRCTR": {"role": _DIM, "type": "VARCHAR"},     # profit center
-            "GJAHR": {"role": _DIM, "type": "BIGINT"},      # fiscal year
-            "POPER": {"role": _DIM, "type": "VARCHAR"},     # posting period
-            "SEGMENT": {"role": _DIM, "type": "VARCHAR"},   # segment
-            "BLART": {"role": _DIM, "type": "VARCHAR"},     # document type
-            "DRCRK": {"role": _DIM, "type": "VARCHAR"},     # debit/credit indicator
-            "RHCUR": {"role": _DIM, "type": "VARCHAR"},     # company-code currency
-            "BUDAT": {"role": _DIM, "type": "DATE"},        # posting date
-            "BELNR": {"role": _DIM, "type": "VARCHAR"},     # document number
-            "SGTXT": {"role": _DIM, "type": "VARCHAR"},     # line item text
-            # measures (DuckDB DECIMAL(23,2) -> Decimal on SUM)
-            "HSL": {"role": _MEAS, "type": "DECIMAL(23,2)"},  # company-code amount
-            "KSL": {"role": _MEAS, "type": "DECIMAL(23,2)"},  # parallel ledger amount
-            "OSL": {"role": _MEAS, "type": "DECIMAL(23,2)"},  # parallel ledger amount
+            # --- Entity & partner --------------------------------------------
+            "RBUKRS": {"role": _DIM, "type": "VARCHAR", "group": _G_ENTITY},      # company code (entity)
+            "PBUKRS": {"role": _DIM, "type": "VARCHAR", "group": _G_ENTITY},      # partner company code
+            "RASSC": {"role": _DIM, "type": "VARCHAR", "group": _G_ENTITY},       # trading partner (affiliate)
+            "KOKRS": {"role": _DIM, "type": "VARCHAR", "group": _G_ENTITY},       # controlling area
+            "LAND1": {"role": _DIM, "type": "VARCHAR", "group": _G_ENTITY},       # country key
+            "TAX_COUNTRY": {"role": _DIM, "type": "VARCHAR", "group": _G_ENTITY}, # tax reporting country
+            "SEGMENT": {"role": _DIM, "type": "VARCHAR", "group": _G_ENTITY},     # segment
+            # --- Account -----------------------------------------------------
+            "RACCT": {"role": _DIM, "type": "VARCHAR", "group": _G_ACCOUNT},      # G/L account
+            "RFAREA": {"role": _DIM, "type": "VARCHAR", "group": _G_ACCOUNT},     # functional area
+            # --- Cost & profit center ---------------------------------------
+            "RCNTR": {"role": _DIM, "type": "VARCHAR", "group": _G_CC_PC},        # cost center
+            "PRCTR": {"role": _DIM, "type": "VARCHAR", "group": _G_CC_PC},        # profit center
+            "PPRCTR": {"role": _DIM, "type": "VARCHAR", "group": _G_CC_PC},       # partner profit center
+            # --- Amounts (measures; DuckDB DECIMAL -> Decimal on SUM) --------
+            "HSL": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": _G_AMOUNTS}, # company-code-currency amount
+            "KSL": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": _G_AMOUNTS}, # parallel (group) ledger amount
+            "WSL": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": _G_AMOUNTS}, # transaction-currency amount
+            "FCSL": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": _G_AMOUNTS},# freely-defined-currency amount
+            # --- Currency ----------------------------------------------------
+            "DRCRK": {"role": _DIM, "type": "VARCHAR", "group": _G_CURRENCY},     # debit/credit indicator
+            "RHCUR": {"role": _DIM, "type": "VARCHAR", "group": _G_CURRENCY},     # company-code currency
+            "RWCUR": {"role": _DIM, "type": "VARCHAR", "group": _G_CURRENCY},     # transaction currency
+            "RFCCUR": {"role": _DIM, "type": "VARCHAR", "group": _G_CURRENCY},    # freely-defined currency
+            # --- Document ----------------------------------------------------
+            "BELNR": {"role": _DIM, "type": "VARCHAR", "group": _G_DOCUMENT},     # accounting document number
+            "DOCLN": {"role": _DIM, "type": "VARCHAR", "group": _G_DOCUMENT},     # line item number
+            "BLART": {"role": _DIM, "type": "VARCHAR", "group": _G_DOCUMENT},     # document type
+            "BSCHL": {"role": _DIM, "type": "VARCHAR", "group": _G_DOCUMENT},     # posting key
+            "BUZEI": {"role": _DIM, "type": "VARCHAR", "group": _G_DOCUMENT},     # posting line item
+            "AWREF": {"role": _DIM, "type": "VARCHAR", "group": _G_DOCUMENT},     # reference document number
+            "AWSYS": {"role": _DIM, "type": "VARCHAR", "group": _G_DOCUMENT},     # logical system
+            "USNAM": {"role": _DIM, "type": "VARCHAR", "group": _G_DOCUMENT},     # user name
+            "SGTXT": {"role": _DIM, "type": "VARCHAR", "group": _G_DOCUMENT},     # line item text
+            "DOCNR_LD": {"role": _DIM, "type": "VARCHAR", "group": _G_DOCUMENT},  # ledger document number
+            # --- Dates & period ----------------------------------------------
+            "GJAHR": {"role": _DIM, "type": "BIGINT", "group": _G_DATES},         # fiscal year
+            "POPER": {"role": _DIM, "type": "VARCHAR", "group": _G_DATES},        # posting period
+            "FISCYEARPER": {"role": _DIM, "type": "BIGINT", "group": _G_DATES},   # fiscal year/period
+            "BUDAT": {"role": _DIM, "type": "DATE", "group": _G_DATES},           # posting date
+            "BLDAT": {"role": _DIM, "type": "DATE", "group": _G_DATES},           # document date
+            "VALUT": {"role": _DIM, "type": "DATE", "group": _G_DATES},           # value date
+            "NETDT": {"role": _DIM, "type": "DATE", "group": _G_DATES},           # net due date
         },
-        "join_keys": ("RBUKRS", "RACCT", "RCNTR", "PRCTR", "SEGMENT", "GJAHR"),
-        "dimensions": ("RBUKRS", "RACCT", "RCNTR", "PRCTR", "GJAHR", "POPER",
-                       "SEGMENT", "BLART", "DRCRK"),
+        "join_keys": ("RBUKRS", "PBUKRS", "RASSC", "KOKRS", "RACCT", "RFAREA",
+                      "RCNTR", "PRCTR", "PPRCTR", "SEGMENT", "GJAHR", "POPER"),
+        # Value-enumerable LOW-cardinality dimensions only (each <= 50 distinct,
+        # verified): the palette offers their actual values as draggable chips.
+        # High-cardinality fields (BELNR/DOCNR_LD/AWREF ~17k-55k, SGTXT 146, the
+        # HSL/KSL/WSL/FCSL amounts, and the continuous date fields BUDAT/BLDAT/
+        # VALUT/NETDT) are intentionally NOT here — fields only, no value list.
+        "dimensions": ("RBUKRS", "PBUKRS", "RASSC", "KOKRS", "LAND1",
+                       "TAX_COUNTRY", "SEGMENT", "RACCT", "RFAREA", "RCNTR",
+                       "PRCTR", "PPRCTR", "DRCRK", "RHCUR", "RWCUR", "RFCCUR",
+                       "BLART", "BSCHL", "BUZEI", "DOCLN", "AWSYS", "USNAM",
+                       "GJAHR", "POPER", "FISCYEARPER"),
     },
     # Entity P&L (pre-aggregated, real) — the segment_pl warehouse view.
     "segment_pl": {
@@ -119,22 +178,22 @@ DATASET_TABLES: dict[str, dict[str, Any]] = {
         "catalog_id": "warehouse:segment_pl",
         "label": "Segmented P&L",
         "columns": {
-            "RBUKRS": {"role": _DIM, "type": "VARCHAR"},
-            "ROLE_CODE": {"role": _DIM, "type": "VARCHAR"},
-            "SEGMENT": {"role": _DIM, "type": "VARCHAR"},
-            "GJAHR": {"role": _DIM, "type": "BIGINT"},
-            "POPER": {"role": _DIM, "type": "VARCHAR"},
-            "revenue": {"role": _MEAS, "type": "DECIMAL(23,2)"},
-            "other_income": {"role": _MEAS, "type": "DECIMAL(23,2)"},
-            "cogs": {"role": _MEAS, "type": "DECIMAL(23,2)"},
-            "opex_production": {"role": _MEAS, "type": "DECIMAL(23,2)"},
-            "opex_rd": {"role": _MEAS, "type": "DECIMAL(23,2)"},
-            "opex_sm": {"role": _MEAS, "type": "DECIMAL(23,2)"},
-            "opex_ga": {"role": _MEAS, "type": "DECIMAL(23,2)"},
-            "opex_dist": {"role": _MEAS, "type": "DECIMAL(23,2)"},
-            "ic_charges": {"role": _MEAS, "type": "DECIMAL(23,2)"},
-            "depreciation": {"role": _MEAS, "type": "DECIMAL(23,2)"},
-            "operating_profit": {"role": _MEAS, "type": "DECIMAL(23,2)"},
+            "RBUKRS": {"role": _DIM, "type": "VARCHAR", "group": "Entity"},
+            "ROLE_CODE": {"role": _DIM, "type": "VARCHAR", "group": "Entity"},
+            "SEGMENT": {"role": _DIM, "type": "VARCHAR", "group": "Entity"},
+            "GJAHR": {"role": _DIM, "type": "BIGINT", "group": "Period"},
+            "POPER": {"role": _DIM, "type": "VARCHAR", "group": "Period"},
+            "revenue": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "P&L lines"},
+            "other_income": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "P&L lines"},
+            "cogs": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "P&L lines"},
+            "opex_production": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "P&L lines"},
+            "opex_rd": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "P&L lines"},
+            "opex_sm": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "P&L lines"},
+            "opex_ga": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "P&L lines"},
+            "opex_dist": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "P&L lines"},
+            "ic_charges": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "P&L lines"},
+            "depreciation": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "P&L lines"},
+            "operating_profit": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "P&L lines"},
         },
         "join_keys": ("RBUKRS", "ROLE_CODE", "SEGMENT", "GJAHR"),
         "dimensions": ("RBUKRS", "ROLE_CODE", "SEGMENT", "GJAHR", "POPER"),
@@ -146,19 +205,19 @@ DATASET_TABLES: dict[str, dict[str, Any]] = {
         "catalog_id": "warehouse:supply_chain_flows",
         "label": "Supply-chain flows",
         "columns": {
-            "CHAIN_ID": {"role": _DIM, "type": "VARCHAR"},
-            "STEP_NUMBER": {"role": _DIM, "type": "BIGINT"},
-            "MATERIAL_TYPE": {"role": _DIM, "type": "VARCHAR"},
-            "SELLING_COMPANY": {"role": _DIM, "type": "VARCHAR"},
-            "BUYING_COMPANY": {"role": _DIM, "type": "VARCHAR"},
-            "TP_METHOD": {"role": _DIM, "type": "VARCHAR"},
-            "SELLER_ROLE": {"role": _DIM, "type": "VARCHAR"},
-            "BUYER_ROLE": {"role": _DIM, "type": "VARCHAR"},
-            "GJAHR": {"role": _DIM, "type": "BIGINT"},
-            "POPER": {"role": _DIM, "type": "VARCHAR"},
-            "STANDARD_COST": {"role": _MEAS, "type": "DECIMAL(23,4)"},
-            "MARKUP_RATE": {"role": _MEAS, "type": "DECIMAL(18,6)"},
-            "TOTAL_LEGAL_PRICE": {"role": _MEAS, "type": "DECIMAL(23,2)"},
+            "CHAIN_ID": {"role": _DIM, "type": "VARCHAR", "group": "Chain"},
+            "STEP_NUMBER": {"role": _DIM, "type": "BIGINT", "group": "Chain"},
+            "MATERIAL_TYPE": {"role": _DIM, "type": "VARCHAR", "group": "Chain"},
+            "SELLING_COMPANY": {"role": _DIM, "type": "VARCHAR", "group": "Parties"},
+            "BUYING_COMPANY": {"role": _DIM, "type": "VARCHAR", "group": "Parties"},
+            "TP_METHOD": {"role": _DIM, "type": "VARCHAR", "group": "Parties"},
+            "SELLER_ROLE": {"role": _DIM, "type": "VARCHAR", "group": "Parties"},
+            "BUYER_ROLE": {"role": _DIM, "type": "VARCHAR", "group": "Parties"},
+            "GJAHR": {"role": _DIM, "type": "BIGINT", "group": "Period"},
+            "POPER": {"role": _DIM, "type": "VARCHAR", "group": "Period"},
+            "STANDARD_COST": {"role": _MEAS, "type": "DECIMAL(23,4)", "group": "Pricing"},
+            "MARKUP_RATE": {"role": _MEAS, "type": "DECIMAL(18,6)", "group": "Pricing"},
+            "TOTAL_LEGAL_PRICE": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "Pricing"},
         },
         "join_keys": ("CHAIN_ID", "SELLING_COMPANY", "BUYING_COMPANY", "GJAHR"),
         "dimensions": ("MATERIAL_TYPE", "TP_METHOD", "SELLER_ROLE", "BUYER_ROLE",
@@ -171,10 +230,10 @@ DATASET_TABLES: dict[str, dict[str, Any]] = {
         "catalog_id": "warehouse:entity_roles",
         "label": "Entity roles",
         "columns": {
-            "RBUKRS": {"role": _DIM, "type": "VARCHAR"},
-            "LAND1": {"role": _DIM, "type": "VARCHAR"},
-            "ROLE_CODE": {"role": _DIM, "type": "VARCHAR"},
-            "ROLE_DESCRIPTION": {"role": _DIM, "type": "VARCHAR"},
+            "RBUKRS": {"role": _DIM, "type": "VARCHAR", "group": "Entity"},
+            "LAND1": {"role": _DIM, "type": "VARCHAR", "group": "Entity"},
+            "ROLE_CODE": {"role": _DIM, "type": "VARCHAR", "group": "Characterization"},
+            "ROLE_DESCRIPTION": {"role": _DIM, "type": "VARCHAR", "group": "Characterization"},
         },
         "join_keys": ("RBUKRS", "ROLE_CODE", "LAND1"),
         "dimensions": ("RBUKRS", "LAND1", "ROLE_CODE"),
@@ -189,21 +248,21 @@ DATASET_TABLES: dict[str, dict[str, Any]] = {
         "catalog_id": "seed:allocation_cost_lines",
         "label": "Allocation cost lines (fabricated)",
         "columns": {
-            "cost_line_id": {"role": _DIM, "type": "VARCHAR"},
-            "provider_entity_id": {"role": _DIM, "type": "VARCHAR"},
-            "company_code": {"role": _DIM, "type": "VARCHAR"},
-            "cost_center": {"role": _DIM, "type": "VARCHAR"},
-            "profit_center": {"role": _DIM, "type": "VARCHAR"},
-            "cost_element": {"role": _DIM, "type": "VARCHAR"},
-            "cost_nature": {"role": _DIM, "type": "VARCHAR"},
-            "function": {"role": _DIM, "type": "VARCHAR"},
-            "currency_local": {"role": _DIM, "type": "VARCHAR"},
-            "fiscal_period": {"role": _DIM, "type": "VARCHAR"},
-            "fiscal_year": {"role": _DIM, "type": "VARCHAR"},
-            "flow_type": {"role": _DIM, "type": "VARCHAR"},
-            "charge_method": {"role": _DIM, "type": "VARCHAR"},
-            "ledger": {"role": _DIM, "type": "VARCHAR"},  # 'actual' | 'budget'
-            "amount_local": {"role": _MEAS, "type": "DECIMAL(23,2)"},
+            "cost_line_id": {"role": _DIM, "type": "VARCHAR", "group": "Identity"},
+            "provider_entity_id": {"role": _DIM, "type": "VARCHAR", "group": "Entity"},
+            "company_code": {"role": _DIM, "type": "VARCHAR", "group": "Entity"},
+            "cost_center": {"role": _DIM, "type": "VARCHAR", "group": "Cost & profit center"},
+            "profit_center": {"role": _DIM, "type": "VARCHAR", "group": "Cost & profit center"},
+            "cost_element": {"role": _DIM, "type": "VARCHAR", "group": "Account"},
+            "cost_nature": {"role": _DIM, "type": "VARCHAR", "group": "Account"},
+            "function": {"role": _DIM, "type": "VARCHAR", "group": "Account"},
+            "currency_local": {"role": _DIM, "type": "VARCHAR", "group": "Currency"},
+            "fiscal_period": {"role": _DIM, "type": "VARCHAR", "group": "Period"},
+            "fiscal_year": {"role": _DIM, "type": "VARCHAR", "group": "Period"},
+            "flow_type": {"role": _DIM, "type": "VARCHAR", "group": "Classification"},
+            "charge_method": {"role": _DIM, "type": "VARCHAR", "group": "Classification"},
+            "ledger": {"role": _DIM, "type": "VARCHAR", "group": "Classification"},  # 'actual' | 'budget'
+            "amount_local": {"role": _MEAS, "type": "DECIMAL(23,2)", "group": "Amounts"},
         },
         "join_keys": ("provider_entity_id", "company_code", "cost_center",
                       "profit_center", "fiscal_period"),
@@ -855,6 +914,10 @@ def active_dataset_sources() -> list[dict[str, Any]]:
             _sql, _params, cols = compile_dataset(d["graph"])
         except DatasetError:
             continue
+        columns = [
+            {"name": c, "role": _DIM, "type": "VARCHAR", "group": "Columns"}
+            for c in cols
+        ]
         out.append({
             "table": f"{_DATASET_SOURCE_PREFIX}{d['id']}",
             "dataset_id": d["id"],
@@ -862,7 +925,16 @@ def active_dataset_sources() -> list[dict[str, Any]]:
             "label": d["name"],
             "provenance": "authored",
             "catalog_id": f"dataset:{d['id']}",
-            "columns": [{"name": c, "role": _DIM, "type": "VARCHAR"} for c in cols],
+            "columns": columns,
+            # DS5: the grouped, draggable field list (mirrors ``columns`` with a
+            # ``provenance`` tag); an authored dataset's columns are not value-
+            # enumerable (the dataset is itself a derived relation), so no values.
+            "fields": [
+                {"name": c["name"], "role": c["role"], "type": c["type"],
+                 "group": c["group"], "provenance": "authored"}
+                for c in columns
+            ],
+            "values": {},
             "measures": [],
             "join_keys": list(cols),
             "dimensions": list(cols),
@@ -870,28 +942,74 @@ def active_dataset_sources() -> list[dict[str, Any]]:
     return out
 
 
+# DS5: cap how many distinct values the palette enumerates per low-cardinality
+# dimension. Every value-enumerable dimension is already <= 50 distinct (verified
+# against the data), so this is a belt-and-braces guard — a dimension that ever
+# exceeds it is simply truncated (the palette stays a browsable list, not a wall).
+_VALUE_ENUM_CAP = 50
+
+
+def source_values(name: str, spec: dict[str, Any]) -> dict[str, list[Any]]:
+    """The distinct VALUES of each value-enumerable (low-cardinality) dimension
+    of one source — what the DS5 palette offers as draggable filter chips (e.g.
+    the 17 G/L-account codes, the 8 cost centers, the 8 profit centers). Only the
+    dimensions listed in ``spec['dimensions']`` are enumerated (high-cardinality
+    fields like document numbers / line-item text / the amounts are excluded —
+    fields only), and each list is capped at :data:`_VALUE_ENUM_CAP`. The values
+    are the real data; the compiler binds them, so a chip dragged into a filter
+    is a bound param, never interpolated."""
+    out: dict[str, list[Any]] = {}
+    for col in spec.get("dimensions", ()):
+        try:
+            out[col] = distinct_values(name, col, limit=_VALUE_ENUM_CAP)
+        except DatasetError:
+            continue  # a dim that isn't actually enumerable is skipped, not fatal
+    return out
+
+
 def sources_catalog() -> dict[str, Any]:
-    """The palette catalogue: every source with its columns (role + type),
-    provenance, join keys, enumerable dimensions, and — for the journal — the
-    real distinct GL / CC / PC value lists the user asked to see, plus the
-    ACTIVE authored datasets (``dataset/{id}`` sources). Pure read."""
+    """The palette catalogue: every source with its columns (role + type +
+    group), provenance, join keys, enumerable dimensions, a grouped draggable
+    ``fields`` list, and the real distinct VALUES of each low-cardinality
+    dimension (the G/L accounts / cost centers / profit centers / … the user
+    asked to see and drag), plus the ACTIVE authored datasets (``dataset/{id}``
+    sources). Pure read.
+
+    DS5 additions are ADDITIVE — the pre-existing ``columns`` / ``journal_distinct``
+    shape is preserved so DS1-DS4 keep working; ``fields`` and per-source
+    ``values`` are new keys the field/value palette browser consumes."""
     ensure_cost_lines_relation()
     tables = []
     for name, spec in DATASET_TABLES.items():
+        provenance = spec["provenance"]
+        columns = [
+            {"name": c, "role": m["role"], "type": m["type"],
+             "group": m.get("group", "Fields")}
+            for c, m in spec["columns"].items()
+        ]
         tables.append({
             "table": name,
             "view": spec["view"],
             "label": spec["label"],
-            "provenance": spec["provenance"],
+            "provenance": provenance,
             "catalog_id": spec["catalog_id"],
-            "columns": [
-                {"name": c, "role": m["role"], "type": m["type"]}
-                for c, m in spec["columns"].items()
+            "columns": columns,  # back-compat shape (now also carries ``group``)
+            # DS5: the grouped, draggable field list (every meaningful ACDOCA /
+            # source field, role-tagged, group-labelled, provenance-tagged).
+            "fields": [
+                {"name": c["name"], "role": c["role"], "type": c["type"],
+                 "group": c["group"], "provenance": provenance}
+                for c in columns
             ],
             "measures": list(_measures(spec)),
             "join_keys": list(spec["join_keys"]),
             "dimensions": list(spec.get("dimensions", ())),
+            # DS5: the actual distinct values of the value-enumerable dimensions
+            # (capped) — draggable into a filter as a bound param.
+            "values": source_values(name, spec),
         })
+    # Back-compat: the journal's GL/CC/PC distinct lists at the top level (DS1-DS4
+    # readers). These now also live under tables[journal_entries].values.
     journal_values = {
         "RACCT": distinct_values("journal_entries", "RACCT"),
         "RCNTR": distinct_values("journal_entries", "RCNTR"),
