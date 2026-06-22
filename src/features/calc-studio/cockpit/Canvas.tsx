@@ -27,11 +27,18 @@ import {
 } from './nodeMeta';
 import type { GraphModel, RFNode } from './useGraphModel';
 
-/** A palette drag payload (set in NodePalette.onDragStart, read on drop). */
-export interface DragPayload {
-  kind: string;
-  config: Record<string, unknown>;
-}
+/** A palette drag payload (set in NodePalette.onDragStart, read on drop).
+ *
+ *  The default ``node`` intent drops a backend node (kind + seed config). DS5
+ *  adds two dataset-specific intents that are distinct from a plain node so the
+ *  Canvas can build the right thing on drop (a field/value can seed a small
+ *  subgraph OR augment an existing dataset node it lands on):
+ *  - ``datasetField`` — an ACDOCA field {table, name, role}
+ *  - ``datasetValue`` — a dimension value {table, column, value} (bound param) */
+export type DragPayload =
+  | { intent?: 'node'; kind: string; config: Record<string, unknown> }
+  | { intent: 'datasetField'; field: { table: string; name: string; role: 'dimension' | 'measure' } }
+  | { intent: 'datasetValue'; value: { table: string; column: string; value: string | number } };
 export const DRAG_MIME = 'application/x-otp-cockpit-node';
 
 const NODE_COMPONENTS = { cockpit: CockpitNode };
@@ -51,6 +58,8 @@ function CanvasInner({ model }: { model: GraphModel }) {
     onEdgesChange,
     onConnect,
     addNode,
+    dropField,
+    dropValue,
     setSelectedId,
     preview,
     scenarioPreview,
@@ -191,9 +200,23 @@ function CanvasInner({ model }: { model: GraphModel }) {
         return;
       }
       const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      addNode(payload.kind, payload.config, position);
+      // Did the drop land on an existing node? React Flow stamps the node id on
+      // the ``.react-flow__node`` wrapper as ``data-id`` — a field/value dropped
+      // onto a dataset node augments it (no new node) rather than seeding a fresh
+      // subgraph. A plain node drop ignores the target (always a new node).
+      const onNode = (e.target as HTMLElement | null)
+        ?.closest?.('.react-flow__node') as HTMLElement | null;
+      const targetId = onNode?.dataset?.id ?? null;
+
+      if (payload.intent === 'datasetField') {
+        dropField(payload.field, targetId, position);
+      } else if (payload.intent === 'datasetValue') {
+        dropValue(payload.value, targetId, position);
+      } else {
+        addNode(payload.kind, payload.config, position);
+      }
     },
-    [screenToFlowPosition, addNode]
+    [screenToFlowPosition, addNode, dropField, dropValue]
   );
 
   return (

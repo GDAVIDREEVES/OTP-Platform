@@ -11,7 +11,10 @@ import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
-import type { DatasetSourcesCatalog } from '@/shared/api/types';
+import type {
+  DatasetSource, DatasetSourceField, DatasetSourcesCatalog,
+} from '@/shared/api/types';
+import type { ProvenanceKind } from '@/kernel/audit/ProvenanceChip';
 import { valueText } from '../lib';
 import { DRAG_MIME, type DragPayload } from './Canvas';
 import { presentationFor } from './nodeMeta';
@@ -87,6 +90,274 @@ function PaletteItem({
   );
 }
 
+/** Map a source provenance to the ProvenanceChip kind. */
+function provKind(provenance: string): ProvenanceKind {
+  return provenance === 'fabricated' ? 'fabricated'
+    : provenance === 'authored' ? 'assumed' : 'real';
+}
+
+/** A draggable ACDOCA FIELD chip (DS5). Carries a ``datasetField`` payload so the
+ *  Canvas seeds a source (+ a role-fit op) on empty canvas, or augments the
+ *  dataset node it lands on. A dimension/measure tag rides on the chip. */
+function FieldChip({
+  table, field,
+}: { table: string; field: DatasetSourceField }) {
+  const isMeasure = field.role === 'measure';
+  const onDragStart = (e: React.DragEvent) => {
+    const payload: DragPayload = {
+      intent: 'datasetField',
+      field: { table, name: field.name, role: field.role },
+    };
+    e.dataTransfer.setData(DRAG_MIME, JSON.stringify(payload));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+  return (
+    <Chip
+      size="small"
+      draggable
+      onDragStart={onDragStart}
+      icon={<DragIndicatorIcon sx={{ fontSize: 13 }} />}
+      label={
+        <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
+          {field.name}
+          <span style={{ opacity: 0.55, marginLeft: 4 }}>{isMeasure ? 'Σ' : '·'}</span>
+        </span>
+      }
+      variant="outlined"
+      title={`Drag ${field.name} (${field.role}, ${field.type}) onto the canvas`}
+      sx={{
+        height: 22, m: 0.25, cursor: 'grab', userSelect: 'none',
+        borderColor: isMeasure ? '#A7F3D0' : '#DDD6FE',
+        bgcolor: isMeasure ? '#ECFDF5' : '#F5F3FF',
+        '&:active': { cursor: 'grabbing' },
+      }}
+    />
+  );
+}
+
+/** A draggable dimension VALUE chip (DS5). Carries a ``datasetValue`` payload so
+ *  the Canvas seeds a source + filter (or appends a predicate to a filter it
+ *  lands on). The value is bound by the compiler — never interpolated. */
+function ValueChip({
+  table, column, value,
+}: { table: string; column: string; value: string | number }) {
+  const onDragStart = (e: React.DragEvent) => {
+    const payload: DragPayload = {
+      intent: 'datasetValue',
+      value: { table, column, value },
+    };
+    e.dataTransfer.setData(DRAG_MIME, JSON.stringify(payload));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+  return (
+    <Chip
+      size="small"
+      draggable
+      onDragStart={onDragStart}
+      icon={<DragIndicatorIcon sx={{ fontSize: 12 }} />}
+      label={<span style={{ fontFamily: 'monospace', fontSize: 11 }}>{String(value)}</span>}
+      variant="outlined"
+      title={`Drag ${column} = ${value} onto the canvas → a bound-param filter`}
+      sx={{
+        height: 20, m: 0.25, cursor: 'grab', userSelect: 'none',
+        borderColor: '#CBD5E1',
+        '&:active': { cursor: 'grabbing' },
+      }}
+    />
+  );
+}
+
+/** Human labels for the value-enumerable dimensions the user knows by name. */
+const VALUE_DIM_LABELS: Record<string, string> = {
+  RACCT: 'G/L account', RCNTR: 'Cost center', PRCTR: 'Profit center',
+  PPRCTR: 'Partner profit center', RBUKRS: 'Entity (company code)',
+  PBUKRS: 'Partner entity', RASSC: 'Trading partner', KOKRS: 'Controlling area',
+  LAND1: 'Country', TAX_COUNTRY: 'Tax country', SEGMENT: 'Segment',
+  RFAREA: 'Functional area', BLART: 'Document type', DRCRK: 'Debit/Credit',
+  BSCHL: 'Posting key', USNAM: 'User', POPER: 'Posting period',
+  cost_center: 'Cost center', profit_center: 'Profit center',
+  cost_element: 'Cost element', function: 'Function', ledger: 'Ledger',
+  ROLE_CODE: 'Role', TP_METHOD: 'TP method', MATERIAL_TYPE: 'Material type',
+};
+
+/** The expandable FIELD + VALUE browser for one dataset source (DS5). Fields are
+ *  grouped by ``group`` (each a draggable chip); below, the value-enumerable
+ *  dimensions list their actual distinct VALUES (each a draggable chip). */
+function SourceBrowser({
+  source, needle,
+}: { source: DatasetSource; needle: string }) {
+  const match = (s: string) => !needle || s.toLowerCase().includes(needle);
+
+  // Fields filtered by the search needle (field name or group); when the needle
+  // matches the source label itself, keep every field.
+  const labelHit = match(source.label) || match(source.table);
+  const fields = (source.fields ?? []).filter(
+    (f) => labelHit || match(f.name) || match(f.group)
+  );
+  // Preserve the backend group order (first-seen) but only render non-empty.
+  const groupOrder: string[] = [];
+  const byGroup: Record<string, DatasetSourceField[]> = {};
+  fields.forEach((f) => {
+    if (!byGroup[f.group]) { byGroup[f.group] = []; groupOrder.push(f.group); }
+    byGroup[f.group].push(f);
+  });
+
+  // Value-enumerable dimensions whose name, label, or any value matches.
+  const valueCols = Object.entries(source.values ?? {}).filter(([col, vals]) => {
+    if (labelHit) return true;
+    const lbl = VALUE_DIM_LABELS[col] ?? col;
+    return match(col) || match(lbl) || vals.some((v) => match(String(v)));
+  });
+
+  return (
+    <Box sx={{ pl: 1, pr: 0.5, pb: 0.5 }}>
+      {groupOrder.map((g) => (
+        <Box key={g} sx={{ mt: 0.5 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+            {g}
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 0.25 }}>
+            {byGroup[g].map((f) => (
+              <FieldChip key={`${source.table}-${f.name}`} table={source.table} field={f} />
+            ))}
+          </Box>
+        </Box>
+      ))}
+
+      {valueCols.length > 0 && (
+        <Box sx={{ mt: 0.75 }}>
+          <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block' }}>
+            Values
+          </Typography>
+          {valueCols.map(([col, vals]) => {
+            // When the needle matches specific values, surface just those.
+            const shown = needle && !labelHit && !match(col) && !match(VALUE_DIM_LABELS[col] ?? col)
+              ? vals.filter((v) => match(String(v)))
+              : vals;
+            return (
+              <ValueDimension
+                key={`${source.table}-vals-${col}`}
+                table={source.table}
+                column={col}
+                label={VALUE_DIM_LABELS[col] ?? col}
+                values={shown}
+                count={vals.length}
+                defaultExpanded={Boolean(needle) && shown.length < vals.length}
+              />
+            );
+          })}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** One value-enumerable dimension — an accordion of its draggable VALUE chips. */
+function ValueDimension({
+  table, column, label, values, count, defaultExpanded,
+}: {
+  table: string; column: string; label: string;
+  values: (string | number)[]; count: number; defaultExpanded: boolean;
+}) {
+  const [open, setOpen] = useState(defaultExpanded);
+  useEffect(() => { if (defaultExpanded) setOpen(true); }, [defaultExpanded]);
+  return (
+    <Box>
+      <Stack
+        direction="row" spacing={0.5} alignItems="center"
+        onClick={() => setOpen((o) => !o)}
+        sx={{ cursor: 'pointer', px: 0.5, py: 0.25, borderRadius: 1, '&:hover': { bgcolor: '#F1F5F9' } }}
+      >
+        <ExpandMoreIcon
+          sx={{ fontSize: 16, color: '#94A3B8', transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }}
+        />
+        <Typography variant="caption" sx={{ fontWeight: 600 }}>
+          {label} <span style={{ color: '#94A3B8', fontFamily: 'monospace' }}>({column})</span>
+        </Typography>
+        <Chip size="small" label={count} sx={{ height: 15, fontSize: 9.5 }} />
+      </Stack>
+      {open && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', pl: 2.5, pb: 0.25 }}>
+          {values.map((v) => (
+            <ValueChip key={`${column}-${v}`} table={table} column={column} value={v} />
+          ))}
+          {values.length === 0 && (
+            <Typography variant="caption" sx={{ color: 'text.secondary', pl: 0.5 }}>
+              No matching values.
+            </Typography>
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** One dataset source row (DS5) — an accordion. The SUMMARY row is itself the
+ *  draggable whole-table source (dragging it drops a ``source`` node, as before);
+ *  the expand caret reveals the grouped, draggable FIELD + VALUE browser. */
+function SourceRow({
+  source, needle, onAddSource,
+}: { source: DatasetSource; needle: string; onAddSource: () => void }) {
+  const [open, setOpen] = useState(false);
+  // While searching, auto-open a source whose match is a field/value (not just
+  // the source label) so the user sees the hit without a manual expand.
+  const labelHit = !needle
+    || source.label.toLowerCase().includes(needle)
+    || source.table.toLowerCase().includes(needle);
+  useEffect(() => {
+    if (needle && !labelHit) setOpen(true);
+  }, [needle, labelHit]);
+
+  const onDragStart = (e: React.DragEvent) => {
+    const payload: DragPayload = { kind: 'source', config: { table: source.table } };
+    e.dataTransfer.setData(DRAG_MIME, JSON.stringify(payload));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  return (
+    <Box>
+      <Stack
+        direction="row" spacing={0.5} alignItems="center"
+        draggable
+        onDragStart={onDragStart}
+        onDoubleClick={onAddSource}
+        sx={{
+          px: 0.5, py: 0.5, borderRadius: 1, cursor: 'grab', userSelect: 'none',
+          '&:hover': { bgcolor: '#F1F5F9' }, '&:active': { cursor: 'grabbing' },
+        }}
+        title="Drag the source onto the canvas, or expand to drag its fields & values"
+      >
+        <IconButton
+          size="small" sx={{ p: 0.25 }}
+          onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        >
+          <ExpandMoreIcon
+            sx={{ fontSize: 16, color: '#94A3B8', transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }}
+          />
+        </IconButton>
+        <DragIndicatorIcon sx={{ fontSize: 15, color: '#94A3B8' }} />
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 12.5 }} noWrap>
+            {source.label}
+          </Typography>
+          <Box sx={{ mt: 0.25 }}>
+            <ProvenanceChip
+              source={source.provenance}
+              kind={provKind(source.provenance)}
+              tooltip={
+                source.provenance === 'real' ? 'Real warehouse data (ACDOCA / segment_pl / supply-chain / entity roles)'
+                : source.provenance === 'fabricated' ? 'Fabricated seed — fine cost-center grain beneath reconciled totals'
+                : 'An ACTIVE authored dataset, referenced as a source'
+              }
+            />
+          </Box>
+        </Box>
+      </Stack>
+      {open && <SourceBrowser source={source} needle={needle} />}
+    </Box>
+  );
+}
+
 function Group({
   title, count, children, defaultExpanded = false,
 }: {
@@ -156,10 +427,21 @@ export default function NodePalette({ model }: { model: GraphModel }) {
   const calcCanvas = family === 'calc';
   const datasetCanvas = family === 'dataset';
 
-  // Dataset sources + ops, filtered by the search needle.
+  // Dataset sources + ops, filtered by the search needle. DS5: a source surfaces
+  // when its label/table OR any of its FIELD names/groups OR any of its dimension
+  // VALUE codes match — so "0810000", "RACCT", "cost center" and "HSL" all find
+  // the right source (and the expanded browser auto-opens to the hit).
   const dsSources = useMemo(
-    () => [...(dsCat?.tables ?? []), ...(dsCat?.datasets ?? [])].filter(
-      (s) => match(s.label) || match(s.table)),
+    () =>
+      [...(dsCat?.tables ?? []), ...(dsCat?.datasets ?? [])].filter((s) => {
+        if (match(s.label) || match(s.table)) return true;
+        if ((s.fields ?? []).some((f) => match(f.name) || match(f.group))) return true;
+        return Object.entries(s.values ?? {}).some(
+          ([col, vals]) =>
+            match(col) || match(VALUE_DIM_LABELS[col] ?? '') ||
+            vals.some((v) => match(String(v)))
+        );
+      }),
     [dsCat, needle]
   );
   const dsOps = useMemo(
@@ -381,29 +663,17 @@ export default function NodePalette({ model }: { model: GraphModel }) {
           {!allocCanvas && (
             <>
               <Typography variant="overline" sx={{ color: 'text.secondary', px: 1, display: 'block', mt: 0.5 }}>
-                Source tables
+                Sources · fields · values
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', px: 1, display: 'block', mb: 0.5 }}>
+                Expand a source to drag its ACDOCA fields and account / cost-center / profit-center values.
               </Typography>
               {dsSources.map((s) => (
-                <PaletteItem
+                <SourceRow
                   key={`ds-src-${s.table}`}
-                  kind="source"
-                  config={{ table: s.table }}
-                  label={s.label}
-                  onAdd={() => addCentered('source', { table: s.table })}
-                  sub={
-                    <Box sx={{ mt: 0.25 }}>
-                      <ProvenanceChip
-                        source={s.provenance}
-                        kind={s.provenance === 'fabricated' ? 'fabricated'
-                          : s.provenance === 'authored' ? 'assumed' : 'real'}
-                        tooltip={
-                          s.provenance === 'real' ? 'Real warehouse data (ACDOCA / segment_pl / supply-chain / entity roles)'
-                          : s.provenance === 'fabricated' ? 'Fabricated seed — fine cost-center grain beneath reconciled totals'
-                          : 'An ACTIVE authored dataset, referenced as a source'
-                        }
-                      />
-                    </Box>
-                  }
+                  source={s}
+                  needle={needle}
+                  onAddSource={() => addCentered('source', { table: s.table })}
                 />
               ))}
 

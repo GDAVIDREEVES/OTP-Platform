@@ -17,7 +17,7 @@ import type {
   CockpitGraphPreview,
   StageGraphPreview,
 } from '@/shared/api/types';
-import { familyOfNodes } from './nodeMeta';
+import { familyOfNodes, isDatasetKind } from './nodeMeta';
 import type { DatasetPreview } from '@/shared/api/types';
 
 /** Which family the current canvas graph belongs to. A graph with any allocation
@@ -181,6 +181,133 @@ export function useGraphModel() {
       setDatasetPreview(null);
     },
     []
+  );
+
+  /** DS5 — drop an ACDOCA FIELD from the palette.
+   *
+   *  Onto an existing dataset node: add the field to that node's columns /
+   *  group-by / measures / predicates as fits its role + kind (no new node).
+   *  Onto empty canvas (or a non-dataset target): seed a ``source`` for the
+   *  field's table projecting that one column, plus the natural next node — a
+   *  MEASURE seeds an ``aggregate`` (SUM it), a DIMENSION seeds a ``select``
+   *  (project it; grow into a group-by later). One gesture, no dialog. */
+  const dropField = useCallback(
+    (
+      field: { table: string; name: string; role: 'dimension' | 'measure' },
+      targetId: string | null,
+      position: { x: number; y: number }
+    ) => {
+      if (targetId) {
+        const target = nodes.find((n) => n.id === targetId);
+        if (target && isDatasetKind(target.data.kind)) {
+          const kind = target.data.kind;
+          const cfg = target.data.config ?? {};
+          const patch: Record<string, unknown> = {};
+          if (kind === 'source' || kind === 'select') {
+            const cur = (cfg.columns as string[]) ?? [];
+            if (!cur.includes(field.name)) patch.columns = [...cur, field.name];
+          } else if (kind === 'aggregate') {
+            if (field.role === 'measure') {
+              const cur = (cfg.measures as Record<string, unknown>[]) ?? [];
+              if (!cur.some((m) => m.column === field.name)) {
+                patch.measures = [...cur, { column: field.name, func: 'SUM' }];
+              }
+            } else {
+              const cur = (cfg.group_by as string[]) ?? [];
+              if (!cur.includes(field.name)) patch.group_by = [...cur, field.name];
+            }
+          } else if (kind === 'filter') {
+            const cur = (cfg.predicates as Record<string, unknown>[]) ?? [];
+            patch.predicates = [...cur, { column: field.name, op: '=', value: '' }];
+          }
+          if (Object.keys(patch).length) updateNodeConfig(targetId, patch);
+          setSelectedId(targetId);
+          return targetId;
+        }
+      }
+      const srcId = nextNodeId();
+      const opId = nextNodeId();
+      const opKind = field.role === 'measure' ? 'aggregate' : 'select';
+      const opConfig: Record<string, unknown> =
+        field.role === 'measure'
+          ? { group_by: [], measures: [{ column: field.name, func: 'SUM' }] }
+          : { columns: [field.name] };
+      setNodes((nds) =>
+        nds.concat([
+          {
+            id: srcId, type: 'cockpit', position,
+            data: { kind: 'source', config: { table: field.table, columns: [field.name] } },
+          },
+          {
+            id: opId, type: 'cockpit',
+            position: { x: position.x + 220, y: position.y },
+            data: { kind: opKind, config: opConfig },
+          },
+        ])
+      );
+      setEdges((eds) =>
+        eds.concat({
+          id: `e_field_${srcId}_${opId}`,
+          source: srcId, sourceHandle: 'out', target: opId, targetHandle: 'in',
+        })
+      );
+      setSelectedId(opId);
+      setPreview(null); setScenarioPreview(null);
+      setStagePreview(null); setDatasetPreview(null);
+      return opId;
+    },
+    [nodes, updateNodeConfig]
+  );
+
+  /** DS5 — drop a VALUE chip from the palette (carries {table, column, value}).
+   *
+   *  Onto an existing ``filter`` node: append the predicate (no new node). Onto
+   *  empty canvas: seed a ``source`` for the table + a ``filter`` with the
+   *  predicate ``{col, op:'=', value}``. The value rides through config and is
+   *  BOUND by the compiler — never interpolated (injection-safe by construction). */
+  const dropValue = useCallback(
+    (
+      value: { table: string; column: string; value: string | number },
+      targetId: string | null,
+      position: { x: number; y: number }
+    ) => {
+      const predicate = { column: value.column, op: '=', value: value.value };
+      if (targetId) {
+        const target = nodes.find((n) => n.id === targetId);
+        if (target && target.data.kind === 'filter') {
+          const cur = (target.data.config?.predicates as Record<string, unknown>[]) ?? [];
+          updateNodeConfig(targetId, { predicates: [...cur, predicate] });
+          setSelectedId(targetId);
+          return targetId;
+        }
+      }
+      const srcId = nextNodeId();
+      const fltId = nextNodeId();
+      setNodes((nds) =>
+        nds.concat([
+          {
+            id: srcId, type: 'cockpit', position,
+            data: { kind: 'source', config: { table: value.table } },
+          },
+          {
+            id: fltId, type: 'cockpit',
+            position: { x: position.x + 220, y: position.y },
+            data: { kind: 'filter', config: { predicates: [predicate] } },
+          },
+        ])
+      );
+      setEdges((eds) =>
+        eds.concat({
+          id: `e_value_${srcId}_${fltId}`,
+          source: srcId, sourceHandle: 'out', target: fltId, targetHandle: 'in',
+        })
+      );
+      setSelectedId(fltId);
+      setPreview(null); setScenarioPreview(null);
+      setStagePreview(null); setDatasetPreview(null);
+      return fltId;
+    },
+    [nodes, updateNodeConfig]
   );
 
   const removeNode = useCallback((id: string) => {
@@ -375,6 +502,8 @@ export function useGraphModel() {
     onEdgesChange,
     onConnect,
     addNode,
+    dropField,
+    dropValue,
     updateNodeConfig,
     removeNode,
     loadGraph,

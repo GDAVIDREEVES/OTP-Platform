@@ -1085,11 +1085,24 @@ export interface DatasetNodeType {
   hows?: string[];
 }
 
-/** One source column (role + SQL type) in the dataset palette. */
+/** One source column (role + SQL type) in the dataset palette. ``group`` is the
+ *  DS5 UI grouping label (e.g. "Account", "Cost & profit center"). */
 export interface DatasetSourceColumn {
   name: string;
   role: 'dimension' | 'measure';
   type: string;
+  /** DS5 — the field's display group (additive). */
+  group?: string;
+}
+
+/** One draggable source FIELD (DS5) — the grouped, provenance-tagged field the
+ *  palette renders as a chip you can drag onto the canvas. */
+export interface DatasetSourceField {
+  name: string;
+  role: 'dimension' | 'measure';
+  type: string;
+  group: string;
+  provenance: 'real' | 'fabricated' | 'authored';
 }
 
 /** One dataset SOURCE — a warehouse view, the fabricated cost lines, or an
@@ -1102,9 +1115,14 @@ export interface DatasetSource {
   provenance: 'real' | 'fabricated' | 'authored';
   catalog_id: string;
   columns: DatasetSourceColumn[];
+  /** DS5 — the grouped, draggable field list (additive over ``columns``). */
+  fields: DatasetSourceField[];
   measures: string[];
   join_keys: string[];
   dimensions: string[];
+  /** DS5 — the actual distinct VALUES of each value-enumerable low-cardinality
+   *  dimension (col -> capped value list); high-cardinality fields are absent. */
+  values: Record<string, (string | number)[]>;
   /** Present only for authored-dataset sources. */
   dataset_id?: string;
 }
