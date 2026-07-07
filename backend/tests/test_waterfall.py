@@ -37,6 +37,8 @@ import services.waterfall_runner as runner
 import state.audit as audit
 import state.engine as engine
 import state.pl_overlays as pl_overlays
+import state.review as review
+import state.waterfall_requests as waterfall_requests
 from config import SEGMENT_PL, SUPPLY_CHAIN
 from main import app
 from routers.csa import csa, profit_split
@@ -98,6 +100,31 @@ def _sum_lines(lines, *, kind=None, side=None, entity=None) -> Decimal:
             continue
         total += Decimal(l["amount"])
     return total
+
+
+# -------------------------------------------- GP4 request→approve helpers --
+
+
+def _pending_waterfall_item(record_ref: str) -> dict | None:
+    """The pending review item sitting at ``record_ref`` (newest wins)."""
+    items = client.get("/api/review-queue", params={"status": "pending"}).json()
+    matches = [it for it in items if it["record_ref"] == record_ref]
+    return matches[-1] if matches else None
+
+
+def _approve_run_request(
+    *, year=YEAR, steps=None, maker="wf-maker", checker="wf-checker",
+) -> dict:
+    """Submit a run request and approve it as a DIFFERENT persona; return the
+    (now approved) request row — its ``executed_run_id`` names the WF-* run."""
+    payload = {"actor": maker, "action": "run", "year": year}
+    if steps is not None:
+        payload["steps"] = steps
+    req = client.post("/api/waterfall/requests", json=payload).json()
+    item = _pending_waterfall_item(req["record_ref"])
+    resp = client.post(f"/api/review/{item['id']}/approve", json={"checker": checker})
+    assert resp.status_code == 200, resp.text
+    return waterfall_requests.get_request(req["id"])
 
 
 @pytest.fixture(scope="module")
@@ -315,30 +342,51 @@ def test_api_run_listing_and_detail(wf):
     assert client.get("/api/waterfall/runs/WF-NOPE").status_code == 404
 
 
-def test_api_rejects_malformed_launches(wf):
-    assert client.post("/api/waterfall/runs",
-                       json={"actor": "t", "steps": ["nope"]}
+def test_request_endpoint_rejects_malformed(wf):
+    """Malformed requests are refused at submission — a doomed request never
+    reaches the review queue (GP4)."""
+    # unknown / duplicate steps
+    assert client.post("/api/waterfall/requests",
+                       json={"actor": "t", "action": "run", "steps": ["nope"]}
                        ).status_code == 400
-    assert client.post("/api/waterfall/runs",
-                       json={"actor": "t",
+    assert client.post("/api/waterfall/requests",
+                       json={"actor": "t", "action": "run",
                              "steps": ["royalties", "royalties"]}
                        ).status_code == 400
-    assert client.post("/api/waterfall/runs/WF-NOPE/rollback",
-                       json={"actor": "t"}).status_code == 404
+    # bad action
+    assert client.post("/api/waterfall/requests",
+                       json={"actor": "t", "action": "nope"}).status_code == 400
+    # rollback needs a target, and an unknown target is a 404
+    assert client.post("/api/waterfall/requests",
+                       json={"actor": "t", "action": "rollback"}).status_code == 400
+    assert client.post("/api/waterfall/requests",
+                       json={"actor": "t", "action": "rollback",
+                             "target_run_id": "WF-NOPE"}).status_code == 404
+    # none of these enqueued anything
+    assert not [it for it in client.get("/api/review-queue").json()
+                if it["record_ref"].startswith("waterfall:")]
 
 
 # ---------------------------------------------------------------- rollback --
 
 
-def test_rollback_reverses_every_line_exactly_and_restores_base(wf):
+def test_rollback_via_request_reverses_every_line_and_restores_base(wf):
     run_id = wf["run"]["id"]
     originals = pl_overlays.list_lines(waterfall_run_id=run_id)
-    resp = client.post(f"/api/waterfall/runs/{run_id}/rollback",
-                       json={"actor": "wf-checker"})
+    # rollback now goes through the gate: request → approve as a DIFFERENT persona
+    req = client.post("/api/waterfall/requests",
+                      json={"actor": "wf-maker", "action": "rollback",
+                            "target_run_id": run_id}).json()
+    # still applied while the rollback awaits approval — P&L untouched
+    assert pl_overlays.get_run(run_id)["status"] == "applied"
+    item = _pending_waterfall_item(req["record_ref"])
+    resp = client.post(f"/api/review/{item['id']}/approve",
+                       json={"checker": "wf-checker"})
     assert resp.status_code == 200
-    body = resp.json()
-    assert body["status"] == "rolled_back"
-    assert body["reversed_lines"] == len(originals)
+    approved = waterfall_requests.get_request(req["id"])
+    assert approved["status"] == "approved"
+    assert approved["executed_run_id"] == run_id
+    assert pl_overlays.get_run(run_id)["status"] == "rolled_back"
 
     after = pl_overlays.list_lines(waterfall_run_id=run_id)
     assert len(after) == 2 * len(originals)
@@ -363,21 +411,22 @@ def test_rollback_reverses_every_line_exactly_and_restores_base(wf):
                 == row["base"]["operating_profit"])
         assert row["post_charge"]["revenue"] == row["base"]["revenue"]
 
-    # a second rollback must refuse — only an applied run can roll back
-    assert client.post(f"/api/waterfall/runs/{run_id}/rollback",
-                       json={"actor": "wf-checker"}).status_code == 400
+    # a second rollback request must refuse at submission — only an applied run
+    # can roll back (the target is now rolled_back)
+    assert client.post("/api/waterfall/requests",
+                       json={"actor": "wf-maker", "action": "rollback",
+                             "target_run_id": run_id}).status_code == 400
 
 
-def test_rerun_supersedes_prior_applied_run_never_double_counting(wf):
-    """Apply wf2, then wf3: wf2 is auto-superseded (its lines reversed), so
-    the ledger still nets to exactly ONE application of every charge."""
-    run2 = client.post("/api/waterfall/runs",
-                       json={"actor": "wf-maker", "year": YEAR}).json()
-    assert run2["status"] == "applied"
-    run3 = client.post("/api/waterfall/runs",
-                       json={"actor": "wf-maker", "year": YEAR}).json()
-    assert run3["status"] == "applied"
-    assert pl_overlays.get_run(run2["id"])["status"] == "superseded"
+def test_rerun_via_requests_supersedes_prior_applied_run(wf):
+    """Apply wf2, then wf3 (each through request→approve): wf2 is auto-
+    superseded (its lines reversed), so the ledger still nets to exactly ONE
+    application of every charge."""
+    r2 = _approve_run_request()
+    r3 = _approve_run_request()
+    run2, run3 = r2["executed_run_id"], r3["executed_run_id"]
+    assert pl_overlays.get_run(run2)["status"] == "superseded"
+    assert pl_overlays.get_run(run3)["status"] == "applied"
 
     all_lines = pl_overlays.list_lines(year=YEAR)
     assert _sum_lines(all_lines, kind="service_charge", side="revenue") \
@@ -385,16 +434,15 @@ def test_rerun_supersedes_prior_applied_run_never_double_counting(wf):
     assert (_sum_lines(all_lines, side="revenue")
             - _sum_lines(all_lines, side="cost")) == ZERO
     assert client.get("/api/pl/adjusted", params={"year": YEAR}).json()[
-        "applied_run_id"] == run3["id"]
+        "applied_run_id"] == run3
 
 
-def test_custom_step_subset_applies_only_those_steps(wf):
-    run = client.post("/api/waterfall/runs",
-                      json={"actor": "wf-maker", "year": YEAR,
-                            "steps": ["royalties"]}).json()
+def test_custom_step_subset_via_request_applies_only_those_steps(wf):
+    r = _approve_run_request(steps=["royalties"])
+    run = pl_overlays.get_run(r["executed_run_id"])
     assert run["status"] == "applied"
     assert [s["id"] for s in run["steps"]] == ["royalties"]
-    lines = pl_overlays.list_lines(waterfall_run_id=run["id"])
+    lines = pl_overlays.list_lines(waterfall_run_id=r["executed_run_id"])
     assert {l["line_kind"] for l in lines} == {"royalty"}
     # the full run before it was superseded; only royalties remain applied
     body = client.get("/api/pl/adjusted", params={"year": YEAR}).json()
@@ -455,3 +503,133 @@ def test_run_table_enforces_legal_transitions(state_db):
     assert rolled["status"] == "rolled_back"
     with pytest.raises(ValueError, match="unknown waterfall run"):
         pl_overlays.finish_run("WF-NOPE", status="applied")
+
+
+# --------------------------- GP4 request→approve lifecycle (isolated DB) --
+#
+# The waterfall rewrites the group P&L, so it must never execute on a single
+# click: a run/rollback is a REQUEST that a DIFFERENT reviewer approves. These
+# tests run on a fresh DB (state_db) and use the cheap royalties-only subset so
+# the request→approve→execute lifecycle is exercised without the allocation
+# engine (the full sequence is covered by the wf fixture + migrated tests).
+
+
+def test_run_request_leaves_pl_untouched_until_approved(state_db):
+    """The core control: a run request is PENDING and the group P&L is NOT
+    changed; only a DIFFERENT reviewer's approval executes it."""
+    # baseline: no overlay anywhere, post-charge == base
+    assert pl_overlays.list_lines() == []
+    assert pl_overlays.list_runs() == []
+    before = client.get("/api/pl/adjusted", params={"year": YEAR}).json()
+    assert before["applied_run_id"] is None
+
+    req = client.post("/api/waterfall/requests",
+                      json={"actor": "op", "action": "run", "year": YEAR,
+                            "steps": ["royalties"],
+                            "rationale": "close FY26"}).json()
+    assert req["status"] == "pending"
+    assert req["record_ref"] == f"waterfall:{req['id']}"
+
+    # P&L is UNTOUCHED — the request executed nothing
+    assert pl_overlays.list_lines() == []
+    assert pl_overlays.list_runs() == []
+    assert client.get("/api/pl/adjusted", params={"year": YEAR}).json()[
+        "applied_run_id"] is None
+    # one pending maker-checker item sits at the waterfall ref, owned by OTP-21
+    item = _pending_waterfall_item(req["record_ref"])
+    assert item is not None
+    assert item["process_id"] == "OTP-21" and item["maker"] == "op"
+
+    # approve as a DIFFERENT persona → the run executes NOW
+    resp = client.post(f"/api/review/{item['id']}/approve",
+                       json={"checker": "rev"})
+    assert resp.status_code == 200
+    approved = waterfall_requests.get_request(req["id"])
+    assert approved["status"] == "approved"
+    run_id = approved["executed_run_id"]
+    assert pl_overlays.get_run(run_id)["status"] == "applied"
+
+    # overlay applied, group nets to ZERO, adjusted reflects it
+    lines = pl_overlays.list_lines(waterfall_run_id=run_id)
+    assert lines
+    assert (_sum_lines(lines, side="revenue")
+            - _sum_lines(lines, side="cost")) == ZERO
+    body = client.get("/api/pl/adjusted", params={"year": YEAR}).json()
+    assert body["applied_run_id"] == run_id
+    assert Decimal(body["totals"]["overlay_net"]) == ZERO
+
+    # the executed run's OWN audit landed (waterfall:{run} + overlay:{line}),
+    # and the request ref carries submitted → approved → posted; chain verifies
+    assert [e["event_type"] for e in
+            audit.list_events(record_ref=f"waterfall:{run_id}")] == ["run"]
+    assert [e["event_type"] for e in
+            audit.list_events(record_ref=f"overlay:{lines[0]['id']}")] == ["posted"]
+    assert [e["event_type"] for e in
+            audit.list_events(record_ref=req["record_ref"])] \
+        == ["submitted", "approved", "posted", "handoff"]
+    assert audit.verify_chain() == {"ok": True, "broken_at": None}
+
+
+def test_rejected_run_request_never_runs_and_pl_untouched(state_db):
+    req = client.post("/api/waterfall/requests",
+                      json={"actor": "op", "action": "run", "year": YEAR,
+                            "steps": ["royalties"]}).json()
+    item = _pending_waterfall_item(req["record_ref"])
+    resp = client.post(f"/api/review/{item['id']}/reject",
+                       json={"checker": "rev", "comments": "not this period"})
+    assert resp.status_code == 200
+    # NOTHING ran — the group P&L is exactly as it was
+    assert pl_overlays.list_runs() == []
+    assert pl_overlays.list_lines() == []
+    assert client.get("/api/pl/adjusted", params={"year": YEAR}).json()[
+        "applied_run_id"] is None
+    assert waterfall_requests.get_request(req["id"])["status"] == "rejected"
+
+
+def test_self_approve_of_waterfall_request_is_blocked(state_db):
+    """Maker ≠ checker is enforced in decide(): a self-approve is a 409 and
+    executes nothing."""
+    req = client.post("/api/waterfall/requests",
+                      json={"actor": "solo", "action": "run", "year": YEAR,
+                            "steps": ["royalties"]}).json()
+    item = _pending_waterfall_item(req["record_ref"])
+    resp = client.post(f"/api/review/{item['id']}/approve",
+                       json={"checker": "solo"})
+    assert resp.status_code == 409
+    assert pl_overlays.list_runs() == []
+    assert pl_overlays.list_lines() == []
+    assert waterfall_requests.get_request(req["id"])["status"] == "pending"
+
+
+def test_rollback_request_reverses_prior_applied_run_on_approval(state_db):
+    # apply a run through the gate first
+    r = _approve_run_request(steps=["royalties"], maker="op", checker="rev")
+    run_id = r["executed_run_id"]
+    assert pl_overlays.get_run(run_id)["status"] == "applied"
+
+    # request a rollback; it stays PENDING and the run stays applied
+    rb = client.post("/api/waterfall/requests",
+                     json={"actor": "op", "action": "rollback",
+                           "target_run_id": run_id}).json()
+    assert pl_overlays.get_run(run_id)["status"] == "applied"
+    item = _pending_waterfall_item(rb["record_ref"])
+    client.post(f"/api/review/{item['id']}/approve", json={"checker": "rev"})
+
+    # approval reversed it — back to base
+    assert pl_overlays.get_run(run_id)["status"] == "rolled_back"
+    assert client.get("/api/pl/adjusted", params={"year": YEAR}).json()[
+        "applied_run_id"] is None
+    assert waterfall_requests.get_request(rb["id"])["executed_run_id"] == run_id
+
+
+def test_decide_hook_is_noop_for_missing_request_id(state_db):
+    """A waterfall:{id} review item with no backing request → decide() is a
+    defensive no-op: the decision lands, nothing executes, nothing crashes."""
+    review.create_item(process_id="OTP-21",
+                       record_ref="waterfall:WFR-nope", maker="op")
+    item = _pending_waterfall_item("waterfall:WFR-nope")
+    resp = client.post(f"/api/review/{item['id']}/approve",
+                       json={"checker": "rev"})
+    assert resp.status_code == 200
+    assert pl_overlays.list_runs() == []
+    assert pl_overlays.list_lines() == []

@@ -1,13 +1,23 @@
-"""Waterfall API (Phase 5 W1) — run launcher + run reads + rollback, and the
-adjusted P&L read.
+"""Waterfall API (Phase 5 W1; GP4 governance loop) — run requests + run reads,
+and the adjusted P&L read.
 
-Thin router over ``services/waterfall_runner.py`` (orchestrator) and
-``state/pl_overlays.py`` (overlay ledger + run table). ``/api/pl/adjusted``
-returns the BASE ``segment_pl`` aggregate (the exact source behind
-``/api/segments/pl``) side by side with the applied overlay lines and the
+Thin router over ``services/waterfall_runner.py`` (orchestrator),
+``state/waterfall_requests.py`` (the maker-checker gate) and
+``state/pl_overlays.py`` (overlay ledger + run table).
+
+GP4: the waterfall rewrites the group segmented P&L, so it does NOT execute on
+an HTTP call. ``POST /api/waterfall/requests`` submits a run/rollback REQUEST
+that enqueues one maker-checker item at record_ref="waterfall:{id}"; the P&L is
+untouched until a DIFFERENT reviewer approves it in the /review queue, at which
+point state/review.py:decide() calls the orchestrator (execute-on-approve, the
+same pattern as scenario promotion). There is deliberately no immediate-apply
+endpoint — the only path to the group P&L is through review.
+
+``/api/pl/adjusted`` returns the BASE ``segment_pl`` aggregate (the exact source
+behind ``/api/segments/pl``) side by side with the applied overlay lines and the
 post-charge totals — with per-line provenance (step, source_ref, waterfall
 run). With no waterfall applied the post-charge columns equal base, so
-nothing changes anywhere until a run is launched.
+nothing changes anywhere until a run is applied.
 
 All overlay arithmetic is Decimal; amounts cross the JSON boundary as exact
 decimal strings (overlay/by-kind totals and line amounts) while base /
@@ -25,8 +35,9 @@ from fastapi import APIRouter, HTTPException
 
 import services.waterfall_runner as runner
 import state.pl_overlays as pl_overlays
+import state.waterfall_requests as waterfall_requests
 from calc import warehouse
-from schemas.waterfall import WaterfallRollbackIn, WaterfallRunIn
+from schemas.waterfall import WaterfallRequestIn
 
 router = APIRouter()
 
@@ -40,19 +51,59 @@ MEASURES = ["revenue", "other_income", "cogs", "opex_production", "opex_rd",
 GRAINS = ("entity", "entity_function")
 
 
+# ------------------------------------------------------- run requests (GP4) --
+
+
+@router.post("/api/waterfall/requests")
+def create_request(payload: WaterfallRequestIn):
+    """Submit a run/rollback REQUEST for maker-checker review — the ONLY way to
+    touch the group P&L. Nothing executes here: the request enqueues one review
+    item at waterfall:{id}; approval by a DIFFERENT reviewer runs it. Malformed
+    requests (unknown/duplicate steps, unknown/non-applied rollback target) are
+    rejected up front (400/404) so a doomed request never reaches the queue."""
+    action = payload.action
+    if action not in ("run", "rollback"):
+        raise HTTPException(status_code=400,
+                            detail="action must be 'run' or 'rollback'")
+    if action == "run":
+        steps = payload.steps
+        if steps is not None:
+            unknown = [s for s in steps if s not in runner.KNOWN_STEPS]
+            if unknown:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"unknown waterfall steps: {unknown}; "
+                           f"known: {sorted(runner.KNOWN_STEPS)}")
+            if len(set(steps)) != len(steps):
+                raise HTTPException(status_code=400,
+                                    detail=f"duplicate waterfall steps: {steps}")
+    else:  # rollback
+        if not payload.target_run_id:
+            raise HTTPException(status_code=400,
+                                detail="a rollback request requires target_run_id")
+        target = pl_overlays.get_run(payload.target_run_id)
+        if target is None:
+            raise HTTPException(status_code=404,
+                                detail=f"unknown run: {payload.target_run_id}")
+        if target["status"] != "applied":
+            raise HTTPException(
+                status_code=400,
+                detail=f"only an applied run can be rolled back; "
+                       f"{payload.target_run_id} is {target['status']}")
+    return waterfall_requests.create_request(
+        action=action, year=payload.year, requested_by=payload.actor,
+        target_run_id=payload.target_run_id, steps=payload.steps,
+        rationale=payload.rationale)
+
+
+@router.get("/api/waterfall/requests")
+def list_requests(status: str | None = None):
+    """Waterfall run/rollback requests, newest first (optionally by status —
+    'pending' surfaces what is awaiting approval)."""
+    return waterfall_requests.list_requests(status=status)
+
+
 # ------------------------------------------------------------------- runs --
-
-
-@router.post("/api/waterfall/runs")
-def launch_run(payload: WaterfallRunIn):
-    """Launch a waterfall run. A failed run is a domain outcome, not an HTTP
-    error: the run record (status 'failed', nothing applied) comes back with
-    200. Unknown/duplicate steps are a 400."""
-    try:
-        return runner.run_waterfall(
-            actor=payload.actor, year=payload.year, steps=payload.steps)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/api/waterfall/runs")
@@ -66,18 +117,6 @@ def get_run(run_id: str):
     if run is None:
         raise HTTPException(status_code=404, detail=f"unknown run: {run_id}")
     return {**run, "lines": pl_overlays.list_lines(waterfall_run_id=run_id)}
-
-
-@router.post("/api/waterfall/runs/{run_id}/rollback")
-def rollback_run(run_id: str, payload: WaterfallRollbackIn):
-    """Roll an applied run back: one reversing overlay row per line (the
-    ledger stays append-only), status -> 'rolled_back'."""
-    if pl_overlays.get_run(run_id) is None:
-        raise HTTPException(status_code=404, detail=f"unknown run: {run_id}")
-    try:
-        return runner.rollback(run_id, actor=payload.actor)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ------------------------------------------------------------ adjusted P&L --

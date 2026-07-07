@@ -209,6 +209,10 @@ _BUILDERS: dict[str, Callable[[int, str], tuple[list[dict], dict]]] = {
     "profit_split": _profit_split_lines,
 }
 
+#: The known waterfall step ids, in canonical order — the request endpoint
+#: validates a submitted step subset against this before enqueuing.
+KNOWN_STEPS: tuple[str, ...] = tuple(_BUILDERS)
+
 
 # -------------------------------------------------------------- run / rollback --
 
