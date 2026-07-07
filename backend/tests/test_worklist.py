@@ -53,12 +53,13 @@ def test_draft_routes_to_owning_process(state_db):
 
 
 def test_review_to_approve_for_other_makers(state_db):
-    # The pending review was made by u_sam, so for u_maria it is "to approve".
+    # The pending review was made by u_sam, so for u_maria it is "to approve" —
+    # and it routes to /review, the only screen with approve/reject buttons.
     _seed("u_maria")
     rev = next(it for it in build_worklist("u_maria") if it["kind"] == "review")
     assert rev["status"] == "to approve"
     assert rev["priority"] == "high"
-    assert rev["route"] == "/process/OTP-3/overview"
+    assert rev["route"] == "/review"
 
 
 def test_review_awaiting_checker_for_own_submission(state_db):
@@ -66,6 +67,14 @@ def test_review_awaiting_checker_for_own_submission(state_db):
     _seed("u_maria")
     rev = next(it for it in build_worklist("u_sam") if it["kind"] == "review")
     assert rev["status"] == "awaiting checker"
+
+
+def test_review_awaiting_checker_has_no_route(state_db):
+    # There is nowhere useful to send the maker — they are waiting on someone
+    # else, so the row carries no route at all.
+    _seed("u_maria")
+    rev = next(it for it in build_worklist("u_sam") if it["kind"] == "review")
+    assert rev["route"] is None
 
 
 def test_case_routes_to_worklist_and_skips_closed(state_db):

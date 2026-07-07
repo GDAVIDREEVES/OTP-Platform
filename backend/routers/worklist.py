@@ -83,7 +83,10 @@ def _review_items(user: str) -> list[dict[str, Any]]:
                 "title": f"{it['record_ref']} — {status}",
                 "ref": it["record_ref"],
                 "process_id": process_id,
-                "route": _route_for_process(process_id),
+                # Approvals happen on /review (the process overview has no
+                # approve buttons); your own pending submission has nowhere
+                # useful to go, so it carries no route.
+                "route": None if mine else "/review",
                 "due_at": None,
                 # Approvals you can act on outrank submissions you're only watching.
                 "priority": "medium" if mine else "high",
