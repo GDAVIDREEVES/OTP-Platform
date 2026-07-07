@@ -633,3 +633,49 @@ def test_decide_hook_is_noop_for_missing_request_id(state_db):
     assert resp.status_code == 200
     assert pl_overlays.list_runs() == []
     assert pl_overlays.list_lines() == []
+
+
+def test_stale_rollback_target_is_voided_not_stranded(state_db):
+    """TOCTOU regression: request rollback of an applied run, then supersede it
+    with a NEW approved run, then approve the now-stale rollback. The rollback
+    must resolve TERMINALLY (auto-voided) — not strand pending with its review
+    item consumed — and must never 500/double-touch the P&L."""
+    # apply run1 through the gate
+    r1 = _approve_run_request(steps=["royalties"], maker="op", checker="rev")
+    run1 = r1["executed_run_id"]
+    assert pl_overlays.get_run(run1)["status"] == "applied"
+
+    # request a rollback of run1 (still applied) — stays pending
+    rb = client.post("/api/waterfall/requests",
+                     json={"actor": "op", "action": "rollback",
+                           "target_run_id": run1}).json()
+    rb_item = _pending_waterfall_item(rb["record_ref"])
+
+    # meanwhile a NEW run is approved → run1 is superseded, run2 is applied
+    r2 = _approve_run_request(steps=["royalties"], maker="op", checker="rev")
+    run2 = r2["executed_run_id"]
+    assert pl_overlays.get_run(run1)["status"] == "superseded"
+    assert pl_overlays.get_run(run2)["status"] == "applied"
+
+    # approving the STALE rollback must NOT raise/strand — request is voided
+    resp = client.post(f"/api/review/{rb_item['id']}/approve",
+                       json={"checker": "rev"})
+    assert resp.status_code == 200
+    voided = waterfall_requests.get_request(rb["id"])
+    assert voided["status"] == "rejected"           # terminal, not pending
+    assert voided["executed_run_id"] is None        # nothing ran
+
+    # the P&L reflects the NEW run only — run1 stays superseded, not re-touched
+    assert pl_overlays.get_run(run1)["status"] == "superseded"
+    assert pl_overlays.get_run(run2)["status"] == "applied"
+    body = client.get("/api/pl/adjusted", params={"year": YEAR}).json()
+    assert body["applied_run_id"] == run2
+    assert Decimal(body["totals"]["overlay_net"]) == ZERO
+
+    # audit reads submitted → approved → rejected(void); chain verifies; and no
+    # pending item lingers for the voided request
+    events = [e["event_type"]
+              for e in audit.list_events(record_ref=rb["record_ref"])]
+    assert events == ["submitted", "approved", "rejected"]
+    assert audit.verify_chain() == {"ok": True, "broken_at": None}
+    assert _pending_waterfall_item(rb["record_ref"]) is None

@@ -31,6 +31,7 @@ from typing import Any
 
 import state.audit as audit
 import state.lineage as lineage
+import state.pl_overlays as pl_overlays
 from state.engine import LOCK, get_conn
 
 #: The waterfall's home process — segmented financials (the P&L it adjusts).
@@ -143,12 +144,36 @@ def apply_request(request_id: str, checker: str) -> dict[str, Any]:
     # lock so we never re-enter it, exactly as the HTTP path did before.
     maker = before["requested_by"]
     if before["action"] == "run":
+        # A run has no mutable precondition between request and approval (steps
+        # are static, and a new run simply supersedes the prior one), so there
+        # is nothing to re-validate here.
         run = runner.run_waterfall(
             actor=maker, year=before["year"], steps=before["steps"])
         executed_run_id = run["id"]
         summary = (f"Waterfall run {executed_run_id} {run['status']} on approval "
                    f"— requested by {maker}, approved by {checker}")
     else:  # rollback
+        # TOCTOU guard: the create-time "target is applied" check is stale by
+        # approval time — a newer approved run may have SUPERSEDED the target in
+        # between. runner.rollback would then raise, but decide() has already
+        # committed this review item as approved, so raising here would strand
+        # the request pending forever (its item consumed, no re-approve path,
+        # the UI blocking a fresh rollback). Re-validate and, if the target has
+        # moved on, VOID the request terminally and return cleanly instead —
+        # the P&L is never touched.
+        target = pl_overlays.get_run(before["target_run_id"])
+        if target is None or target["status"] != "applied":
+            state_desc = target["status"] if target else "missing"
+            reason = (f"rollback target {before['target_run_id']} is no longer "
+                      f"applied ({state_desc}) — request auto-voided")
+            after = mark_rejected(request_id)
+            audit.record(
+                actor=checker, actor_kind="human",
+                process_id=PROCESS_ID, record_ref=f"waterfall:{request_id}",
+                event_type="rejected", before=before, after=after,
+                rationale=reason,
+            )
+            return after  # type: ignore[return-value]
         run = runner.rollback(before["target_run_id"], actor=maker)
         executed_run_id = before["target_run_id"]
         summary = (f"Waterfall run {executed_run_id} rolled back on approval "

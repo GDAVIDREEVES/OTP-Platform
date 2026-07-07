@@ -90,10 +90,16 @@ def create_request(payload: WaterfallRequestIn):
                 status_code=400,
                 detail=f"only an applied run can be rolled back; "
                        f"{payload.target_run_id} is {target['status']}")
-    return waterfall_requests.create_request(
-        action=action, year=payload.year, requested_by=payload.actor,
-        target_run_id=payload.target_run_id, steps=payload.steps,
-        rationale=payload.rationale)
+    try:
+        return waterfall_requests.create_request(
+            action=action, year=payload.year, requested_by=payload.actor,
+            target_run_id=payload.target_run_id, steps=payload.steps,
+            rationale=payload.rationale)
+    except ValueError as e:
+        # Belt-and-suspenders: the store re-validates too — surface any drift
+        # between the two layers as a 400, never a 500 (matching how the removed
+        # immediate-launch endpoint wrapped runner errors).
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/api/waterfall/requests")
