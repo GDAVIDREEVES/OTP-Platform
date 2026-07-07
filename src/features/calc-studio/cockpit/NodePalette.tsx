@@ -8,14 +8,14 @@ import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { api } from '@/shared/api/client';
-import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
 import type {
-  DatasetSource, DatasetSourceField, DatasetSourcesCatalog,
+  DatasetSource, DatasetSourceField, DatasetSourcesCatalog, Parameter,
 } from '@/shared/api/types';
 import type { ProvenanceKind } from '@/kernel/audit/ProvenanceChip';
 import { valueText } from '../lib';
+import ParamEditDialog from '../components/ParamEditDialog';
 import { DRAG_MIME, type DragPayload } from './Canvas';
 import { presentationFor } from './nodeMeta';
 import type { GraphModel } from './useGraphModel';
@@ -31,12 +31,13 @@ const DATASET_OP_LABELS: Record<string, string> = {
 };
 
 /** Left pane (MC2) — a searchable, DRAGGABLE palette grouped Parameters (with
- *  live governed values + an inline driver edit) / Measures / Calculations /
+ *  live governed values + a governed edit pencil) / Measures / Calculations /
  *  Operations. Dragging an item onto the canvas is ONE gesture (no dialog): the
  *  drag payload carries the backend node ``kind`` + seed ``config`` and the
- *  Canvas drops it at the cursor. The param group also offers an inline
- *  governed edit that routes through the existing param:{key} audit — no trip
- *  to the Drivers tab for the common case.
+ *  Canvas drops it at the cursor. The param group's pencil opens the SHARED
+ *  ParamEditDialog (GP5) — required rationale + bounds, audited at param:{key} —
+ *  the same one direct-edit path the Drivers tab uses; no canned-rationale
+ *  inline PATCH, no trip to the Drivers tab for the common case.
  */
 
 /** A draggable palette row. Sets the drag payload + a tiny visual affordance. */
@@ -377,13 +378,12 @@ function Group({
 }
 
 export default function NodePalette({ model }: { model: GraphModel }) {
-  const user = useSessionUser();
   const toast = useToast();
   const { nodeTypes: cat, addNode, reloadNodeTypes, seedStageChain, family } = model;
   const [q, setQ] = useState('');
-  const [editKey, setEditKey] = useState<string | null>(null);
-  const [editVal, setEditVal] = useState('');
-  const [savingKey, setSavingKey] = useState<string | null>(null);
+  // GP5 — the pencil opens the ONE shared, hardened ParamEditDialog (required
+  // rationale + bounds) rather than the old canned-rationale inline PATCH.
+  const [editing, setEditing] = useState<Parameter | null>(null);
   // The dataset / data-prep palette catalogue (sources + provenance + ops) — the
   // ACDOCA journal + the fabricated cost lines + the active authored datasets.
   const [dsCat, setDsCat] = useState<DatasetSourcesCatalog | null>(null);
@@ -450,21 +450,14 @@ export default function NodePalette({ model }: { model: GraphModel }) {
     [dsCat, needle]
   );
 
-  const saveDriver = async (key: string) => {
-    setSavingKey(key);
+  // Open the shared ParamEditDialog for a governed key — fetch the full row so
+  // the dialog has the type / bounds / provenance it needs (the palette catalog
+  // carries only key/value/category/unit).
+  const openEdit = async (key: string) => {
     try {
-      // Free-form value: try JSON first (numbers/bools/arrays), else keep the
-      // raw string. The store records the edit at param:{key} (audited).
-      let value: unknown = editVal;
-      try { value = JSON.parse(editVal); } catch { /* keep string */ }
-      await api.patchParameter(key, { value, actor: user.id, rationale: 'Inline cockpit driver edit' });
-      toast.show(`Driver ${key} updated — recorded at param:${key}`, 'success');
-      setEditKey(null);
-      reloadNodeTypes();
+      setEditing(await api.parameter(key));
     } catch (e) {
-      toast.show(`Driver edit failed: ${String(e)}`, 'error');
-    } finally {
-      setSavingKey(null);
+      toast.show(`Could not open ${key}: ${String(e)}`, 'error');
     }
   };
 
@@ -502,14 +495,13 @@ export default function NodePalette({ model }: { model: GraphModel }) {
                     <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace' }} noWrap>
                       = {valueText(p.value)}{p.unit ? ` ${p.unit}` : ''}
                     </Typography>
-                    <Tooltip title="Edit governed value inline (audited at param:key)">
+                    <Tooltip title="Edit governed value (rationale + bounds, audited at param:key)">
                       <IconButton
                         size="small"
                         sx={{ p: 0.25 }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setEditKey(editKey === p.key ? null : p.key);
-                          setEditVal(typeof p.value === 'object' ? JSON.stringify(p.value) : String(p.value ?? ''));
+                          void openEdit(p.key);
                         }}
                       >
                         <EditIcon sx={{ fontSize: 13 }} />
@@ -518,26 +510,6 @@ export default function NodePalette({ model }: { model: GraphModel }) {
                   </Stack>
                 }
               />
-              {editKey === p.key && (
-                <Stack direction="row" spacing={0.5} sx={{ px: 1, pb: 0.75 }}>
-                  <TextField
-                    size="small"
-                    value={editVal}
-                    onChange={(e) => setEditVal(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') void saveDriver(p.key); }}
-                    sx={{ flex: 1, '& input': { fontFamily: 'monospace', fontSize: 12, py: 0.5 } }}
-                    autoFocus
-                  />
-                  <Chip
-                    size="small"
-                    color="primary"
-                    label={savingKey === p.key ? 'Saving…' : 'Save'}
-                    onClick={() => void saveDriver(p.key)}
-                    disabled={savingKey === p.key}
-                    sx={{ cursor: 'pointer' }}
-                  />
-                </Stack>
-              )}
             </Box>
           ))}
           {params.length === 0 && <EmptyHint />}
@@ -716,6 +688,15 @@ export default function NodePalette({ model }: { model: GraphModel }) {
           </Group>
         )}
       </Box>
+
+      {/* GP5 — the one governed-parameter edit dialog (shared with the Drivers
+          tab); refreshes the palette's live values on save. */}
+      <ParamEditDialog
+        open={editing !== null}
+        param={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => reloadNodeTypes()}
+      />
     </Box>
   );
 }

@@ -32,7 +32,7 @@ const STATUS_CHIP: Record<ScenarioStatus, { label: string; color: 'default' | 'w
 };
 
 /** Parse an edited override back to the parameter's JSON shape — the same
- *  type-driven logic as DriversTab's EditDialog. */
+ *  type-driven logic as the shared ParamEditDialog. */
 function parseRaw(type: string | null, raw: string): { ok: boolean; value: unknown; err?: string } {
   const t = raw.trim();
   try {
@@ -57,9 +57,10 @@ interface OverrideRow {
  *  governed parameters (add/remove keys, type-aware value parsing). Editing
  *  PATCHes only while the scenario is a draft (the backend enforces it too). */
 function ScenarioDialog({
-  scenario, params, onClose, onSaved,
+  scenario, initialOverrides, params, onClose, onSaved,
 }: {
   scenario: Scenario | null; // null = create
+  initialOverrides?: Record<string, unknown>; // seed a create dialog (GP5 "what-if first")
   params: Parameter[];
   onClose: () => void;
   onSaved: () => void;
@@ -68,8 +69,8 @@ function ScenarioDialog({
   const toast = useToast();
   const [name, setName] = useState(scenario?.name ?? '');
   const [description, setDescription] = useState(scenario?.description ?? '');
-  const [rows, setRows] = useState<OverrideRow[]>(
-    Object.entries(scenario?.overrides ?? {}).map(([key, v]) => ({ key, raw: valueText(v) }))
+  const [rows, setRows] = useState<OverrideRow[]>(() =>
+    Object.entries(scenario?.overrides ?? initialOverrides ?? {}).map(([key, v]) => ({ key, raw: valueText(v) }))
   );
   const [addKey, setAddKey] = useState('');
   const [saving, setSaving] = useState(false);
@@ -315,7 +316,11 @@ export default function ScenariosTab() {
   const refreshSignals = useRefreshSignals();
   const { notifySubmitted } = useReviewHandoff();
   const [list, setList] = useState<Scenario[] | null>(null);
-  const [dialog, setDialog] = useState<{ mode: 'create' } | { mode: 'edit'; scenario: Scenario } | null>(null);
+  const [dialog, setDialog] = useState<
+    | { mode: 'create'; initialOverrides?: Record<string, unknown> }
+    | { mode: 'edit'; scenario: Scenario }
+    | null
+  >(null);
   const [comparing, setComparing] = useState<Scenario | null>(null);
 
   const refresh = () => api.scenarios().then(setList).catch(() => setList([]));
@@ -336,6 +341,19 @@ export default function ScenariosTab() {
     focusLoadedRef.current = focusId;
     if (target.status === 'draft') setDialog({ mode: 'edit', scenario: target });
   }, [focusId, list]);
+
+  // ?param={key} deep-link (the ParamEditDialog "What-if first → create a
+  // Scenario" affordance, GP5): open the create dialog pre-seeded with a
+  // starting override for that governed parameter. Fires once per target key.
+  const newParamKey = searchParams.get('param');
+  const paramLoadedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!newParamKey || paramLoadedRef.current === newParamKey || params === null) return;
+    const p = params.find((x) => x.key === newParamKey);
+    if (!p) return;
+    paramLoadedRef.current = newParamKey;
+    setDialog({ mode: 'create', initialOverrides: { [p.key]: p.value } });
+  }, [newParamKey, params]);
 
   if (list === null || params === null) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
@@ -466,6 +484,7 @@ export default function ScenariosTab() {
       {dialog && (
         <ScenarioDialog
           scenario={dialog.mode === 'edit' ? dialog.scenario : null}
+          initialOverrides={dialog.mode === 'create' ? dialog.initialOverrides : undefined}
           params={params}
           onClose={() => setDialog(null)}
           onSaved={() => void refresh()}

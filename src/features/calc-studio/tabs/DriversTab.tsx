@@ -1,163 +1,29 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import {
-  Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
-  DialogContentText, DialogTitle, Paper, Stack, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, TextField, Typography,
+  Alert, Box, Button, Chip, CircularProgress, Paper, Stack, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, Typography,
 } from '@mui/material';
 import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
+import { HistoryButton } from '@/kernel/audit/HistoryDrawer';
 import type { Parameter } from '@/shared/api/types';
 import { provKind, valueText, PROV_META, useParameters } from '../lib';
+import ParamEditDialog from '../components/ParamEditDialog';
 
 /** Drivers & Assumptions — the governed parameter store. Every parameter edit
- *  PATCHes /api/parameters/{key} and is hash-chained at record_ref=
- *  "param:{key}", so the per-key evidence packet lights up automatically.
- *  Moved out of the OTP-49 binding (which still re-uses it) when the console
- *  grew into the Calc Studio module. */
-
-function EditDialog({
-  param, onClose, onSaved,
-}: {
-  param: Parameter;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const user = useSessionUser();
-  const toast = useToast();
-  const navigate = useNavigate();
-  const [value, setValue] = useState<string>(valueText(param.value));
-  const [rationale, setRationale] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [confirm, setConfirm] = useState(false);
-
-  const isStructured = param.type === 'list' || param.type === 'dict';
-  const isFabricated = param.provenance === 'fabricated';
-
-  // Parse the edited text back to the parameter's JSON shape.
-  const parsed = useMemo<{ ok: boolean; value: unknown; err?: string }>(() => {
-    const raw = value.trim();
-    try {
-      if (param.type === 'number') {
-        if (raw === '' || Number.isNaN(Number(raw))) return { ok: false, value: null, err: 'Enter a number' };
-        return { ok: true, value: Number(raw) };
-      }
-      if (param.type === 'string') return { ok: true, value: raw };
-      // list / dict / unknown → parse as JSON
-      return { ok: true, value: JSON.parse(raw) };
-    } catch (e) {
-      return { ok: false, value: null, err: `Invalid JSON: ${String(e)}` };
-    }
-  }, [value, param.type]);
-
-  const save = async () => {
-    if (!parsed.ok) return;
-    setSaving(true);
-    try {
-      await api.patchParameter(param.key, {
-        value: parsed.value,
-        actor: user.id,
-        rationale: rationale.trim() || `Edited ${param.key} via the management console`,
-      });
-      toast.show(`Saved ${param.key} — recorded at param:${param.key}`, 'success');
-      onSaved();
-      onClose();
-    } catch (e) {
-      toast.show(`Save failed: ${String(e)}`, 'error');
-    } finally {
-      setSaving(false);
-      setConfirm(false);
-    }
-  };
-
-  const onSaveClick = () => {
-    if (isFabricated) { setConfirm(true); return; }
-    void save();
-  };
-
-  return (
-    <Dialog open onClose={saving ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-          <Typography variant="h6" component="span" sx={{ fontFamily: 'monospace' }}>{param.key}</Typography>
-          <ProvenanceChip source={param.provenance ?? 'assumed'} kind={provKind(param.provenance)} />
-          {param.category && <Chip size="small" label={param.category} />}
-        </Stack>
-      </DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={2}>
-          {param.rationale && (
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>{param.rationale}</Typography>
-          )}
-          <TextField
-            label={isStructured ? `Value (JSON ${param.type})` : `Value (${param.type ?? 'text'})`}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            fullWidth
-            multiline={isStructured}
-            minRows={isStructured ? 3 : undefined}
-            error={!parsed.ok}
-            helperText={!parsed.ok ? parsed.err : `Default: ${valueText(param.default)}`}
-            sx={isStructured ? { '& textarea': { fontFamily: 'monospace', fontSize: 13 } } : undefined}
-          />
-          {(param.min_value != null || param.max_value != null) && (
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              Bounds: {param.min_value ?? '−∞'} … {param.max_value ?? '∞'}
-            </Typography>
-          )}
-          <TextField
-            label="Rationale (recorded in the audit trail)"
-            value={rationale}
-            onChange={(e) => setRationale(e.target.value)}
-            fullWidth
-            placeholder="Why is this changing?"
-          />
-          <Alert severity="info" variant="outlined">
-            Saving hash-chains the change at <b>param:{param.key}</b>. The Audit tab and the{' '}
-            <Button size="small" onClick={() => navigate(`/evidence/${encodeURIComponent(`param:${param.key}`)}`)}>
-              evidence packet
-            </Button>{' '}
-            update automatically.
-          </Alert>
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={saving}>Cancel</Button>
-        <Button
-          variant="contained"
-          onClick={onSaveClick}
-          disabled={!parsed.ok || saving}
-          startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </Button>
-      </DialogActions>
-
-      {/* Light maker-checker guard for fabricated magnitudes — a confirm gate. */}
-      <Dialog open={confirm} onClose={() => setConfirm(false)} maxWidth="xs">
-        <DialogTitle>Edit a fabricated magnitude?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            <b>{param.key}</b> is a <b>fabricated</b> demo magnitude (no warehouse source). Editing it
-            changes every figure derived from it. The change is recorded against you at param:{param.key}.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirm(false)}>Cancel</Button>
-          <Button variant="contained" color="warning" onClick={() => void save()}>Confirm &amp; save</Button>
-        </DialogActions>
-      </Dialog>
-    </Dialog>
-  );
-}
+ *  opens the shared ParamEditDialog (GP5) — required rationale, bounds check,
+ *  the "bypasses review" notice — which PATCHes /api/parameters/{key} and is
+ *  hash-chained at record_ref="param:{key}", so the per-key evidence packet
+ *  lights up automatically. The full history is one click away via the
+ *  HistoryButton (GP0) on each row. Moved out of the OTP-49 binding (which still
+ *  re-uses it) when the console grew into the Calc Studio module. */
 
 export default function DriversTab() {
   const { params, refresh } = useParameters();
   const user = useSessionUser();
   const toast = useToast();
-  const navigate = useNavigate();
   const [editing, setEditing] = useState<Parameter | null>(null);
 
   if (params === null) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
@@ -222,17 +88,12 @@ export default function DriversTab() {
                   )}
                 </TableCell>
                 <TableCell align="right">
-                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                  <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
                     <Button size="small" variant="outlined" onClick={() => setEditing(p)}>Edit</Button>
                     {isChanged(p) && (
                       <Button size="small" onClick={() => void reset(p)}>Reset</Button>
                     )}
-                    <Button
-                      size="small"
-                      onClick={() => navigate(`/evidence/${encodeURIComponent(`param:${p.key}`)}`)}
-                    >
-                      Audit
-                    </Button>
+                    <HistoryButton recordRef={`param:${p.key}`} />
                   </Stack>
                 </TableCell>
               </TableRow>
@@ -240,9 +101,12 @@ export default function DriversTab() {
           </TableBody>
         </Table>
       </TableContainer>
-      {editing && (
-        <EditDialog param={editing} onClose={() => setEditing(null)} onSaved={() => void refresh()} />
-      )}
+      <ParamEditDialog
+        open={editing !== null}
+        param={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => void refresh()}
+      />
     </Stack>
   );
 }
