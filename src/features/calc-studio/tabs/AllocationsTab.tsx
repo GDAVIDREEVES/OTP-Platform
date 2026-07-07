@@ -25,6 +25,11 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DownloadIcon from '@mui/icons-material/Download';
 import { api } from '@/shared/api/client';
 import { useToast } from '@/shared/providers/DataProvider';
+import { useSessionUser } from '@/shared/providers/SessionProvider';
+import { usePov } from '@/shared/hooks/usePov';
+import LifecycleChip from '@/shared/components/LifecycleChip';
+import PovChip from '@/shared/components/PovChip';
+import { useBillingPeriods } from '../useBillingPeriods';
 import type {
   AllocationArtifact,
   AllocationCharge,
@@ -52,8 +57,6 @@ import { fmtAmount, fmtPct, isNonZero, sumCents } from '../allocationLib';
  *  to their constituent cost lines, and download the run's doc pack. Every
  *  figure is read from the engine's API — amounts are exact decimal strings
  *  rendered without float math (see ../allocationLib.ts). */
-
-const ACTOR = 'u_demo';
 
 const VIEWS = [
   { key: 'console', label: 'Run console' },
@@ -108,11 +111,6 @@ function useAllocationSeeds() {
 }
 
 // ------------------------------------------------------------ small elements --
-
-function StatusChip({ status }: { status: string }) {
-  const color = status === 'succeeded' ? 'success' : status === 'failed' ? 'error' : 'default';
-  return <Chip size="small" color={color} label={status} sx={{ height: 20, fontSize: 11 }} />;
-}
 
 function SeverityChip({ severity }: { severity: 'BLOCK' | 'WARN' }) {
   return (
@@ -174,7 +172,7 @@ function RunPicker({
         <MenuItem key={r.run_id} value={r.run_id}>
           <Stack direction="row" spacing={1} alignItems="center">
             <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.run_id}</Typography>
-            <StatusChip status={r.status} />
+            <LifecycleChip status={r.status} />
           </Stack>
         </MenuItem>
       ))}
@@ -187,8 +185,15 @@ function RunPicker({
 export default function AllocationsTab() {
   const navigate = useNavigate();
   const toast = useToast();
+  // Runs are audited as the signed-in persona (GP3 — real actor, not a ghost).
+  const ACTOR = useSessionUser().id;
+  // The global point of view — every derived period follows the FY selector.
+  const { year } = usePov();
   const [searchParams, setSearchParams] = useSearchParams();
   const view: ViewKey = (VIEWS.find((v) => v.key === searchParams.get('view'))?.key ?? 'console') as ViewKey;
+  // Deep-link into the Build view with a pool preloaded (?view=build&pool=AP-1)
+  // — how a rejected allocpool:{id} review item's "Fix & resubmit" lands here.
+  const poolParam = searchParams.get('pool');
   const setView = (v: ViewKey | null) => {
     if (!v) return;
     const next = new URLSearchParams(searchParams);
@@ -246,19 +251,17 @@ export default function AllocationsTab() {
 
   // Launch console state. Billing periods come from the data (the Stage-3
   // exclusion register's effective months ∪ recorded run periods) — never a
-  // hardcoded list.
-  const billingPeriods = useMemo(() => {
-    const months = new Set<string>();
-    exclusions.forEach((e) => months.add(e.effective_from.slice(0, 7)));
-    (runs ?? []).forEach((r) => {
-      if (r.period.length === 7) months.add(r.period);
-    });
-    return [...months].sort();
-  }, [exclusions, runs]);
+  // hardcoded list — filtered/defaulted to the global POV year (GP6, shared
+  // useBillingPeriods hook, pure over the already-loaded seeds/runs). When the
+  // selected year has no data it falls back to all months and the PovChip flags
+  // the divergence. Passed down to PoolBuilder so nothing re-fetches.
+  const bp = useBillingPeriods(year, exclusions, runs);
   const [period, setPeriod] = useState('');
+  // Re-default whenever the shown period list changes (initial load, or the FY
+  // selector moving to a year whose months differ) — keep a still-valid choice.
   useEffect(() => {
-    if (!period && billingPeriods.length) setPeriod(billingPeriods[billingPeriods.length - 1]);
-  }, [billingPeriods, period]);
+    setPeriod((cur) => (cur && bp.periods.includes(cur) ? cur : bp.defaultPeriod));
+  }, [bp.periods, bp.defaultPeriod]);
 
   const [launching, setLaunching] = useState<AllocationRunType | null>(null);
   const [lastLaunch, setLastLaunch] = useState<AllocationRunLaunch | null>(null);
@@ -342,10 +345,11 @@ export default function AllocationsTab() {
             sx={{ minWidth: 140 }}
             helperText="Billing periods from the dataset"
           >
-            {billingPeriods.map((p) => (
+            {bp.periods.map((p) => (
               <MenuItem key={p} value={p}>{p}</MenuItem>
             ))}
           </TextField>
+          <PovChip pinnedYear={Number(period.slice(0, 4)) || undefined} />
           {(['actual', 'budget', 'trueup'] as AllocationRunType[]).map((t) => (
             <Button
               key={t}
@@ -429,7 +433,7 @@ export default function AllocationsTab() {
                     <Chip size="small" variant="outlined" label={r.run_type} sx={{ height: 20, fontSize: 11 }} />
                   </TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{r.period}</TableCell>
-                  <TableCell><StatusChip status={r.status} /></TableCell>
+                  <TableCell><LifecycleChip status={r.status} /></TableCell>
                   <TableCell><HashChip hash={r.input_snapshot_hash} prefix="input snapshot sha256" /></TableCell>
                   <TableCell align="right">{r.summary ? r.summary.charges : '—'}</TableCell>
                   <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
@@ -906,7 +910,19 @@ export default function AllocationsTab() {
       {view === 'exceptions' && exceptionsView}
       {view === 'charges' && chargesView}
       {view === 'docs' && docsView}
-      {view === 'build' && <PoolBuilder entities={entities} />}
+      {view === 'build' && (
+        <PoolBuilder
+          entities={entities}
+          periods={bp.periods}
+          defaultPeriod={bp.defaultPeriod}
+          initialPoolId={poolParam ?? undefined}
+          onInitialPoolConsumed={() => {
+            const next = new URLSearchParams(searchParams);
+            next.delete('pool');
+            setSearchParams(next, { replace: true });
+          }}
+        />
+      )}
       <AllocationChargeDrawer chargeId={chargeId} onClose={() => setChargeId(null)} />
     </Stack>
   );

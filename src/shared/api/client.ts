@@ -106,6 +106,8 @@ import type {
   AuthoredDatasetTestResult,
   WaterfallRun,
   WaterfallRunDetail,
+  WaterfallRequest,
+  WaterfallRequestStatus,
   PlAdjusted,
   PlBasis,
 } from './types';
@@ -824,21 +826,25 @@ export const api = {
   waterfallRun: (runId: string) =>
     getJSON<WaterfallRunDetail>(`/api/waterfall/runs/${encodeURIComponent(runId)}`),
 
-  /** Launch a waterfall run (default sequence: service_allocation →
-   *  royalties → csa_true_up → profit_split). A failed run is a domain
-   *  outcome (200, status "failed", nothing applied); the new run supersedes
-   *  the previously applied one. Audited at waterfall:{run_id}. */
-  runWaterfall: (body: { actor: string; year?: number; steps?: string[] }) =>
-    sendJSON<WaterfallRun>('POST', '/api/waterfall/runs', body),
+  /** Waterfall run/rollback requests, newest first (optionally by status —
+   *  'pending' surfaces what is awaiting approval). GP4 governance loop. */
+  waterfallRequests: (status?: WaterfallRequestStatus) =>
+    getJSON<WaterfallRequest[]>('/api/waterfall/requests', status ? { status } : {}),
 
-  /** Roll an applied run back — one REVERSING overlay row per line (the
-   *  ledger stays append-only), run status → rolled_back. */
-  rollbackWaterfall: (runId: string, body: { actor: string }) =>
-    sendJSON<WaterfallRun & { reversed_lines: number }>(
-      'POST',
-      `/api/waterfall/runs/${encodeURIComponent(runId)}/rollback`,
-      body
-    ),
+  /** Submit a waterfall run/rollback REQUEST for maker-checker review — the
+   *  ONLY way to touch the group P&L. Nothing executes here: the request
+   *  enqueues one review item at waterfall:{id}; a DIFFERENT reviewer
+   *  approving it in /review runs (or rolls back) the waterfall
+   *  (execute-on-approve, like scenario promotion). Malformed requests are
+   *  rejected up front (400/404). */
+  createWaterfallRequest: (body: {
+    actor: string;
+    action: 'run' | 'rollback';
+    year?: number;
+    steps?: string[];
+    target_run_id?: string;
+    rationale?: string;
+  }) => sendJSON<WaterfallRequest>('POST', '/api/waterfall/requests', body),
 
   /** Base segment_pl aggregate | applied overlay | post-charge totals per
    *  entity (or entity-function), with per-line provenance. With no
@@ -918,10 +924,12 @@ export const api = {
   mdPropose: (id: string) => sendJSON<MdProposal>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/propose`),
   mdSubmitMapping: (id: string, maker: string) =>
     sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/submit`, { maker }),
+  // Both return the full refreshed staging row (get_staging → dict | None),
+  // not a {id,status} stub. Call sites ignore the body; this keeps the type honest.
   mdApproveMapping: (id: string, checker: string, comments?: string) =>
-    sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/approve`, { checker, comments }),
+    sendJSON<MdStagingItem | null>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/approve`, { checker, comments }),
   mdRejectMapping: (id: string, checker: string, comments: string) =>
-    sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/reject`, { checker, comments }),
+    sendJSON<MdStagingItem | null>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/reject`, { checker, comments }),
 
   // ---- Cases (Case Workspace — OTP-30/31/40/50) ----
   /** Governance cases for a process (optionally filtered by status). */

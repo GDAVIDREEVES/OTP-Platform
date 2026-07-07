@@ -6,8 +6,14 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControlLabel,
+  IconButton,
   Paper,
+  Popover,
   Stack,
   Switch,
   Table,
@@ -16,55 +22,99 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ReplayIcon from '@mui/icons-material/Replay';
+import HistoryIcon from '@mui/icons-material/History';
 import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
 import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
-import type { Parameter, PlAdjusted, PlAdjustedRow, WaterfallRun } from '@/shared/api/types';
+import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
+import LifecycleChip from '@/shared/components/LifecycleChip';
+import { HistoryButton } from '@/kernel/audit/HistoryDrawer';
+import PovChip from '@/shared/components/PovChip';
+import { usePov } from '@/shared/hooks/usePov';
+import type {
+  Parameter, PlAdjusted, PlAdjustedRow, PlOverlayLine, WaterfallRequest, WaterfallRun,
+} from '@/shared/api/types';
 import { fmtAmount, isNonZero, sumCents } from '../allocationLib';
 
-/** Waterfall — the TP calculation sequence console (Phase 5 W2).
+/** Waterfall — the TP calculation sequence console (Phase 5 W2; GP4 governance).
  *
- *  Runs the ordered charge waterfall (service_allocation → royalties →
- *  csa_true_up → profit_split) against the append-only pl_overlays ledger
- *  (POST /api/waterfall/runs), shows each step's status + applied amounts,
- *  rolls an applied run back via REVERSING rows, and reads the per-entity
- *  impact off GET /api/pl/adjusted (base | overlay | post-charge, with
- *  per-line provenance). The governed pl.use_post_charge parameter — edited
- *  here as a switch, hash-chained at param:pl.use_post_charge — flips the
- *  OTP-20/16/1 margin reads (/api/margins/trend, /api/kpis, /api/forecast)
- *  to the post-charge basis server-side. Overlay amounts are exact decimal
- *  strings rendered lexically (../allocationLib.ts) — no float math. */
+ *  The waterfall (service_allocation → royalties → csa_true_up → profit_split)
+ *  rewrites the group segmented P&L via the append-only pl_overlays ledger — the
+ *  platform's highest-impact write. So running or rolling it back does NOT
+ *  execute on a click: it SUBMITS a maker-checker request (POST
+ *  /api/waterfall/requests) that enqueues one review item at waterfall:{id}; a
+ *  DIFFERENT reviewer approving it in /review is what actually runs (or reverses)
+ *  it — execute-on-approve, the same gate scenario promotion uses. The run
+ *  console then shows each applied step + amounts off GET /api/pl/adjusted (base
+ *  | overlay | post-charge, with per-line provenance). The governed
+ *  pl.use_post_charge parameter — edited here as a switch behind a confirm
+ *  dialog, hash-chained at param:pl.use_post_charge — flips the OTP-20/16/1
+ *  margin reads (/api/margins/trend, /api/kpis, /api/forecast) to the
+ *  post-charge basis server-side. Overlay amounts are exact decimal strings
+ *  rendered lexically (../allocationLib.ts) — no float math. */
 
-const ACTOR_FALLBACK = 'u_demo';
-const YEAR = 2026;
 const PARAM_KEY = 'pl.use_post_charge';
-
-const STATUS_COLOR: Record<string, 'success' | 'error' | 'warning' | 'default'> = {
-  applied: 'success',
-  failed: 'error',
-  running: 'warning',
-  rolled_back: 'default',
-  superseded: 'default',
-};
-
-function RunStatusChip({ status }: { status: string }) {
-  return (
-    <Chip
-      size="small"
-      color={STATUS_COLOR[status] ?? 'default'}
-      label={status}
-      sx={{ height: 20, fontSize: 11 }}
-    />
-  );
-}
+const WATERFALL_PROCESS = 'OTP-21';
 
 const fmtMargin = (m: number | null) => (m == null ? '—' : `${(m * 100).toFixed(2)}%`);
+
+/** Per-line audit history for one entity's applied overlay lines — the impact
+ *  table aggregates several ledger lines per entity, so a single HistoryButton
+ *  can't key on one. A popover lists each line (step · period · side · amount)
+ *  with its own HistoryButton keyed on overlay:{line_id} — the record_ref each
+ *  posted/reversed line hash-chains at (backend/state/pl_overlays.py). */
+function OverlayLinesHistory({ lines }: { lines: PlOverlayLine[] }) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  if (lines.length === 0) return null;
+  return (
+    <>
+      <Tooltip title={`Overlay line history (${lines.length})`} arrow>
+        <IconButton
+          size="small"
+          onClick={(e) => setAnchor(e.currentTarget)}
+          aria-label="Overlay line history"
+        >
+          <HistoryIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Popover
+        open={Boolean(anchor)}
+        anchorEl={anchor}
+        onClose={() => setAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Box sx={{ p: 1.5, maxWidth: 380, maxHeight: '60vh', overflowY: 'auto' }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, display: 'block', mb: 0.5 }}>
+            {lines.length} overlay line{lines.length === 1 ? '' : 's'} — each hash-chained at overlay:&#123;id&#125;
+          </Typography>
+          <Stack spacing={0.25}>
+            {lines.map((ln) => (
+              <Stack key={ln.id} direction="row" spacing={1} alignItems="center">
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
+                    {ln.step} · {ln.period}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+                    {ln.side} {fmtAmount(ln.amount)}{ln.reverses_id != null ? ' · reversing' : ''}
+                  </Typography>
+                </Box>
+                <HistoryButton recordRef={`overlay:${ln.id}`} />
+              </Stack>
+            ))}
+          </Stack>
+        </Box>
+      </Popover>
+    </>
+  );
+}
 
 /** Per-kind overlay breakdown for the provenance tooltip on an impact row. */
 function byKindText(row: PlAdjustedRow): string {
@@ -75,6 +125,16 @@ function byKindText(row: PlAdjustedRow): string {
 }
 
 // --------------------------------------------------- governed basis toggle --
+
+/** The margin surfaces the governed basis toggle repaints platform-wide — shown
+ *  in the confirm dialog so the ceremony matches the blast radius. */
+const BASIS_BLAST_RADIUS = [
+  'OTP-20 monitoring — margin trend & exception bands',
+  'OTP-16 adjustments — in-range / out-of-range basis',
+  'Home KPIs (/api/kpis)',
+  'Forecast (/api/forecast)',
+  'Segmented P&L reads across the platform',
+];
 
 function BasisToggle({
   appliedRunId, onChanged,
@@ -88,6 +148,9 @@ function BasisToggle({
   const refreshSignals = useRefreshSignals();
   const [param, setParam] = useState<Parameter | null>(null);
   const [saving, setSaving] = useState(false);
+  // The pending flip awaiting confirmation (target value + a required rationale).
+  const [confirm, setConfirm] = useState<{ next: boolean } | null>(null);
+  const [rationale, setRationale] = useState('');
 
   const refresh = useCallback(() => {
     api.parameter(PARAM_KEY).then(setParam).catch(() => setParam(null));
@@ -96,20 +159,22 @@ function BasisToggle({
 
   const on = param?.value === true;
 
-  const flip = async (next: boolean) => {
+  const flip = async () => {
+    if (!confirm || !rationale.trim()) return;
+    const next = confirm.next;
     setSaving(true);
     try {
       await api.patchParameter(PARAM_KEY, {
         value: next,
-        actor: user?.id ?? ACTOR_FALLBACK,
-        rationale: next
-          ? 'Switch the OTP-20/16/1 margin reads to the post-charge P&L basis'
-          : 'Return the OTP-20/16/1 margin reads to the base P&L basis',
+        actor: user.id,
+        rationale: rationale.trim(),
       });
       toast.show(
         `Post-charge basis ${next ? 'enabled' : 'disabled'} — recorded at param:${PARAM_KEY}`,
         'success',
       );
+      setConfirm(null);
+      setRationale('');
       refresh();
       onChanged();
       void refreshSignals(); // close-status basis chip / home Command Center
@@ -146,7 +211,9 @@ function BasisToggle({
             <Switch
               checked={on}
               disabled={param === null || saving}
-              onChange={(_, next) => void flip(next)}
+              // Don't flip instantly — this repaints every margin surface
+              // platform-wide, so require a confirm + rationale first.
+              onChange={(_, next) => { setConfirm({ next }); setRationale(''); }}
             />
           )}
           label={on ? 'Post-charge' : 'Base'}
@@ -158,6 +225,55 @@ function BasisToggle({
           Audit
         </Button>
       </Stack>
+
+      <Dialog open={confirm !== null} onClose={saving ? undefined : () => setConfirm(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {confirm?.next ? 'Switch reporting basis to post-charge?' : 'Return reporting basis to base?'}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={1.5}>
+            <Typography variant="body2">
+              This governed change repaints <b>every margin surface</b> across the platform at once —
+              it does not just affect this tab:
+            </Typography>
+            <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+              {BASIS_BLAST_RADIUS.map((s) => (
+                <Typography component="li" variant="body2" key={s} sx={{ color: 'text.secondary' }}>
+                  {s}
+                </Typography>
+              ))}
+            </Box>
+            <Alert severity="info" variant="outlined" sx={{ py: 0 }}>
+              Edit hash-chains at <b>param:{PARAM_KEY}</b>. The rationale below is recorded on the
+              audit trail.
+            </Alert>
+            <TextField
+              autoFocus
+              fullWidth
+              multiline
+              minRows={2}
+              label="Rationale (required)"
+              placeholder={confirm?.next
+                ? 'Why switch reporting to the post-charge basis now?'
+                : 'Why return reporting to the base basis?'}
+              value={rationale}
+              onChange={(e) => setRationale(e.target.value)}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirm(null)} disabled={saving}>Cancel</Button>
+          <Button
+            variant="contained"
+            color={confirm?.next ? 'primary' : 'warning'}
+            onClick={() => void flip()}
+            disabled={!rationale.trim() || saving}
+            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {confirm?.next ? 'Switch to post-charge' : 'Return to base'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }
@@ -169,52 +285,66 @@ export default function WaterfallTab() {
   const toast = useToast();
   const navigate = useNavigate();
   const refreshSignals = useRefreshSignals();
+  const { notifySubmitted } = useReviewHandoff();
+  // The global point of view — the waterfall runs and reads the FY the period
+  // selector is on, not a baked-in FY2026 (GP6).
+  const { year } = usePov();
   const [runs, setRuns] = useState<WaterfallRun[] | null>(null);
+  const [pending, setPending] = useState<WaterfallRequest[]>([]);
   const [adjusted, setAdjusted] = useState<PlAdjusted | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(() => {
     api.waterfallRuns().then((rs) => setRuns([...rs].reverse())).catch(() => setRuns([]));
-    api.plAdjusted({ year: YEAR }).then(setAdjusted).catch(() => setAdjusted(null));
-  }, []);
+    api.waterfallRequests('pending').then(setPending).catch(() => setPending([]));
+    api.plAdjusted({ year }).then(setAdjusted).catch(() => setAdjusted(null));
+  }, [year]);
   useEffect(() => { refresh(); }, [refresh]);
 
-  const actor = user?.id ?? ACTOR_FALLBACK;
+  const actor = user.id;
   const appliedRunId = adjusted?.applied_run_id ?? null;
   const latest = runs?.[0] ?? null;
 
-  const launch = async () => {
+  // Running / rolling back the waterfall rewrites the group P&L, so both SUBMIT
+  // a maker-checker request instead of executing — a different reviewer's
+  // approval in /review is what actually runs it (execute-on-approve).
+  const submitRequest = async (
+    body: Parameters<typeof api.createWaterfallRequest>[0],
+    label: string,
+  ) => {
     setBusy(true);
     try {
-      const run = await api.runWaterfall({ actor, year: YEAR });
-      toast.show(
-        run.status === 'applied'
-          ? `Waterfall ${run.id} applied — audited at waterfall:${run.id}`
-          : `Waterfall ${run.id} ${run.status}: ${run.error ?? 'see step detail'}`,
-        run.status === 'applied' ? 'success' : 'error',
-      );
+      const req = await api.createWaterfallRequest(body);
+      toast.show(`Requested — awaiting approval (${req.record_ref})`, 'success');
+      notifySubmitted({
+        recordRef: req.record_ref,
+        processId: WATERFALL_PROCESS,
+        label,
+      });
       refresh();
-      void refreshSignals(); // waterfall close step / home Command Center
+      void refreshSignals(); // bell badge / home Command Center / My work
     } catch (e) {
-      toast.show(`Run failed: ${String(e)}`, 'error');
+      toast.show(`Request failed: ${String(e)}`, 'error');
     } finally {
       setBusy(false);
     }
   };
 
-  const rollback = async (runId: string) => {
-    setBusy(true);
-    try {
-      const res = await api.rollbackWaterfall(runId, { actor });
-      toast.show(`${runId} rolled back — ${res.reversed_lines} reversing rows appended`, 'success');
-      refresh();
-      void refreshSignals(); // waterfall close step / home Command Center
-    } catch (e) {
-      toast.show(`Rollback failed: ${String(e)}`, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
+  const requestRun = () =>
+    submitRequest(
+      { actor, action: 'run', year, rationale: `Run and apply the FY${year} charge waterfall to the group P&L` },
+      `Waterfall run — FY${year}`,
+    );
+
+  const requestRollback = (runId: string) =>
+    submitRequest(
+      { actor, action: 'rollback', target_run_id: runId, rationale: `Roll back waterfall run ${runId}` },
+      `Waterfall rollback — ${runId}`,
+    );
+
+  // A run already has a rollback request in flight → don't offer a second.
+  const rollbackPendingFor = (runId: string) =>
+    pending.some((p) => p.action === 'rollback' && p.target_run_id === runId);
 
   if (runs === null) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
@@ -222,15 +352,53 @@ export default function WaterfallTab() {
 
   return (
     <Stack spacing={2}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+        <Typography variant="overline" sx={{ color: 'text.secondary', flex: 1 }}>
+          TP calculation waterfall
+        </Typography>
+        <PovChip />
+      </Stack>
       <Alert severity="info" variant="outlined">
         The TP calculation waterfall — charges are computed and <b>applied</b> to each entity P&L
         before TP decisions: <b>service allocation → royalties → CSA true-up → profit split</b>.
         Every applied charge is a double-entry line on the append-only overlay ledger (provider
         revenue+ / recipient cost+, group nets to zero); corrections and rollbacks are reversing
-        rows. Runs hash-chain at <b>waterfall:&#123;id&#125;</b>, lines at <b>overlay:&#123;id&#125;</b>.
+        rows. Because a run <b>rewrites the group P&L</b>, running or rolling back <b>submits a
+        request for approval</b> — a different reviewer must approve it in the review queue before
+        anything is applied. Runs hash-chain at <b>waterfall:&#123;id&#125;</b>, lines at{' '}
+        <b>overlay:&#123;id&#125;</b>.
       </Alert>
 
       <BasisToggle appliedRunId={appliedRunId} onChanged={refresh} />
+
+      {/* ---- pending requests awaiting approval ---- */}
+      {pending.length > 0 && (
+        <Alert severity="warning" variant="outlined" icon={false}>
+          <Stack spacing={1}>
+            <Box sx={{ fontWeight: 700 }}>Requested — awaiting approval</Box>
+            {pending.map((p) => (
+              <Stack key={p.id} direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                <LifecycleChip status={p.status} />
+                <Box component="span">
+                  {p.action === 'run'
+                    ? `Run waterfall — FY${p.year}`
+                    : `Rollback — ${p.target_run_id}`}
+                </Box>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                  requested by {p.requested_by} · a different reviewer must approve
+                </Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => navigate('/review')}
+                >
+                  Open review queue
+                </Button>
+              </Stack>
+            ))}
+          </Stack>
+        </Alert>
+      )}
 
       {/* ---- run console ---- */}
       <Paper variant="outlined" sx={{ p: 2 }}>
@@ -238,7 +406,8 @@ export default function WaterfallTab() {
           <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Run console</Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              FY {YEAR} · at most one run is applied at a time — a new run supersedes the prior one.
+              FY {year} · at most one run is applied at a time — a new run supersedes the prior one.
+              Runs are applied only after a reviewer approves the request.
             </Typography>
           </Box>
           <Button
@@ -246,14 +415,15 @@ export default function WaterfallTab() {
             size="small"
             startIcon={busy ? <CircularProgress size={14} color="inherit" /> : <PlayArrowIcon />}
             disabled={busy}
-            onClick={() => void launch()}
+            onClick={() => void requestRun()}
           >
-            Run waterfall
+            Request run
           </Button>
         </Stack>
         {runs.length === 0 ? (
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            No runs yet — press “Run waterfall” to compute and apply the full charge sequence.
+            No runs yet — press “Request run” to submit the charge sequence for approval; it applies
+            once a reviewer approves.
           </Typography>
         ) : (
           <TableContainer>
@@ -279,7 +449,7 @@ export default function WaterfallTab() {
                         {new Date(r.started_at).toLocaleString()}
                       </TableCell>
                       <TableCell>{r.actor}</TableCell>
-                      <TableCell><RunStatusChip status={r.status} /></TableCell>
+                      <TableCell><LifecycleChip status={r.status} /></TableCell>
                       <TableCell align="right">{lines || '—'}</TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                         {/* Σ step revenue side == Σ cost side (double entry) —
@@ -289,17 +459,21 @@ export default function WaterfallTab() {
                           : '—'}
                       </TableCell>
                       <TableCell align="right">
-                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
                           {r.status === 'applied' && (
-                            <Button
-                              size="small"
-                              color="warning"
-                              startIcon={<ReplayIcon />}
-                              disabled={busy}
-                              onClick={() => void rollback(r.id)}
-                            >
-                              Rollback
-                            </Button>
+                            <Tooltip title={rollbackPendingFor(r.id) ? 'A rollback request is already awaiting approval' : ''}>
+                              <span>
+                                <Button
+                                  size="small"
+                                  color="warning"
+                                  startIcon={<ReplayIcon />}
+                                  disabled={busy || rollbackPendingFor(r.id)}
+                                  onClick={() => void requestRollback(r.id)}
+                                >
+                                  Request rollback
+                                </Button>
+                              </span>
+                            </Tooltip>
                           )}
                           <Button
                             size="small"
@@ -307,6 +481,7 @@ export default function WaterfallTab() {
                           >
                             Evidence
                           </Button>
+                          <HistoryButton recordRef={`waterfall:${r.id}`} />
                         </Stack>
                       </TableCell>
                     </TableRow>
@@ -321,8 +496,8 @@ export default function WaterfallTab() {
       {/* ---- sequence console: the latest run's steps ---- */}
       {latest && (
         <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-            Sequence — {latest.id} <RunStatusChip status={latest.status} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }} component="div">
+            Sequence — {latest.id} <LifecycleChip status={latest.status} />
           </Typography>
           <TableContainer>
             <Table size="small">
@@ -347,7 +522,7 @@ export default function WaterfallTab() {
                         {s.id}
                       </Typography>
                     </TableCell>
-                    <TableCell><RunStatusChip status={s.status} /></TableCell>
+                    <TableCell><LifecycleChip status={s.status} /></TableCell>
                     <TableCell align="right">{s.lines ?? '—'}</TableCell>
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                       {fmtAmount(s.revenue_total)}
@@ -404,6 +579,7 @@ export default function WaterfallTab() {
                   <TableCell align="right">Net charge</TableCell>
                   <TableCell align="right">Post-charge OP</TableCell>
                   <TableCell align="right">Post-charge OM</TableCell>
+                  <TableCell align="right">History</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -432,6 +608,9 @@ export default function WaterfallTab() {
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: changed ? 700 : 400 }}>
                         {fmtMargin(row.post_charge.operating_margin)}
+                      </TableCell>
+                      <TableCell align="right" sx={{ py: 0 }}>
+                        <OverlayLinesHistory lines={row.lines} />
                       </TableCell>
                     </TableRow>
                   );

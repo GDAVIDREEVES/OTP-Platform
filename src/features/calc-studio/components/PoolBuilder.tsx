@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -29,7 +29,13 @@ import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import SendOutlinedIcon from '@mui/icons-material/Send';
 import { api } from '@/shared/api/client';
 import { useToast } from '@/shared/providers/DataProvider';
+import { useSessionUser } from '@/shared/providers/SessionProvider';
+import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
+import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
+import { HistoryButton } from '@/kernel/audit/HistoryDrawer';
+import LifecycleChip from '@/shared/components/LifecycleChip';
+import PovChip from '@/shared/components/PovChip';
 import type {
   AllocationDimensionOption,
   AllocationDimensions,
@@ -40,7 +46,6 @@ import type {
   AuthoredMarkupPolicy,
   AuthoredPool,
   AuthoredPoolDefinition,
-  AuthoredPoolStatus,
   AuthoredRunResult,
   CapturePreview,
 } from '@/shared/api/types';
@@ -142,24 +147,6 @@ const BLANK: BuilderState = {
 };
 
 // ----------------------------------------------------------- small elements --
-
-const STATUS_COLOR: Record<AuthoredPoolStatus, 'default' | 'info' | 'warning' | 'success'> = {
-  draft: 'default',
-  tested: 'info',
-  in_review: 'warning',
-  active: 'success',
-};
-
-function StatusChip({ status }: { status: AuthoredPoolStatus }) {
-  return (
-    <Chip
-      size="small"
-      color={STATUS_COLOR[status]}
-      label={status}
-      sx={{ height: 20, fontSize: 11, fontWeight: 700 }}
-    />
-  );
-}
 
 /** The provenance-honest "authored" marker — an authored pool is a governed
  *  experiment, NOT claimed to tie to the warehouse SERVICE pairs. Dashed violet
@@ -446,11 +433,35 @@ function DryRunResult({
 
 // -------------------------------------------------------------------- main --
 
-const ACTOR = 'u_demo';
-
-export default function PoolBuilder({ entities }: { entities: AllocationEntityRow[] }) {
+export default function PoolBuilder({
+  entities,
+  periods,
+  defaultPeriod,
+  initialPoolId,
+  onInitialPoolConsumed,
+}: {
+  entities: AllocationEntityRow[];
+  /** POV-scoped billing months + default, derived by the parent (AllocationsTab)
+   *  and passed down so nothing re-fetches — PoolBuilder is only ever its child. */
+  periods: string[];
+  defaultPeriod: string;
+  /** Preload this pool into the form on mount (?view=build&pool={id} deep-link
+   *  — the "Fix & resubmit" landing for a rejected allocpool:{id} item). */
+  initialPoolId?: string;
+  /** Called once the deep-link pool has been loaded, so the owner can clear the
+   *  `pool` URL param and a later remount can't re-clobber in-progress edits. */
+  onInitialPoolConsumed?: () => void;
+}) {
   const toast = useToast();
   const navigate = useNavigate();
+  const user = useSessionUser();
+  const refreshSignals = useRefreshSignals();
+  const { notifySubmitted } = useReviewHandoff();
+  // Every authoring mutation acts as the current persona (maker-checker: the
+  // review item's maker must be the signed-in user so SoD engages). This is
+  // PoolBuilder's slice of the GP3 u_demo cleanup, pulled forward because GP1's
+  // SoD affordances depend on it.
+  const ACTOR = user.id;
   const entityName = useMemo(
     () => Object.fromEntries(entities.map((e) => [e.entity_id, e.legal_entity_name])),
     [entities],
@@ -563,6 +574,21 @@ export default function PoolBuilder({ entities }: { entities: AllocationEntityRo
     setPreview(null);
   };
 
+  // Deep-link preload: once the pools arrive, load the ?pool= target into the
+  // form, bring it into view, and ask the owner to clear the param — so a
+  // remount (Build → other tab → Build) can't re-run over the user's edits.
+  const formRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!initialPoolId || pools === null) return;
+    const target = pools.find((p) => p.id === initialPoolId);
+    if (!target) return;
+    loadIntoForm(target);
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    onInitialPoolConsumed?.();
+    // loadIntoForm is recreated per render; keying on the data is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPoolId, pools]);
+
   // -------- persistence + lifecycle --------
 
   /** Save the form as a draft (create or edit), returning the persisted pool. */
@@ -623,10 +649,12 @@ export default function PoolBuilder({ entities }: { entities: AllocationEntityRo
     try {
       const updated = await api.submitAuthoredPoolActivation(editingId, ACTOR);
       await refreshPools();
-      toast.show(
-        `${updated.id} queued for review — a different reviewer approves it in the /review queue`,
-        'success',
-      );
+      void refreshSignals(); // bell badge / home Command Center / My work
+      notifySubmitted({
+        recordRef: `allocpool:${updated.id}`,
+        processId: updated.process_id ?? undefined,
+        label: updated.name,
+      });
     } catch (e) {
       toast.show(`Submit failed: ${String(e)}`, 'error');
     } finally {
@@ -668,11 +696,15 @@ export default function PoolBuilder({ entities }: { entities: AllocationEntityRo
   };
 
   const activePools = (pools ?? []).filter((p) => p.status === 'active');
-  // Periods the active pools' capture rules touch — derived from the data via a
-  // dry-run is heavy; instead offer the engine's billing periods (the same set
-  // the run console uses). Kept minimal: the four demo billing periods.
-  const RUN_PERIODS = ['2026-04', '2026-05', '2026-10', '2026-11'];
-  const [runPeriod, setRunPeriod] = useState(RUN_PERIODS[1]);
+  // Periods the active pools' capture rules touch — deriving them via a dry-run
+  // is heavy; instead offer the engine's billing periods (the same set the run
+  // console uses), scoped to the global POV year (GP6). The parent derives them
+  // once and passes them down; when the year has no data they fall back to all
+  // months and the PovChip flags the divergence.
+  const [runPeriod, setRunPeriod] = useState('');
+  useEffect(() => {
+    setRunPeriod((cur) => (cur && periods.includes(cur) ? cur : defaultPeriod));
+  }, [periods, defaultPeriod]);
 
   const canSubmit = !!editingId && (pools ?? []).find((p) => p.id === editingId)?.status === 'tested';
 
@@ -689,7 +721,7 @@ export default function PoolBuilder({ entities }: { entities: AllocationEntityRo
       </Alert>
 
       {/* ---------------- the builder form ---------------- */}
-      <Paper variant="outlined" sx={{ p: 2 }}>
+      <Paper ref={formRef} variant="outlined" sx={{ p: 2 }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 800, flex: 1 }}>
             {editingId ? `Editing ${editingId}` : 'New authored pool'}
@@ -1061,19 +1093,14 @@ export default function PoolBuilder({ entities }: { entities: AllocationEntityRo
                       {p.definition.provider_entity_id}
                       {entityName[p.definition.provider_entity_id] ? ` · ${entityName[p.definition.provider_entity_id]}` : ''}
                     </TableCell>
-                    <TableCell><StatusChip status={p.status} /></TableCell>
+                    <TableCell><LifecycleChip status={p.status} /></TableCell>
                     <TableCell align="right">{p.version}</TableCell>
                     <TableCell align="right">
-                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                      <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
                         <Button size="small" onClick={() => loadIntoForm(p)}>
                           {p.status === 'active' ? 'View' : 'Edit'}
                         </Button>
-                        <Button
-                          size="small"
-                          onClick={() => navigate(`/evidence/${encodeURIComponent(`allocpool:${p.id}`)}`)}
-                        >
-                          Audit
-                        </Button>
+                        <HistoryButton recordRef={`allocpool:${p.id}`} />
                         {(p.status === 'draft' || p.status === 'tested') && (
                           <IconButton size="small" onClick={() => void deletePool(p)} aria-label="Delete pool">
                             <DeleteOutlineIcon fontSize="small" />
@@ -1107,8 +1134,9 @@ export default function PoolBuilder({ entities }: { entities: AllocationEntityRo
             select size="small" label="Period" value={runPeriod}
             onChange={(e) => setRunPeriod(e.target.value)} sx={{ minWidth: 140 }}
           >
-            {RUN_PERIODS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+            {periods.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
           </TextField>
+          <PovChip pinnedYear={Number(runPeriod.slice(0, 4)) || undefined} />
           <Button
             variant="contained"
             size="small"

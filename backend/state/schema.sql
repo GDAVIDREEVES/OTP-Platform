@@ -427,6 +427,31 @@ CREATE TABLE IF NOT EXISTS waterfall_runs (
   finished_at TEXT
 );
 
+-- Waterfall apply/rollback REQUESTS (UX Phase 2 GP4 — governance loop). The
+-- waterfall is the platform's highest-impact write (it rewrites the group
+-- segmented P&L), so it must not execute on a single click: a run/rollback is
+-- first captured here as a PENDING request that enqueues ONE maker-checker item
+-- at record_ref="waterfall:{id}". The P&L is untouched until a DIFFERENT
+-- reviewer approves the item in the /review queue, at which point
+-- state/review.py:decide() calls services/waterfall_runner.py to actually run
+-- (or roll back) — the SAME execute-on-approve pattern scenario promotion uses.
+-- `executed_run_id` records the WF-* run the approval produced/reversed. Every
+-- mutation is hash-chained at record_ref="waterfall:{id}" (state/
+-- waterfall_requests.py).
+CREATE TABLE IF NOT EXISTS waterfall_requests (
+  id              TEXT PRIMARY KEY,                -- "WFR-1", "WFR-2", ...
+  action          TEXT NOT NULL CHECK (action IN ('run','rollback')),
+  year            INTEGER NOT NULL,
+  target_run_id   TEXT,                            -- the WF-* run to roll back (action='rollback')
+  steps_json      TEXT,                            -- optional ordered step subset (action='run'); NULL = default sequence
+  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  rationale       TEXT,
+  requested_by    TEXT NOT NULL,
+  executed_run_id TEXT,                            -- the WF-* run produced (run) / reversed (rollback) on approval
+  created_at      TEXT NOT NULL,
+  decided_at      TEXT
+);
+
 -- User-authored allocation pools (Phase 6 PB2 — Allocation Pool Builder). One
 -- row per user-built cost-to-charge pool: a cost-capture rule (predicates over
 -- cost_center / profit_center / cost_element), beneficiaries, an allocation key

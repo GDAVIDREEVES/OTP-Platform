@@ -95,6 +95,16 @@ def test_rejecting_does_not_loop_forward_to_monitoring(state_db):
     assert not any((h.get("after") or {}).get("to") == "OTP-20" for h in lineage.list_handoffs(ref))
 
 
+def test_decide_mdmap_missing_staging_is_noop(state_db):
+    # GP2 defensive branch — an mdmap:* review item whose staging row doesn't
+    # exist must not crash decide(); the mapping side-effect is a no-op and the
+    # review decision (and audit chain) still lands.
+    item = review.create_item(process_id="MASTER-DATA", record_ref="mdmap:GHOST-999", maker="u_maria")
+    decided = review.decide(item["id"], checker="u_sam", decision="approve")
+    assert decided["status"] == "approved"
+    assert audit.verify_chain()["ok"]
+
+
 def test_rejecting_returns_to_originating_process(state_db):
     # Loop 1.2 — rejecting a review item writes one handoff that loops the record
     # back to the process that submitted it (from == to), carrying the comment, so

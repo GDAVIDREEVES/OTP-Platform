@@ -112,6 +112,44 @@ def get_param_row(key: str) -> dict[str, Any] | None:
     return _to_dict(row) if row else None
 
 
+def _check_bounds(row: dict[str, Any], value: Any) -> None:
+    """Enforce a numeric parameter's governed min/max (GP5).
+
+    Additive and defensive: a no-op when both bounds are null OR when ``value``
+    is not a numeric scalar (list/dict/string/bool params carry null bounds and
+    are never constrained — bool is an int subclass, so it is excluded
+    explicitly). An out-of-range numeric value raises ``ValueError``. This runs
+    on EVERY write path (the direct-edit dialog, and scenario promotion), so the
+    governed bounds hold no matter how the store is reached.
+    """
+    lo = row.get("min_value")
+    hi = row.get("max_value")
+    if lo is None and hi is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return
+    if lo is not None and value < lo:
+        raise ValueError(f"{row['key']} = {value} is below the minimum {lo}")
+    if hi is not None and value > hi:
+        raise ValueError(f"{row['key']} = {value} is above the maximum {hi}")
+
+
+def check_bounds(key: str, value: Any) -> None:
+    """Validate ``value`` against ``key``'s governed bounds WITHOUT writing.
+
+    Raises ``ValueError`` if the key is unknown or a numeric value is out of
+    range — the SAME rule ``set_param`` enforces, reused so a caller can fail
+    closed. Scenario promotion pre-validates every override with this before
+    the first ``set_param``, so an out-of-range value blocks the whole apply
+    (all-or-nothing) instead of committing some params and raising on a later
+    one (GP5 review fix).
+    """
+    row = get_param_row(key)
+    if row is None:
+        raise ValueError(f"unknown parameter: {key}")
+    _check_bounds(row, value)
+
+
 def set_param(key: str, value: Any, actor: str, rationale: str | None = None) -> dict[str, Any]:
     """Update a parameter's value and hash-chain the change at param:{key}."""
     with LOCK:
@@ -119,6 +157,7 @@ def set_param(key: str, value: Any, actor: str, rationale: str | None = None) ->
         before = get_param_row(key)
         if before is None:
             raise ValueError(f"unknown parameter: {key}")
+        _check_bounds(before, value)
         conn.execute(
             "UPDATE parameters SET value = ?, updated_at = ?, updated_by = ? WHERE key = ?",
             (json.dumps(value), _now(), actor, key),

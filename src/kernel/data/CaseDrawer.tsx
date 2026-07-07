@@ -18,11 +18,10 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { api } from '@/shared/api/client';
+import { useSessionUser } from '@/shared/providers/SessionProvider';
 import type { Case } from '@/shared/api/types';
 import { formatCurrency } from '@/shared/utils/format';
 import { tokens } from '@/shared/theme';
-
-const ACTOR = 'u_demo';
 
 /** Case kinds whose defense rests on the §6662 / Local File documentation pack
  *  (OTP-37) — the controversy side of the documentation ⇄ cases loop. */
@@ -74,6 +73,8 @@ export default function CaseDrawer({
   onChanged: () => void;
 }) {
   const navigate = useNavigate();
+  // Case mutations audit as the signed-in persona (GP3 — real actor, not a ghost).
+  const ACTOR = useSessionUser().id;
   const [busy, setBusy] = useState(false);
   const [current, setCurrent] = useState<Case | null>(caseItem);
   useEffect(() => {

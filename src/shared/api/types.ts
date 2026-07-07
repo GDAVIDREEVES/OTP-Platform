@@ -1967,6 +1967,31 @@ export interface PlAdjusted {
   };
 }
 
+/** A waterfall apply/rollback REQUEST (GP4). The waterfall rewrites the group
+ *  P&L, so running / rolling it back submits one of these for maker-checker
+ *  review instead of executing; a DIFFERENT reviewer approving the enqueued
+ *  waterfall:{id} item is what actually runs it (execute-on-approve). */
+export type WaterfallRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface WaterfallRequest {
+  id: string;
+  action: 'run' | 'rollback';
+  year: number;
+  /** The applied run to reverse (action === 'rollback'). */
+  target_run_id: string | null;
+  /** Ordered step subset for a run; null = the full default sequence. */
+  steps: string[] | null;
+  status: WaterfallRequestStatus;
+  rationale: string | null;
+  requested_by: string;
+  /** The WF-* run produced (run) / reversed (rollback) once approved. */
+  executed_run_id: string | null;
+  /** The audit / review ref this request lives at — "waterfall:{id}". */
+  record_ref: string;
+  created_at: string;
+  decided_at: string | null;
+}
+
 /** P&L basis selector for the margin-bearing reads (W2). Omitted = the
  *  governed pl.use_post_charge parameter resolves it server-side. */
 export type PlBasis = 'base' | 'post_charge';

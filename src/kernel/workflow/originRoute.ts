@@ -13,6 +13,10 @@
 
 const overview = (otp: string) => `/process/${otp}/overview`;
 
+/** The id after a `prefix:` ref, URI-encoded for embedding in a query param. */
+const idAfter = (recordRef: string, prefix: string) =>
+  encodeURIComponent(recordRef.slice(prefix.length));
+
 export function originRoute(recordRef: string): string | null {
   if (!recordRef) return null;
 
@@ -34,6 +38,35 @@ export function originRoute(recordRef: string): string | null {
 
   // Governed parameters → the management console (OTP-49, Phase 2).
   if (recordRef.startsWith('param:')) return overview('OTP-49');
+
+  // User-authored calc-studio lifecycles (maker-checker at these refs) — deep-
+  // link back to the surface that EDITS the object, so a rejected item's
+  // "Fix & resubmit" reopens it in place rather than dead-ending.
+  if (recordRef.startsWith('ucalc:')) {
+    return `/calc-studio/cockpit?calc=${idAfter(recordRef, 'ucalc:')}`;
+  }
+  if (recordRef.startsWith('allocpool:')) {
+    return `/calc-studio/allocations?view=build&pool=${idAfter(recordRef, 'allocpool:')}`;
+  }
+  if (recordRef.startsWith('dataset:')) {
+    return `/calc-studio/cockpit?dataset=${idAfter(recordRef, 'dataset:')}`;
+  }
+  if (recordRef.startsWith('scenario:')) {
+    return `/calc-studio/scenarios?scenario=${idAfter(recordRef, 'scenario:')}`;
+  }
+
+  // Master-data inbound SAP mapping items (mdmap:{staging id}) → the Inbound
+  // mapping tab, which highlights the ?focus= card.
+  if (recordRef.startsWith('mdmap:')) {
+    return `/master-data/mapping?focus=${idAfter(recordRef, 'mdmap:')}`;
+  }
+
+  // Registry calculations / waterfall + allocation runs → their workbenches.
+  if (recordRef.startsWith('calc:')) {
+    return `/calc-studio/calculations?calc=${idAfter(recordRef, 'calc:')}`;
+  }
+  if (recordRef.startsWith('waterfall:')) return '/calc-studio/waterfall';
+  if (recordRef.startsWith('allocation:')) return '/calc-studio/allocations';
 
   return null;
 }

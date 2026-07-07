@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -17,20 +17,29 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
 } from '@mui/material';
 import AppShell from '@/shared/components/layout/AppShell';
 import { api } from '@/shared/api/client';
 import { originRoute } from '@/kernel/workflow/originRoute';
 import { useToast } from '@/shared/providers/DataProvider';
-import { useSessionUser } from '@/shared/providers/SessionProvider';
+import { nextReviewerFor, useSession } from '@/shared/providers/SessionProvider';
 import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import type { ReviewItem } from '@/shared/api/types';
 
 export default function ReviewQueuePage() {
   const toast = useToast();
-  const user = useSessionUser();
+  const { user, users, setRole } = useSession();
   const navigate = useNavigate();
   const refreshSignals = useRefreshSignals();
+
+  // The one-click persona hop for the demo's SoD beat — the first OTHER
+  // persona, preferring the reviewer (the same pick as ReviewHandoff).
+  const nextPersona = useMemo(() => nextReviewerFor(users, user), [users, user]);
+  const makerName = useCallback(
+    (id: string) => users.find((u) => u.id === id)?.name ?? id,
+    [users],
+  );
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [returned, setReturned] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +58,15 @@ export default function ReviewQueuePage() {
     ])
       .then(([pending, rejected]) => {
         setItems(pending);
-        setReturned(rejected.filter((it) => it.maker === user.id));
+        // Keep only the LATEST rejected item per record_ref — a record bounced
+        // twice shows one "Returned to you" row, not a pile-up.
+        const latestByRef = new Map<string, ReviewItem>();
+        for (const it of rejected) {
+          if (it.maker !== user.id) continue;
+          const prev = latestByRef.get(it.record_ref);
+          if (!prev || it.id > prev.id) latestByRef.set(it.record_ref, it);
+        }
+        setReturned([...latestByRef.values()]);
       })
       .catch(() => {
         setItems([]);
@@ -92,10 +109,26 @@ export default function ReviewQueuePage() {
     }
   };
 
+  // Only offer the persona hop when the current user actually can't act — i.e.
+  // they submitted at least one of the pending items (so switching to the
+  // reviewer unblocks an approval). Otherwise the reviewer would be nudged to
+  // hop back to the operator for no reason.
+  const blockedByOwnItem = items.some((it) => it.maker === user.id);
+
   return (
     <AppShell pageTitle="Review queue">
       <Stack spacing={2}>
-        <Alert severity="info" variant="outlined">
+        <Alert
+          severity="info"
+          variant="outlined"
+          action={
+            nextPersona && blockedByOwnItem ? (
+              <Button color="inherit" size="small" onClick={() => setRole(nextPersona.role)}>
+                Act as {nextPersona.name}
+              </Button>
+            ) : undefined
+          }
+        >
           Acting as <b>{user.name}</b> ({user.title}). A maker can&rsquo;t approve their own work —
           segregation of duties is enforced, and every decision is logged. Switch role from the avatar
           (top-right) to approve as a different person.
@@ -150,27 +183,46 @@ export default function ReviewQueuePage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {items.map((it) => (
-                <TableRow key={it.id} hover>
-                  <TableCell><Chip size="small" label={it.process_id} sx={{ fontWeight: 700 }} /></TableCell>
-                  <TableCell>{it.record_ref}</TableCell>
-                  <TableCell>{it.maker}</TableCell>
-                  <TableCell>{new Date(it.created_at).toLocaleString()}</TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
-                      <Button size="small" onClick={() => navigate(`/evidence/${encodeURIComponent(it.record_ref)}`)}>
-                        Evidence
-                      </Button>
-                      <Button size="small" color="error" disabled={busy === it.id} onClick={() => { setRejecting(it); setComment(''); }}>
-                        Return
-                      </Button>
-                      <Button size="small" variant="contained" disabled={busy === it.id} onClick={() => void approve(it)}>
-                        Approve
-                      </Button>
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {items.map((it) => {
+                const selfMade = it.maker === user.id;
+                return (
+                  <TableRow key={it.id} hover>
+                    <TableCell><Chip size="small" label={it.process_id} sx={{ fontWeight: 700 }} /></TableCell>
+                    <TableCell>{it.record_ref}</TableCell>
+                    <TableCell>{it.maker}</TableCell>
+                    <TableCell>{new Date(it.created_at).toLocaleString()}</TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Button size="small" onClick={() => navigate(`/evidence/${encodeURIComponent(it.record_ref)}`)}>
+                          Evidence
+                        </Button>
+                        <Button size="small" color="error" disabled={busy === it.id} onClick={() => { setRejecting(it); setComment(''); }}>
+                          Return
+                        </Button>
+                        <Tooltip
+                          title={
+                            selfMade
+                              ? `Segregation of duties — you submitted this as ${makerName(it.maker)}. Switch persona (avatar, top right) to approve as someone else.`
+                              : ''
+                          }
+                        >
+                          {/* span: MUI tooltips need a live wrapper around a disabled button */}
+                          <span>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              disabled={busy === it.id || selfMade}
+                              onClick={() => void approve(it)}
+                            >
+                              Approve
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

@@ -12,6 +12,7 @@ import type { Entity } from '@/shared/types/entity';
 import KpiStrip from '@/kernel/shell/KpiStrip';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
 import { useReference } from '@/kernel/data/useReference';
+import { useSessionUser } from '@/shared/providers/SessionProvider';
 import type { ProfitSplitKey, ProfitSplitModel } from '@/shared/api/types';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 
@@ -154,6 +155,7 @@ const DempeBasis: FC = () => {
 };
 
 const Workpaper: FC<BindingCtx> = () => {
+  const user = useSessionUser();
   const [key, setKey] = useState<ProfitSplitKey>('opex_rd');
   const { model, loading } = useProfitSplit(key);
 
@@ -166,7 +168,7 @@ const Workpaper: FC<BindingCtx> = () => {
         record_ref: 'OTP44-profit-split-design',
         from_process: 'OTP-29',
         to_process: 'OTP-44',
-        actor: 'u_demo',
+        actor: user.id,
         summary: 'Allocation key aligned to DEMPE substance',
       })
       .catch(() => undefined);

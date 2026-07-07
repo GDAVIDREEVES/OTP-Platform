@@ -25,10 +25,18 @@ def get_parameter(key: str):
 
 @router.patch("/api/parameters/{key}")
 def set_parameter(key: str, payload: ParamPatch):
+    # GP5 — one governed-parameter edit policy. A DIRECT edit must carry a
+    # non-empty rationale (the reviewed scenario-promotion path is exempt: it
+    # calls set_param with a synthetic rationale, never this endpoint).
+    if not (payload.rationale and payload.rationale.strip()):
+        raise HTTPException(status_code=400, detail="rationale is required")
+    if parameters.get_param_row(key) is None:
+        raise HTTPException(status_code=404, detail=f"unknown parameter: {key}")
     try:
         return parameters.set_param(key, payload.value, payload.actor, payload.rationale)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        # An out-of-bounds value is a bad request (the row exists).
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/api/parameters/{key}/reset")

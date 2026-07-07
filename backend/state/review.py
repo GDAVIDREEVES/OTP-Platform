@@ -16,8 +16,10 @@ import state.audit as audit
 import state.authored_datasets as authored_datasets
 import state.authored_pools as authored_pools
 import state.lineage as lineage
+import state.master_data as md
 import state.scenarios as scenarios
 import state.user_calcs as user_calcs
+import state.waterfall_requests as waterfall_requests
 from state.engine import LOCK, get_conn
 
 # decision -> (stored status, audit event_type)
@@ -159,6 +161,37 @@ def decide(
                 authored_datasets.apply_activation(ds_id, checker)
             else:
                 authored_datasets.mark_rejected(ds_id)
+
+    # GP4 — waterfall apply/rollback rides the same gate: approving a
+    # waterfall:{request} item EXECUTES the run (or rollback) via
+    # services/waterfall_runner.py — the group P&L is written only here, on
+    # approval by a DIFFERENT reviewer (execute-on-approve, like scenario
+    # promotion); rejecting marks the request terminal and NOTHING runs, so the
+    # P&L is left exactly as it was. A missing request id is a defensive no-op
+    # (the decision still lands) — an ordinary waterfall:{run} ref is not a
+    # request and simply falls through.
+    if record_ref.startswith("waterfall:"):
+        request_id = record_ref.split(":", 1)[1]
+        if waterfall_requests.get_request(request_id) is not None:
+            if decision == "approve":
+                waterfall_requests.apply_request(request_id, checker)
+            else:
+                waterfall_requests.mark_rejected(request_id)
+
+    # GP2 — master-data mapping application rides the same gate: approving an
+    # mdmap:* item applies the staged mapping to the master (entity / covered
+    # transaction), audited at mdmap:{id}; rejecting marks the staging row
+    # rejected so the maker can rework and resubmit. This is what makes the
+    # UNIVERSAL /review queue and the in-page master-data endpoints converge on
+    # ONE side-effect — no split-brain, no staging row orphaned in in_review.
+    # A missing staging id is a defensive no-op (the decision still lands).
+    if record_ref.startswith("mdmap:"):
+        staging_id = record_ref.split(":", 1)[1]
+        if md.get_staging(staging_id) is not None:
+            if decision == "approve":
+                md.apply_mapping(staging_id, applied_by=checker)
+            else:
+                md.mark_status(staging_id, "rejected")
     return _to_dict(updated)
 
 

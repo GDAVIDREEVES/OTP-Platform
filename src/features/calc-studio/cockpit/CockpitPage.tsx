@@ -12,9 +12,12 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
+import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
+import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
+import LifecycleChip from '@/shared/components/LifecycleChip';
+import { HistoryButton } from '@/kernel/audit/HistoryDrawer';
 import type {
-  AuthoredDataset, AuthoredDatasetStatus, AuthoredPool, AuthoredPoolStatus,
-  Scenario, UserCalc,
+  AuthoredDataset, AuthoredPool, Scenario, UserCalc,
 } from '@/shared/api/types';
 import { useGraphModel } from './useGraphModel';
 import Canvas from './Canvas';
@@ -36,22 +39,12 @@ import ResultsDock from './ResultsDock';
 const DEFAULT_PROCESS = 'OTP-49';
 const GRAINS = ['group', 'entity', 'entity_function'];
 
-const STATUS_COLOR: Record<UserCalc['status'], 'default' | 'info' | 'warning' | 'success'> = {
-  draft: 'default', tested: 'info', in_review: 'warning', active: 'success',
-};
-
-const POOL_STATUS_COLOR: Record<AuthoredPoolStatus, 'default' | 'info' | 'warning' | 'success'> = {
-  draft: 'default', tested: 'info', in_review: 'warning', active: 'success',
-};
-
-const DATASET_STATUS_COLOR: Record<AuthoredDatasetStatus, 'default' | 'info' | 'warning' | 'success'> = {
-  draft: 'default', tested: 'info', in_review: 'warning', active: 'success',
-};
-
 export default function CockpitPage() {
   const user = useSessionUser();
   const toast = useToast();
   const model = useGraphModel();
+  const refreshSignals = useRefreshSignals();
+  const { notifySubmitted } = useReviewHandoff();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // The user-calc this canvas is bound to (null = unsaved new calc).
@@ -115,6 +108,31 @@ export default function CockpitPage() {
     // model.loadGraph is stable enough; intentionally not in deps to avoid reloads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadCalcId]);
+
+  // Load an existing authored dataset's graph (?dataset=ID) — the dataset
+  // analogue of ?calc=, so a rejected dataset:{id} review item's "Fix &
+  // resubmit" reopens the graph on the canvas (the graph IS the source of
+  // truth; family is derived from its nodes).
+  const loadDatasetId = searchParams.get('dataset');
+  const loadedDatasetRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!loadDatasetId || loadedDatasetRef.current === loadDatasetId) return;
+    loadedDatasetRef.current = loadDatasetId;
+    void (async () => {
+      try {
+        const ds = await api.authoredDataset(loadDatasetId);
+        setSavedDataset(ds);
+        setName(ds.name);
+        setProcessId(ds.process_id ?? DEFAULT_PROCESS);
+        model.loadGraph(ds.graph);
+        toast.show(`Loaded ${ds.id} onto the canvas`, 'info');
+      } catch (e) {
+        toast.show(`Could not load dataset: ${String(e)}`, 'error');
+      }
+    })();
+    // model.loadGraph is stable enough; intentionally not in deps to avoid reloads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadDatasetId]);
 
   const overridesFor = (sid: string): Record<string, unknown> =>
     (scenarios.find((s) => s.id === sid)?.overrides as Record<string, unknown>) ?? {};
@@ -188,7 +206,12 @@ export default function CockpitPage() {
     try {
       const next = await api.submitUserCalcActivation(saved.id, { maker: user.id });
       setSaved(next);
-      toast.show(`${next.id} queued for review — a DIFFERENT reviewer must approve (maker-checker)`, 'info');
+      void refreshSignals(); // bell badge / home Command Center / My work
+      notifySubmitted({
+        recordRef: `ucalc:${next.id}`,
+        processId: next.process_id ?? undefined,
+        label: next.name,
+      });
     } catch (e) {
       toast.show(`Submit failed: ${String(e)}`, 'error');
     } finally {
@@ -243,7 +266,12 @@ export default function CockpitPage() {
     try {
       const next = await api.submitAuthoredPoolActivation(savedPool.id, user.id);
       setSavedPool(next);
-      toast.show(`${next.id} queued for review — a DIFFERENT reviewer must approve (maker-checker)`, 'info');
+      void refreshSignals(); // bell badge / home Command Center / My work
+      notifySubmitted({
+        recordRef: `allocpool:${next.id}`,
+        processId: next.process_id ?? undefined,
+        label: next.name,
+      });
     } catch (e) {
       toast.show(`Submit failed: ${String(e)}`, 'error');
     } finally {
@@ -294,7 +322,12 @@ export default function CockpitPage() {
     try {
       const next = await api.submitAuthoredDatasetActivation(savedDataset.id, user.id);
       setSavedDataset(next);
-      toast.show(`${next.id} queued for review — a DIFFERENT reviewer must approve (maker-checker)`, 'info');
+      void refreshSignals(); // bell badge / home Command Center / My work
+      notifySubmitted({
+        recordRef: `dataset:${next.id}`,
+        processId: next.process_id ?? undefined,
+        label: next.name,
+      });
     } catch (e) {
       toast.show(`Submit failed: ${String(e)}`, 'error');
     } finally {
@@ -339,8 +372,10 @@ export default function CockpitPage() {
     setProcessId(DEFAULT_PROCESS);
     model.clearGraph();
     loadedRef.current = null;
-    if (searchParams.get('calc')) {
+    loadedDatasetRef.current = null;
+    if (searchParams.get('calc') || searchParams.get('dataset')) {
       searchParams.delete('calc');
+      searchParams.delete('dataset');
       setSearchParams(searchParams, { replace: true });
     }
   };
@@ -381,21 +416,24 @@ export default function CockpitPage() {
           <Stack direction="row" spacing={0.5} alignItems="center">
             <Chip size="small" variant="outlined" label={savedDataset.id} sx={{ height: 22, fontFamily: 'monospace' }} />
             <Chip size="small" variant="outlined" label={`v${savedDataset.version}`} sx={{ height: 22 }} />
-            <Chip size="small" color={DATASET_STATUS_COLOR[savedDataset.status]} label={savedDataset.status} sx={{ height: 22, fontWeight: 700 }} />
+            <LifecycleChip status={savedDataset.status} />
+            <HistoryButton recordRef={`dataset:${savedDataset.id}`} />
           </Stack>
         )}
-        {!isAlloc && saved && (
+        {!isAlloc && !isDataset && saved && (
           <Stack direction="row" spacing={0.5} alignItems="center">
             <Chip size="small" variant="outlined" label={saved.id} sx={{ height: 22, fontFamily: 'monospace' }} />
             <Chip size="small" variant="outlined" label={`v${saved.version}`} sx={{ height: 22 }} />
-            <Chip size="small" color={STATUS_COLOR[saved.status]} label={saved.status} sx={{ height: 22, fontWeight: 700 }} />
+            <LifecycleChip status={saved.status} />
+            <HistoryButton recordRef={`ucalc:${saved.id}`} />
           </Stack>
         )}
         {isAlloc && savedPool && (
           <Stack direction="row" spacing={0.5} alignItems="center">
             <Chip size="small" variant="outlined" label={savedPool.id} sx={{ height: 22, fontFamily: 'monospace' }} />
             <Chip size="small" variant="outlined" label={`v${savedPool.version}`} sx={{ height: 22 }} />
-            <Chip size="small" color={POOL_STATUS_COLOR[savedPool.status]} label={savedPool.status} sx={{ height: 22, fontWeight: 700 }} />
+            <LifecycleChip status={savedPool.status} />
+            <HistoryButton recordRef={`allocpool:${savedPool.id}`} />
           </Stack>
         )}
 
@@ -549,7 +587,7 @@ export default function CockpitPage() {
                         }}
                       >
                         <Stack direction="row" spacing={1} alignItems="center">
-                          <Chip size="small" color={STATUS_COLOR[c.status]} label={c.status} sx={{ height: 18, fontSize: 10 }} />
+                          <LifecycleChip status={c.status} />
                           <span>{c.id} — {c.name}</span>
                         </Stack>
                       </MenuItem>

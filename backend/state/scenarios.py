@@ -218,6 +218,15 @@ def apply_promotion(scenario_id: str, checker: str) -> dict[str, Any]:
             raise ValueError(
                 f"scenario {scenario_id} is {before['status']} — only in_review scenarios promote"
             )
+        # Fail closed (GP5 review fix): validate EVERY override's governed bounds
+        # BEFORE the first write, so a mixed {in_bounds, out_of_bounds} scenario
+        # blocks the whole promotion rather than committing (and auditing) the
+        # in-bounds params and then raising on the out-of-bounds one — a partial
+        # commit. set_param re-checks on each write; this makes the APPLY step
+        # all-or-nothing. (What-if exploration beyond bounds stays allowed —
+        # only promotion enforces, which is why create/submit are not validated.)
+        for key, value in before["overrides"].items():
+            parameters.check_bounds(key, value)
         for key, value in before["overrides"].items():
             parameters.set_param(
                 key, value, actor=checker,

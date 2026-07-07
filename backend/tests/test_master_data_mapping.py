@@ -41,6 +41,87 @@ def test_maker_cannot_approve_own_mapping(state_db):
     assert r.status_code == 400
 
 
+def _pending_review_id(record_ref: str) -> int | None:
+    """The latest pending review item id for a record_ref (via the UNIVERSAL queue)."""
+    q = api.get("/api/review-queue", params={"status": "pending"}).json()
+    matches = [r for r in q if r["record_ref"] == record_ref]
+    return matches[-1]["id"] if matches else None
+
+
+def test_universal_review_approve_applies_mdmap_mapping(state_db):
+    # GP2 — approving an mdmap:* item from the UNIVERSAL /review queue must apply
+    # the mapping (not just flip the review row): decide() owns the side-effect.
+    md.seed_if_empty()
+    api.post("/api/master-data/staging/SAP-3500/propose")
+    api.post("/api/master-data/staging/SAP-3500/submit", json={"maker": "u_maria"})
+    rid = _pending_review_id("mdmap:SAP-3500")
+    assert rid is not None
+
+    r = api.post(f"/api/review/{rid}/approve", json={"checker": "u_sam"})
+    assert r.status_code == 200
+
+    # staging row is now applied (not orphaned in in_review)
+    assert md.get_staging("SAP-3500")["status"] == "applied"
+    # the entity mapping is actually inserted
+    rows = api.get("/api/master-data/entities").json()
+    assert any(x["rbukrs"] == "3500" and x["tp_function_code"] == "LRD" for x in rows)
+    # the apply event is on the mdmap record and the chain verifies
+    ev = api.get("/api/audit", params={"record_ref": "mdmap:SAP-3500"}).json()
+    assert any(e["event_type"] == "posted" for e in ev)
+    assert api.get("/api/audit/verify").json()["ok"] is True
+
+
+def test_universal_review_reject_marks_mdmap_rejected(state_db):
+    # GP2 — rejecting via the universal queue marks the staging row rejected, and
+    # a rejection without a comment is refused (409, the SoD/comment rule).
+    md.seed_if_empty()
+    api.post("/api/master-data/staging/SAP-417000/propose")
+    api.post("/api/master-data/staging/SAP-417000/submit", json={"maker": "u_maria"})
+    rid = _pending_review_id("mdmap:SAP-417000")
+    assert rid is not None
+
+    bad = api.post(f"/api/review/{rid}/reject", json={"checker": "u_sam"})
+    assert bad.status_code == 409
+    assert md.get_staging("SAP-417000")["status"] == "in_review"  # untouched
+
+    ok = api.post(f"/api/review/{rid}/reject", json={"checker": "u_sam", "comments": "wrong function"})
+    assert ok.status_code == 200
+    assert md.get_staging("SAP-417000")["status"] == "rejected"
+    assert api.get("/api/audit/verify").json()["ok"] is True
+
+
+def test_legacy_approve_applies_exactly_once(state_db):
+    # GP2 — the in-page (legacy) route still applies, and applies EXACTLY once:
+    # decide() owns the side-effect, so the router no longer double-applies.
+    md.seed_if_empty()
+    api.post("/api/master-data/staging/SAP-3500/propose")
+    api.post("/api/master-data/staging/SAP-3500/submit", json={"maker": "u_maria"})
+    r = api.post("/api/master-data/staging/SAP-3500/approve", json={"checker": "u_sam"})
+    assert r.status_code == 200
+    assert md.get_staging("SAP-3500")["status"] == "applied"
+
+    # exactly ONE posted/apply event on the record
+    ev = api.get("/api/audit", params={"record_ref": "mdmap:SAP-3500"}).json()
+    assert len([e for e in ev if e["event_type"] == "posted"]) == 1
+
+    # exactly one entity mapping row (a double-apply would insert two)
+    from state.engine import get_conn
+    n = get_conn().execute("SELECT count(*) AS n FROM md_mapping WHERE kind='entity'").fetchone()["n"]
+    assert n == 1
+    assert api.get("/api/audit/verify").json()["ok"] is True
+
+
+def test_universal_review_maker_self_approve_blocked(state_db):
+    # GP2 — SoD still holds on the universal route: a maker can't approve own work.
+    md.seed_if_empty()
+    api.post("/api/master-data/staging/SAP-3500/propose")
+    api.post("/api/master-data/staging/SAP-3500/submit", json={"maker": "u_maria"})
+    rid = _pending_review_id("mdmap:SAP-3500")
+    r = api.post(f"/api/review/{rid}/approve", json={"checker": "u_maria"})
+    assert r.status_code == 409
+    assert md.get_staging("SAP-3500")["status"] == "in_review"  # not applied
+
+
 def test_simulate_adds_a_new_unmapped_item(state_db):
     md.seed_if_empty()
     before = len(api.get("/api/master-data/staging").json())

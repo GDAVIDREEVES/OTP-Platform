@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
-  Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
+  Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent,
   DialogTitle, IconButton, MenuItem, Paper, Stack, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, TextField, Typography,
 } from '@mui/material';
@@ -9,8 +10,12 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
+import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
+import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
+import LifecycleChip from '@/shared/components/LifecycleChip';
+import { HistoryButton } from '@/kernel/audit/HistoryDrawer';
 import type {
-  CalcDef, Parameter, Scenario, ScenarioCompare, ScenarioStatus,
+  CalcDef, Parameter, Scenario, ScenarioCompare,
 } from '@/shared/api/types';
 import CompareTable from '../components/CompareTable';
 import { valueText, useParameters } from '../lib';
@@ -21,15 +26,8 @@ import { valueText, useParameters } from '../lib';
  *  approves the promotion in the /review queue. Every mutation hash-chains at
  *  record_ref="scenario:{id}". */
 
-const STATUS_CHIP: Record<ScenarioStatus, { label: string; color: 'default' | 'warning' | 'success' }> = {
-  draft: { label: 'draft', color: 'default' },
-  in_review: { label: 'in review', color: 'warning' },
-  promoted: { label: 'promoted', color: 'success' },
-  discarded: { label: 'discarded', color: 'default' },
-};
-
 /** Parse an edited override back to the parameter's JSON shape — the same
- *  type-driven logic as DriversTab's EditDialog. */
+ *  type-driven logic as the shared ParamEditDialog. */
 function parseRaw(type: string | null, raw: string): { ok: boolean; value: unknown; err?: string } {
   const t = raw.trim();
   try {
@@ -54,9 +52,10 @@ interface OverrideRow {
  *  governed parameters (add/remove keys, type-aware value parsing). Editing
  *  PATCHes only while the scenario is a draft (the backend enforces it too). */
 function ScenarioDialog({
-  scenario, params, onClose, onSaved,
+  scenario, initialOverrides, params, onClose, onSaved,
 }: {
   scenario: Scenario | null; // null = create
+  initialOverrides?: Record<string, unknown>; // seed a create dialog (GP5 "what-if first")
   params: Parameter[];
   onClose: () => void;
   onSaved: () => void;
@@ -65,8 +64,8 @@ function ScenarioDialog({
   const toast = useToast();
   const [name, setName] = useState(scenario?.name ?? '');
   const [description, setDescription] = useState(scenario?.description ?? '');
-  const [rows, setRows] = useState<OverrideRow[]>(
-    Object.entries(scenario?.overrides ?? {}).map(([key, v]) => ({ key, raw: valueText(v) }))
+  const [rows, setRows] = useState<OverrideRow[]>(() =>
+    Object.entries(scenario?.overrides ?? initialOverrides ?? {}).map(([key, v]) => ({ key, raw: valueText(v) }))
   );
   const [addKey, setAddKey] = useState('');
   const [saving, setSaving] = useState(false);
@@ -309,12 +308,47 @@ export default function ScenariosTab() {
   const { params } = useParameters();
   const user = useSessionUser();
   const toast = useToast();
+  const refreshSignals = useRefreshSignals();
+  const { notifySubmitted } = useReviewHandoff();
   const [list, setList] = useState<Scenario[] | null>(null);
-  const [dialog, setDialog] = useState<{ mode: 'create' } | { mode: 'edit'; scenario: Scenario } | null>(null);
+  const [dialog, setDialog] = useState<
+    | { mode: 'create'; initialOverrides?: Record<string, unknown> }
+    | { mode: 'edit'; scenario: Scenario }
+    | null
+  >(null);
   const [comparing, setComparing] = useState<Scenario | null>(null);
 
   const refresh = () => api.scenarios().then(setList).catch(() => setList([]));
   useEffect(() => { void refresh(); }, []);
+
+  // ?scenario={id} focus deep-link (the "Fix & resubmit" landing for a
+  // rejected scenario:{id} review item): highlight the row and, while it is
+  // still editable (draft), auto-open the edit dialog. Keyed on the id (the
+  // CockpitPage ?calc= idiom) so it fires once per target — and re-fires if the
+  // deep-link target changes in place — without a bare once-flag.
+  const [searchParams] = useSearchParams();
+  const focusId = searchParams.get('scenario');
+  const focusLoadedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusId || focusLoadedRef.current === focusId || list === null) return;
+    const target = list.find((s) => s.id === focusId);
+    if (!target) return;
+    focusLoadedRef.current = focusId;
+    if (target.status === 'draft') setDialog({ mode: 'edit', scenario: target });
+  }, [focusId, list]);
+
+  // ?param={key} deep-link (the ParamEditDialog "What-if first → create a
+  // Scenario" affordance, GP5): open the create dialog pre-seeded with a
+  // starting override for that governed parameter. Fires once per target key.
+  const newParamKey = searchParams.get('param');
+  const paramLoadedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!newParamKey || paramLoadedRef.current === newParamKey || params === null) return;
+    const p = params.find((x) => x.key === newParamKey);
+    if (!p) return;
+    paramLoadedRef.current = newParamKey;
+    setDialog({ mode: 'create', initialOverrides: { [p.key]: p.value } });
+  }, [newParamKey, params]);
 
   if (list === null || params === null) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
@@ -323,8 +357,9 @@ export default function ScenariosTab() {
   const promote = async (s: Scenario) => {
     try {
       await api.promoteScenario(s.id, { maker: user.id });
-      toast.show('Queued for review — a different reviewer must approve', 'info');
+      notifySubmitted({ recordRef: `scenario:${s.id}`, label: s.name });
       void refresh();
+      void refreshSignals(); // bell badge / home Command Center / My work
     } catch (e) {
       toast.show(`Promote failed: ${String(e)}`, 'error');
     }
@@ -335,6 +370,7 @@ export default function ScenariosTab() {
       await api.discardScenario(s.id, { actor: user.id });
       toast.show(`Discarded ${s.id}`, 'success');
       void refresh();
+      void refreshSignals(); // withdraws any pending review item for it
     } catch (e) {
       toast.show(`Discard failed: ${String(e)}`, 'error');
     }
@@ -377,10 +413,15 @@ export default function ScenariosTab() {
             </TableHead>
             <TableBody>
               {list.map((s) => {
-                const chip = STATUS_CHIP[s.status];
                 const keys = Object.keys(s.overrides);
                 return (
-                  <TableRow key={s.id} hover>
+                  <TableRow
+                    key={s.id}
+                    hover
+                    // Focus-border for the ?scenario= deep-link (the same violet
+                    // highlight InboundMapping uses for ?focus=).
+                    sx={s.id === focusId ? { boxShadow: 'inset 0 0 0 2px #7C3AED' } : undefined}
+                  >
                     <TableCell sx={{ maxWidth: 300 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.name}</Typography>
                       <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>
@@ -388,13 +429,7 @@ export default function ScenariosTab() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        size="small"
-                        color={chip.color}
-                        variant={s.status === 'discarded' ? 'outlined' : 'filled'}
-                        label={chip.label}
-                        sx={{ height: 20, fontSize: 11 }}
-                      />
+                      <LifecycleChip status={s.status} />
                     </TableCell>
                     <TableCell sx={{ maxWidth: 260 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -411,7 +446,7 @@ export default function ScenariosTab() {
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
-                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
                         {s.status === 'draft' && (
                           <Button size="small" variant="outlined" onClick={() => setDialog({ mode: 'edit', scenario: s })}>
                             Edit
@@ -424,6 +459,7 @@ export default function ScenariosTab() {
                             <Button size="small" color="error" onClick={() => void discard(s)}>Discard</Button>
                           </>
                         )}
+                        <HistoryButton recordRef={`scenario:${s.id}`} />
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -437,6 +473,7 @@ export default function ScenariosTab() {
       {dialog && (
         <ScenarioDialog
           scenario={dialog.mode === 'edit' ? dialog.scenario : null}
+          initialOverrides={dialog.mode === 'create' ? dialog.initialOverrides : undefined}
           params={params}
           onClose={() => setDialog(null)}
           onSaved={() => void refresh()}
