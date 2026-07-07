@@ -180,4 +180,4 @@ const MasterFile: FC<BindingCtx> = () => {
   );
 };
 
-export const otp33: ProcessBinding = { kpis: Kpis, tabs: { overview: MasterFile, calculation: MasterFile, docs: MasterFile } };
+export const otp33: ProcessBinding = { kpis: Kpis, tabs: { overview: MasterFile } };

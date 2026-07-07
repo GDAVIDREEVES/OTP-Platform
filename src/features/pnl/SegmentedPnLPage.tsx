@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AppShell from '@/shared/components/layout/AppShell';
 import BasisBadge from '@/shared/components/BasisBadge';
+import RunsAsProcessBanner from '@/shared/components/RunsAsProcessBanner';
 import {
   Paper,
   Typography,
@@ -206,12 +207,19 @@ export default function SegmentedPnL() {
   const blendedETR = 24.3;
   return (
     <AppShell pageTitle="Segmented P&L">
+      <RunsAsProcessBanner
+        note="This scenario & post-charge view also runs as guided processes:"
+        processes={[
+        { id: 'OTP-21', label: 'OTP-21 · throughout FY' },
+        { id: 'OTP-22', label: 'OTP-22 · FYE' },
+        { id: 'OTP-23', label: 'OTP-23 · statutory YE' }]} />
+
       <Box
         sx={{
           borderBottom: '1px solid #E2E8F0',
           mb: 2.5
         }}>
-        
+
         <Tabs value={tab} onChange={(_, v) => setTab(v)}>
           <Tab label="Overview" />
           <Tab label="Detailed financials" />
@@ -435,11 +443,8 @@ export default function SegmentedPnL() {
                 variant="outlined"
                 size="small"
                 onClick={() => setShift(0)}>
-                
+
                   Reset
-                </Button>
-                <Button variant="contained" size="small">
-                  Save scenario
                 </Button>
               </Stack>
             </Paper>

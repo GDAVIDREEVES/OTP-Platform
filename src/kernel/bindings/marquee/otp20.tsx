@@ -29,6 +29,7 @@ import type { Entity } from '@/shared/types/entity';
 import KpiStrip from '@/kernel/shell/KpiStrip';
 import DrillDrawer from '@/kernel/data/DrillDrawer';
 import BasisBadge from '@/shared/components/BasisBadge';
+import { adjustmentRoute } from '@/kernel/workflow/originRoute';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 
 const RANK: Record<string, number> = { 'out-of-range': 0, watch: 1, 'no-data': 2, 'in-range': 3 };
@@ -65,7 +66,7 @@ function FlaggedRow({ e }: { e: Entity }) {
           Margin {fmtMargin(e.actualMargin)} vs target {e.targetMarginLabel} · {fmtVar(e.variance)}
         </Typography>
       </Box>
-      <Button size="small" variant="outlined" endIcon={<TrendingFlatIcon />} onClick={() => navigate(`/process/OTP-16/overview?entity=${e.id}`)}>
+      <Button size="small" variant="outlined" endIcon={<TrendingFlatIcon />} onClick={() => navigate(adjustmentRoute(e.id))}>
         Adjust
       </Button>
     </Stack>

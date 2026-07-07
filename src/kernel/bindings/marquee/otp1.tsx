@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Alert, Box, Button, Chip, CircularProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography,
 } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SubmitSuccess from '@/kernel/shell/SubmitSuccess';
 import { api } from '@/shared/api/client';
 import { formatCurrency } from '@/shared/utils/format';
 import type { PricingRow } from '@/shared/api/types';
@@ -126,7 +126,6 @@ const Review: FC<BindingCtx> = () => {
 };
 
 const Wizard: FC<BindingCtx> = ({ def }) => {
-  const navigate = useNavigate();
   const reset = isReset(def);
   const { rows, loading } = useGoodsPricing();
   const recordRef = reset ? 'OTP2-goods-reset' : 'OTP1-goods-boy';
@@ -138,15 +137,11 @@ const Wizard: FC<BindingCtx> = ({ def }) => {
 
   if (g.submitted) {
     return (
-      <Stack spacing={2} sx={{ maxWidth: 760 }}>
-        <Alert icon={<CheckCircleIcon />} severity="success">
-          {reset ? 'In-period goods price reset' : 'Beginning-of-year goods prices'} submitted for review.
-        </Alert>
-        <Stack direction="row" spacing={1.5}>
-          <Button variant="outlined" onClick={() => navigate(`/evidence/${encodeURIComponent(recordRef)}`)}>Evidence packet</Button>
-          <Button variant="outlined" onClick={() => navigate('/review')}>Open review queue</Button>
-        </Stack>
-      </Stack>
+      <SubmitSuccess
+        message={`${reset ? 'In-period goods price reset' : 'Beginning-of-year goods prices'} submitted for review.`}
+        recordRef={recordRef}
+        processId={def.id}
+      />
     );
   }
 

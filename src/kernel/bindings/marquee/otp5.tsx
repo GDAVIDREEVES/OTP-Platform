@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { FC } from 'react';
-import { useNavigate } from 'react-router-dom';
+import SubmitSuccess from '@/kernel/shell/SubmitSuccess';
 import {
   Alert, Box, Button, CircularProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography,
 } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { api } from '@/shared/api/client';
 import { formatCurrency } from '@/shared/utils/format';
 import type { CsaModel } from '@/shared/api/types';
@@ -99,7 +98,6 @@ const Shares: FC<BindingCtx> = () => {
 };
 
 const Wizard: FC<BindingCtx> = () => {
-  const navigate = useNavigate();
   const { model, loading } = useCsa();
   const g = useGuidedWorkflow('OTP-5', 'OTP5-csa-rab-pct', STEPS);
   const prepared = !!g.wf.payload.prepared;
@@ -108,13 +106,11 @@ const Wizard: FC<BindingCtx> = () => {
 
   if (g.submitted) {
     return (
-      <Stack spacing={2} sx={{ maxWidth: 760 }}>
-        <Alert icon={<CheckCircleIcon />} severity="success">CSA RAB shares & PCT buy-ins submitted for review.</Alert>
-        <Stack direction="row" spacing={1.5}>
-          <Button variant="outlined" onClick={() => navigate(`/evidence/${encodeURIComponent('OTP5-csa-rab-pct')}`)}>Evidence packet</Button>
-          <Button variant="outlined" onClick={() => navigate('/review')}>Open review queue</Button>
-        </Stack>
-      </Stack>
+      <SubmitSuccess
+        message="CSA RAB shares & PCT buy-ins submitted for review."
+        recordRef="OTP5-csa-rab-pct"
+        processId="OTP-5"
+      />
     );
   }
 

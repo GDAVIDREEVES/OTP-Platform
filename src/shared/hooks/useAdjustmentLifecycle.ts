@@ -8,11 +8,12 @@ interface MutationResult {
   error: Error | null;
 }
 
-/** Lifecycle actions on submitted adjustments — approve / reject / export / reverse / delete.
+/** Lifecycle actions on submitted adjustments — export / reverse / delete.
+ *  Approval is deliberately NOT here: the /review maker-checker queue is the sole
+ *  approval door (it promotes the adjustment server-side), so exposing an approve
+ *  path from invoicing would bypass segregation of duties.
  *  Each method refreshes the bootstrap data so the new state lands in /api/invoices. */
 export function useAdjustmentLifecycle(): {
-  approve: (id: string, by: string) => Promise<boolean>;
-  reject: (id: string, by: string, reason: string) => Promise<boolean>;
   markExported: (id: string, ref?: string) => Promise<boolean>;
   reverse: (id: string, by: string) => Promise<SubmittedAdjustment | null>;
   remove: (id: string) => Promise<boolean>;
@@ -38,34 +39,6 @@ export function useAdjustmentLifecycle(): {
       setPending(false);
     }
   };
-
-  const approve = useCallback(
-    async (id: string, by: string) => {
-      const r = await wrap('Approve', () =>
-        api.patchAdjustment(id, { status: 'Approved', approvedBy: by, by }),
-      );
-      if (r) toast.show(`${id} approved`, 'success');
-      return !!r;
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
-  const reject = useCallback(
-    async (id: string, by: string, reason: string) => {
-      const r = await wrap('Reject', () =>
-        api.patchAdjustment(id, {
-          status: 'Rejected',
-          rejectionReason: reason,
-          by,
-        }),
-      );
-      if (r) toast.show(`${id} rejected`, 'info');
-      return !!r;
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
 
   const markExported = useCallback(
     async (id: string, ref?: string) => {
@@ -100,5 +73,5 @@ export function useAdjustmentLifecycle(): {
     [],
   );
 
-  return { approve, reject, markExported, reverse, remove, pending, error };
+  return { markExported, reverse, remove, pending, error };
 }

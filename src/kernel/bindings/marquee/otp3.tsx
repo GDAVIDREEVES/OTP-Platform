@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Alert, Box, Button, Chip, CircularProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SubmitSuccess from '@/kernel/shell/SubmitSuccess';
 import { useEntities, useRoyalties } from '@/shared/providers/DataProvider';
 import { formatCurrency } from '@/shared/utils/format';
 import type { Entity } from '@/shared/types/entity';
@@ -94,13 +94,11 @@ const Wizard: FC<BindingCtx> = () => {
 
   if (g.submitted) {
     return (
-      <Stack spacing={2} sx={{ maxWidth: 760 }}>
-        <Alert icon={<CheckCircleIcon />} severity="success">Royalty rate <b>{rate}%</b> submitted for review.</Alert>
-        <Stack direction="row" spacing={1.5}>
-          <Button variant="outlined" onClick={() => navigate(`/evidence/${encodeURIComponent('OTP3-royalty-API')}`)}>Evidence packet</Button>
-          <Button variant="outlined" onClick={() => navigate('/review')}>Open review queue</Button>
-        </Stack>
-      </Stack>
+      <SubmitSuccess
+        message={<>Royalty rate <b>{rate}%</b> submitted for review.</>}
+        recordRef="OTP3-royalty-API"
+        processId="OTP-3"
+      />
     );
   }
 

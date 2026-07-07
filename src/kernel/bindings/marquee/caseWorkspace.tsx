@@ -228,8 +228,7 @@ const Worklist: FC<BindingCtx> = ({ def }) => {
   );
 };
 
-// No `primaryAction`: the Case Workspace is display-only in the shell header —
-// all real actions live in the worklist rows and the CaseDrawer.
+// Real actions live in the worklist rows and the CaseDrawer.
 export const caseWorkspace: ProcessBinding = {
   kpis: Kpis,
   tabs: { overview: Overview, worklist: Worklist },

@@ -22,6 +22,9 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { api } from '@/shared/api/client';
 import { formatCurrency } from '@/shared/utils/format';
 import { tokens } from '@/shared/theme';
+import AppShell from '@/shared/components/layout/AppShell';
+import { activeNavItem } from '@/shared/components/layout/navConfig';
+import { originRoute } from '@/kernel/workflow/originRoute';
 import type { AuditEvent, EvidencePacket as Packet } from '@/shared/api/types';
 
 const fmt = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : String(v));
@@ -130,12 +133,22 @@ export default function EvidencePacket() {
     };
   }, [recordRef]);
 
+  // Anchor the packet back in the workflow it belongs to: the ref's origin
+  // process/module (via originRoute → the owning nav item) then this packet.
+  const origin = originRoute(recordRef);
+  const parent = origin ? activeNavItem(origin) : null;
+  const crumbs =
+    parent && origin
+      ? [{ label: parent.label, to: origin }, { label: 'Evidence packet' }]
+      : [{ label: 'Processes', to: '/process' }, { label: 'Evidence packet' }];
+
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'white' }}>
+    <AppShell pageTitle="Evidence packet" breadcrumbs={crumbs}>
+      <Box sx={{ bgcolor: 'white' }}>
       <Box
         sx={{
-          display: 'flex', alignItems: 'center', gap: 1.5, px: 3, py: 1.5,
-          borderBottom: '1px solid #E2E8F0', position: 'sticky', top: 0, bgcolor: 'white', zIndex: 1,
+          display: 'flex', alignItems: 'center', gap: 1.5, py: 1.5,
+          borderBottom: '1px solid #E2E8F0', bgcolor: 'white',
           '@media print': { display: 'none' },
         }}
       >
@@ -319,6 +332,7 @@ export default function EvidencePacket() {
           </Stack>
         )}
       </Box>
-    </Box>
+      </Box>
+    </AppShell>
   );
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -12,7 +12,7 @@ import {
 import StarIcon from '@mui/icons-material/Star';
 import AppShell from '@/shared/components/layout/AppShell';
 import { useProcesses } from '../registry/useProcesses';
-import { CATEGORY_ORDER, type ProcessDef } from '../registry/types';
+import { CATEGORY_ORDER, type Category, type ProcessDef } from '../registry/types';
 import CategoryRail, { type CategoryFilter } from './CategoryRail';
 import { isMarquee } from '../bindings';
 
@@ -68,8 +68,16 @@ function ProcessCard({ def, onOpen }: { def: ProcessDef; onOpen: () => void }) {
 
 export default function ProcessLibraryPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { catalog, loading, error } = useProcesses();
-  const [selected, setSelected] = useState<CategoryFilter>('all');
+  // A `?cat=A…G` deep link (e.g. from a process breadcrumb) pre-selects that
+  // lifecycle category; anything else falls back to "all". Seeded once on mount
+  // — the only entry point is arriving on this route fresh (which remounts), so
+  // there is no need to re-sync `selected` if the query later changes in place.
+  const catParam = searchParams.get('cat');
+  const [selected, setSelected] = useState<CategoryFilter>(
+    catParam && (CATEGORY_ORDER as string[]).includes(catParam) ? (catParam as Category) : 'all',
+  );
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};

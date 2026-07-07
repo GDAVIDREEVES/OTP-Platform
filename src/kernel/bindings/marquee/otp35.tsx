@@ -65,4 +65,4 @@ const Rows: FC<BindingCtx> = () => {
   );
 };
 
-export const otp35: ProcessBinding = { kpis: Kpis, tabs: { overview: Rows, calculation: Rows } };
+export const otp35: ProcessBinding = { kpis: Kpis, tabs: { overview: Rows } };

@@ -204,4 +204,4 @@ const Workpaper: FC<BindingCtx> = () => {
   );
 };
 
-export const otp44: ProcessBinding = { kpis: Kpis, tabs: { overview: Workpaper, calculation: Workpaper } };
+export const otp44: ProcessBinding = { kpis: Kpis, tabs: { overview: Workpaper } };

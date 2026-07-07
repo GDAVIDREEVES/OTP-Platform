@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppShell from '@/shared/components/layout/AppShell';
 import {
   Paper,
@@ -21,10 +22,7 @@ import {
   MenuItem,
   Tooltip,
 } from '@mui/material';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import CheckIcon from '@mui/icons-material/Check';
-import MoreVertIcon from '@mui/icons-material/Add'; // Add icon already in deps; using as kebab placeholder is silly — use a simpler char marker
 // Use Settings as a stand-in for the row menu icon since both are in the bundle
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useInvoices, useSettings } from '@/shared/providers/DataProvider';
@@ -40,12 +38,15 @@ const statusStyle: Record<string, { bg: string; color: string }> = {
 };
 
 export default function Invoicing() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState(0);
   const [selected, setSelected] = useState<string[]>([]);
   const [menu, setMenu] = useState<{ anchor: HTMLElement; invId: string } | null>(null);
   const invoices = useInvoices();
   const settings = useSettings();
-  const { approve, markExported, reverse, remove, pending } = useAdjustmentLifecycle();
+  // No approve/reject here — the /review maker-checker queue is the ONLY approval
+  // door (it promotes the adjustment server-side). Invoicing owns export/reverse/delete.
+  const { markExported, reverse, remove, pending } = useAdjustmentLifecycle();
 
   const filtered = useMemo(() => invoices.filter((i) => {
     if (tab === 0) return true;
@@ -79,14 +80,6 @@ export default function Invoicing() {
     () => invoices.filter((i) => selected.includes(i.id) && i.submitted),
     [invoices, selected]
   );
-
-  const bulkApprove = async () => {
-    const targets = selectedSubmitted.filter((i) => i.status === 'Pending Approval');
-    for (const i of targets) {
-      await approve(i.id, settings.defaultReviewer);
-    }
-    setSelected([]);
-  };
 
   const bulkExport = async () => {
     const targets = selectedSubmitted.filter((i) => i.status === 'Approved');
@@ -156,28 +149,6 @@ export default function Invoicing() {
             <Tab label="Exported" />
           </Tabs>
           <Stack direction="row" spacing={1} flexWrap="wrap">
-            <Button variant="contained" startIcon={<PlayArrowIcon />} disabled>
-              Generate invoices
-            </Button>
-            <Tooltip
-              title={
-                selectedSubmitted.length === 0
-                  ? 'Select submitted (ADJ-) rows to approve'
-                  : `Approve ${selectedSubmitted.filter((i) => i.status === 'Pending Approval').length} pending row(s)`
-              }>
-              <span>
-                <Button
-                  variant="outlined"
-                  startIcon={<CheckIcon />}
-                  disabled={
-                    pending ||
-                    !selectedSubmitted.some((i) => i.status === 'Pending Approval')
-                  }
-                  onClick={bulkApprove}>
-                  Approve selected ({selectedSubmitted.filter((i) => i.status === 'Pending Approval').length})
-                </Button>
-              </span>
-            </Tooltip>
             <Tooltip title="Mark approved adjustments as exported (booked to GL)">
               <span>
                 <Button
@@ -267,13 +238,14 @@ export default function Invoicing() {
                           View
                         </Button>
                         {isSubmitted && inv.status === 'Pending Approval' && (
-                          <Button
-                            size="small"
-                            variant="contained"
-                            disabled={pending}
-                            onClick={() => approve(inv.id, settings.defaultReviewer)}>
-                            Approve
-                          </Button>
+                          <Tooltip title="Approval is a maker-checker step — open the review queue">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => navigate('/review')}>
+                              Open in review
+                            </Button>
+                          </Tooltip>
                         )}
                         {isSubmitted && (
                           <IconButton

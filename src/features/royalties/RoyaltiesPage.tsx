@@ -1,5 +1,7 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppShell from '@/shared/components/layout/AppShell';
+import RunsAsProcessBanner from '@/shared/components/RunsAsProcessBanner';
 import {
   Paper,
   Typography,
@@ -17,15 +19,21 @@ import {
 '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import AddIcon from '@mui/icons-material/Add';
 import { useRoyalties } from '@/shared/providers/DataProvider';
 import { formatCurrency } from '@/shared/utils/format';
 export default function Royalties() {
+  const navigate = useNavigate();
   const royalties = useRoyalties();
   const totalFees = royalties.reduce((a, r) => a + r.ytdFees, 0);
   const flagged = royalties.filter((r) => !r.withinBenchmark).length;
   return (
     <AppShell pageTitle="Royalties & Concept Fees">
+      <RunsAsProcessBanner
+        note="Royalty work runs as guided processes — this is a read-only reference view."
+        processes={[
+        { id: 'OTP-3', label: 'OTP-3 · set rates' },
+        { id: 'OTP-9', label: 'OTP-9 · charge batch' }]} />
+
       <Grid
         container
         spacing={2.5}
@@ -146,9 +154,14 @@ export default function Royalties() {
               withholding rules.
             </Typography>
           </Box>
-          <Button variant="contained" startIcon={<AddIcon />}>
-            New arrangement
-          </Button>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Button variant="outlined" onClick={() => navigate('/process/OTP-3/overview')}>
+              Set rates (OTP-3)
+            </Button>
+            <Button variant="outlined" onClick={() => navigate('/process/OTP-9/overview')}>
+              Run charge batch (OTP-9)
+            </Button>
+          </Stack>
         </Stack>
 
         <Box

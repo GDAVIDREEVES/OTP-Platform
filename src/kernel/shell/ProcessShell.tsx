@@ -1,23 +1,22 @@
 import { useState, type ReactNode } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import {
   Alert,
   Box,
   Button,
   CircularProgress,
   IconButton,
-  Paper,
   Stack,
   Tab,
   Tabs,
   Tooltip,
-  Typography,
 } from '@mui/material';
 import HistoryIcon from '@mui/icons-material/History';
 import AppShell from '@/shared/components/layout/AppShell';
-import { useProcess } from '../registry/useProcesses';
+import { useProcess, useProcesses } from '../registry/useProcesses';
+import { FALLBACK_CATALOG } from '../registry/fallback';
 import { getBinding } from '../bindings';
-import type { BindableTab, BindingCtx, TabKey } from '../bindings/types';
+import type { BindableTab, TabKey } from '../bindings/types';
 import ProcessHeader from './ProcessHeader';
 import EmptyTabState from './EmptyTabState';
 import AuditTab from '../audit/AuditTab';
@@ -32,13 +31,13 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'audit', label: 'Audit' },
   { key: 'docs', label: 'Docs' },
 ];
-const TAB_KEYS = TABS.map((t) => t.key);
 const labelFor = (key: TabKey) => TABS.find((t) => t.key === key)?.label ?? key;
 
 export default function ProcessShell() {
   const { otpId, tab } = useParams();
   const navigate = useNavigate();
   const { def, loading } = useProcess(otpId);
+  const { catalog } = useProcesses();
   const [railOpen, setRailOpen] = useState(false);
 
   if (loading) {
@@ -68,11 +67,28 @@ export default function ProcessShell() {
     );
   }
 
-  const activeTab: TabKey = (tab && TAB_KEYS.includes(tab as TabKey) ? tab : 'overview') as TabKey;
   const binding = getBinding(def);
-  const ctx: BindingCtx = { def };
+  // Only tabs a binding actually wires are shown; 'audit' is shell-owned
+  // (keyed by process_id, not by binding.tabs) so it is ALWAYS visible.
+  const visibleTabs = TABS.filter(
+    (t) => t.key === 'audit' || !!binding.tabs?.[t.key as BindableTab],
+  );
+  const isVisible = (k: string) => visibleTabs.some((t) => t.key === k);
+  // A deep-link (or now-hidden tab) that isn't visible normalizes to Overview.
+  const activeTab: TabKey = tab && isVisible(tab) ? (tab as TabKey) : 'overview';
+  if (tab && activeTab !== tab) {
+    return <Navigate to={`/process/${def.id}/overview`} replace />;
+  }
+
+  const catLabel =
+    catalog?.categories?.[def.category] ?? FALLBACK_CATALOG.categories[def.category] ?? def.category;
+  const crumbs = [
+    { label: 'Processes', to: '/process' },
+    { label: catLabel, to: `/process?cat=${def.category}` },
+    { label: `${def.id} · ${def.name}`, to: `/process/${def.id}/overview` },
+    { label: labelFor(activeTab) },
+  ];
   const KpisComp = binding.kpis;
-  const primary = binding.primaryAction?.(ctx);
 
   let body: ReactNode;
   if (activeTab === 'audit') {
@@ -83,7 +99,7 @@ export default function ProcessShell() {
   }
 
   return (
-    <AppShell pageTitle={`${def.id} · ${def.name}`}>
+    <AppShell pageTitle={`${def.id} · ${def.name}`} breadcrumbs={crumbs}>
       <Stack spacing={2.5}>
         <ProcessHeader def={def} />
         {KpisComp && <KpisComp def={def} />}
@@ -97,7 +113,7 @@ export default function ProcessShell() {
             allowScrollButtonsMobile
             sx={{ flex: 1, minWidth: 0 }}
           >
-            {TABS.map((t) => (
+            {visibleTabs.map((t) => (
               <Tab key={t.key} value={t.key} label={t.label} sx={{ fontWeight: 600, textTransform: 'none' }} />
             ))}
           </Tabs>
@@ -112,20 +128,6 @@ export default function ProcessShell() {
           <Box sx={{ flex: 1, minWidth: 0 }}>{body}</Box>
           {railOpen && <AuditRail def={def} onClose={() => setRailOpen(false)} />}
         </Box>
-
-        {primary && (
-          <Paper
-            variant="outlined"
-            sx={{ position: 'sticky', bottom: 16, p: 1.5, display: 'flex', justifyContent: 'flex-end', gap: 1.5, alignItems: 'center', bgcolor: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(4px)' }}
-          >
-            {primary.hint && (
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{primary.hint}</Typography>
-            )}
-            <Button variant="contained" size="large" disabled={primary.disabled}>
-              {primary.label}
-            </Button>
-          </Paper>
-        )}
       </Stack>
     </AppShell>
   );

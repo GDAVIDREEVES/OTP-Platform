@@ -119,7 +119,7 @@ export default function CaseDrawer({
         summary: 'Local File / §6662 packet linked to controversy case',
       })
       .catch(() => undefined);
-    navigate('/process/OTP-37/docs');
+    navigate('/process/OTP-37/overview');
   };
 
   return (

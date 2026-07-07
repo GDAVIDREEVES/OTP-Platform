@@ -198,5 +198,5 @@ const Grid: FC<BindingCtx> = () => {
 
 export const otp24: ProcessBinding = {
   kpis: Kpis,
-  tabs: { overview: Overview, calculation: Grid, outputs: Grid },
+  tabs: { overview: Overview, calculation: Grid },
 };

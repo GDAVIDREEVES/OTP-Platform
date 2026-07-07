@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { useNavigate } from 'react-router-dom';
+import { adjustmentRoute } from '@/kernel/workflow/originRoute';
 import type { Entity } from '@/shared/types/entity';
 import { statusColor, statusLabel } from '@/shared/utils/status';
 import { formatCurrency } from '@/shared/utils/format';
@@ -145,7 +146,7 @@ export default function EntityTable({
                       <Button
                         size="small"
                         variant="contained"
-                        onClick={() => navigate(`/adjustment/${e.id}`)}
+                        onClick={() => navigate(adjustmentRoute(e.id))}
                       >
                         Adjust
                       </Button>

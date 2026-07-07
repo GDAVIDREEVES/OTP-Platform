@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FC } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
+  Alert,
   Box,
+  Button,
   CircularProgress,
   IconButton,
   Stack,
@@ -83,6 +86,7 @@ const Kpis: FC<BindingCtx> = () => {
 };
 
 const Grid: FC<BindingCtx> = () => {
+  const navigate = useNavigate();
   const { rows, loading } = useSegments();
   const entities = useEntities();
   const agg = useMemo(() => aggregate(rows), [rows]);
@@ -98,6 +102,20 @@ const Grid: FC<BindingCtx> = () => {
 
   return (
     <Box>
+      <Alert
+        severity="info"
+        variant="outlined"
+        sx={{ mb: 2 }}
+        action={
+          <Button color="inherit" size="small" onClick={() => navigate('/segmented-pnl')}>
+            Open full view
+          </Button>
+        }
+      >
+        The segmented P&amp;L off ACDOCA — drill any row to its postings. For ETR
+        scenario modeling and the post-charge side-by-side, use the full{' '}
+        <b>Segmented P&amp;L</b> view.
+      </Alert>
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -141,4 +159,4 @@ const Grid: FC<BindingCtx> = () => {
   );
 };
 
-export const otp21: ProcessBinding = { kpis: Kpis, tabs: { overview: Grid, calculation: Grid } };
+export const otp21: ProcessBinding = { kpis: Kpis, tabs: { overview: Grid } };

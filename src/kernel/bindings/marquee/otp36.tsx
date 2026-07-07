@@ -166,4 +166,4 @@ const Computation: FC<BindingCtx> = () => {
   );
 };
 
-export const otp36: ProcessBinding = { kpis: Kpis, tabs: { overview: Computation, calculation: Computation } };
+export const otp36: ProcessBinding = { kpis: Kpis, tabs: { overview: Computation } };
