@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { FC } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -20,7 +20,6 @@ import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useEntities, useKpis } from '@/shared/providers/DataProvider';
-import { api } from '@/shared/api/client';
 import { useSubmittedAdjustments } from '@/shared/hooks/useSubmittedAdjustments';
 import { statusColor, statusLabel } from '@/shared/utils/status';
 import { formatCurrency } from '@/shared/utils/format';
@@ -29,6 +28,7 @@ import type { SubmittedAdjustment } from '@/shared/api/types';
 import type { Entity } from '@/shared/types/entity';
 import KpiStrip from '@/kernel/shell/KpiStrip';
 import DrillDrawer from '@/kernel/data/DrillDrawer';
+import BasisBadge from '@/shared/components/BasisBadge';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 
 const RANK: Record<string, number> = { 'out-of-range': 0, watch: 1, 'no-data': 2, 'in-range': 3 };
@@ -37,55 +37,6 @@ const exceptionsFirst = (es: Entity[]) =>
 
 const fmtMargin = (m: number | null) => (m == null ? '—' : `${m.toFixed(2)}%`);
 const fmtVar = (v: number | null) => (v == null || v === 0 ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(1)}pp`);
-
-/** W2: the monitoring reads (margins/KPIs) resolve their P&L basis
- *  server-side from the governed pl.use_post_charge parameter. The basis is
- *  ACTIVE when the toggle is on AND a waterfall run is applied — only then do
- *  the figures on this screen include the applied IC charges. */
-function usePostChargeBasis(): { active: boolean; runId: string | null } {
-  const [state, setState] = useState<{ active: boolean; runId: string | null }>({
-    active: false,
-    runId: null,
-  });
-  useEffect(() => {
-    let alive = true;
-    Promise.all([
-      api.parameter('pl.use_post_charge').catch(() => null),
-      api.waterfallRuns('applied').catch(() => []),
-    ]).then(([param, applied]) => {
-      if (!alive) return;
-      const runId = applied.length ? applied[applied.length - 1].id : null;
-      setState({ active: param?.value === true && runId !== null, runId });
-    });
-    return () => { alive = false; };
-  }, []);
-  return state;
-}
-
-/** Small "post-charge P&L" chip — rendered only while the basis is active. */
-const PostChargeChip: FC = () => {
-  const navigate = useNavigate();
-  const basis = usePostChargeBasis();
-  if (!basis.active) return null;
-  return (
-    <Box>
-      <Tooltip
-        title={`Margins and KPIs on this screen are on the POST-CHARGE P&L basis — base segment_pl plus waterfall ${basis.runId}'s applied IC charges (governed by pl.use_post_charge). Click to open the waterfall console.`}
-        arrow
-      >
-        <Chip
-          size="small"
-          clickable
-          color="primary"
-          variant="outlined"
-          label={`Post-charge P&L — waterfall ${basis.runId}`}
-          onClick={() => navigate('/calc-studio/waterfall')}
-          sx={{ fontWeight: 700 }}
-        />
-      </Tooltip>
-    </Box>
-  );
-};
 
 const Kpis: FC<BindingCtx> = () => {
   const k = useKpis();
@@ -151,7 +102,9 @@ const Overview: FC<BindingCtx> = () => {
   const resolved = (useSubmittedAdjustments().data ?? []).filter((a) => a.status === 'Approved');
   return (
     <Stack spacing={2} sx={{ maxWidth: 860 }}>
-      <PostChargeChip />
+      <Box>
+        <BasisBadge />
+      </Box>
       <Typography variant="body1">
         <b>{k.entitiesOutOfRange}</b> tested parties are out of range and <b>{k.entitiesWatch}</b> are on
         watch, across <b>{k.entityCount}</b> monitored. This is detection only — each flag is the entry

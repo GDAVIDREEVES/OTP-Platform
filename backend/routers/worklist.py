@@ -1,16 +1,17 @@
-"""Unified worklist / Inbox — one cross-process hub for "what's on my plate".
+"""Unified worklist ("My work" on /home) — one cross-process "what's on my plate" hub.
 
 This is a *read-only aggregator*. It owns no store of its own; it composes four
 existing sources into a single sorted feed:
 
   (a) the user's in-progress drafts   — state.drafts.list_for_user  (kind="draft")
   (b) the maker-checker review queue  — state.review.list_queue     (kind="review")
-  (c) OTP-20 out-of-range exceptions  — services.entities (same source the KPIs
-      use), kept where status == "out-of-range"                     (kind="exception")
+  (c) OTP-20 margin exceptions        — services.entities (same source the KPIs
+      use), kept where status is "out-of-range" (high) or "watch"
+      (medium — the early-warning band)                             (kind="exception")
   (d) open governance cases           — state.cases.list_cases      (kind="case")
 
 Each item carries the deep-link `route` back to the process that owns it, so the
-Inbox is purely a launcher: every row routes to the real work surface.
+worklist is purely a launcher: every row routes to the real work surface.
 """
 
 from __future__ import annotations
@@ -55,13 +56,19 @@ def _draft_items(user: str) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for d in drafts.list_for_user(user):
         process_id = _process_from_ref(d["record_ref"], d["process_id"])
+        route = _route_for_process(process_id)
+        # Adjustment drafts encode their entity in the ref (OTP16-{entity_id});
+        # deep-link straight to that entity's wizard so "resume" lands where the
+        # user left off (same derivation the old home Resume surface used).
+        if route and d["record_ref"].startswith("OTP16-"):
+            route = f"{route}?entity={d['record_ref'][len('OTP16-'):]}"
         out.append(
             {
                 "kind": "draft",
                 "title": f"Resume {d['step']}",
                 "ref": d["record_ref"],
                 "process_id": process_id,
-                "route": _route_for_process(process_id),
+                "route": route,
                 "due_at": None,
                 "priority": "medium",
                 "status": d["status"],
@@ -83,7 +90,10 @@ def _review_items(user: str) -> list[dict[str, Any]]:
                 "title": f"{it['record_ref']} — {status}",
                 "ref": it["record_ref"],
                 "process_id": process_id,
-                "route": _route_for_process(process_id),
+                # Approvals happen on /review (the process overview has no
+                # approve buttons); your own pending submission has nowhere
+                # useful to go, so it carries no route.
+                "route": None if mine else "/review",
                 "due_at": None,
                 # Approvals you can act on outrank submissions you're only watching.
                 "priority": "medium" if mine else "high",
@@ -94,22 +104,31 @@ def _review_items(user: str) -> list[dict[str, Any]]:
 
 
 def _exception_items() -> list[dict[str, Any]]:
-    """OTP-20 out-of-range entities, computed from the same source the KPIs use."""
+    """OTP-20 margin exceptions, computed from the same source the KPIs use.
+
+    Out-of-range entities are act-now (high); watch entities are the
+    early-warning band (medium) — surfaced so home shows trouble *before* it
+    breaches the arm's-length range. Both carry margin-vs-target context.
+    """
     entities = list_entities(PeriodFilter())
     out: list[dict[str, Any]] = []
     for e in entities:
-        if e["status"] != "out-of-range":
+        if e["status"] not in ("out-of-range", "watch"):
             continue
+        out_of_range = e["status"] == "out-of-range"
+        label = "out of range" if out_of_range else "on watch"
+        margin = e["actualMargin"]
+        context = f" — {margin}% vs {e['targetMarginLabel']}" if margin is not None else ""
         out.append(
             {
                 "kind": "exception",
-                "title": f"{e['name']} out of range",
+                "title": f"{e['name']} {label}{context}",
                 "ref": f"OTP16-{e['id']}",
                 "process_id": "OTP-16",
                 "route": f"/process/OTP-16/overview?entity={e['id']}",
                 "due_at": None,
-                "priority": "high",
-                "status": "out-of-range",
+                "priority": "high" if out_of_range else "medium",
+                "status": e["status"],
             }
         )
     return out

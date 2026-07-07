@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api } from '@/shared/api/client';
 import { useToast } from '@/shared/providers/DataProvider';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
+import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import type { StepDef } from '@/kernel/registry/types';
 import { useWorkflowState } from './useWorkflowState';
 
@@ -11,6 +12,7 @@ import { useWorkflowState } from './useWorkflowState';
 export function useGuidedWorkflow(processId: string, recordRef: string, steps: StepDef[]) {
   const user = useSessionUser();
   const toast = useToast();
+  const refreshSignals = useRefreshSignals();
   const wf = useWorkflowState(processId, recordRef, user.id, steps);
   const [preparing, setPreparing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -35,6 +37,7 @@ export function useGuidedWorkflow(processId: string, recordRef: string, steps: S
       await wf.clearDraft();
       toast.show('Submitted for review', 'success');
       setSubmitted(true);
+      void refreshSignals(); // bell badge / home Command Center / My work
     } catch (e) {
       toast.show(`Submit failed: ${String(e)}`, 'error');
     } finally {

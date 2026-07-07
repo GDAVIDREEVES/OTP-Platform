@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { api } from '@/shared/api/client';
 import { useToast } from '@/shared/providers/DataProvider';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
+import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import type { MdProposal } from '@/shared/api/types';
 
 export function useMappingWorkflow(onChange?: () => void) {
   const user = useSessionUser();
   const toast = useToast();
+  const refreshSignals = useRefreshSignals();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [proposal, setProposal] = useState<Record<string, MdProposal>>({});
 
@@ -28,6 +30,7 @@ export function useMappingWorkflow(onChange?: () => void) {
       await api.mdSubmitMapping(id, user.id);
       toast.show('Submitted for review', 'success');
       onChange?.();
+      void refreshSignals(); // master_data close step / review counts
     } catch (e) {
       toast.show(`Submit failed: ${String(e)}`, 'error');
     } finally {
@@ -41,6 +44,7 @@ export function useMappingWorkflow(onChange?: () => void) {
       await api.mdApproveMapping(id, user.id);
       toast.show('Approved & applied — audited', 'success');
       onChange?.();
+      void refreshSignals(); // master_data close step / review counts
     } catch (e) {
       toast.show(`Approve failed (maker cannot self-approve): ${String(e)}`, 'error');
     } finally {

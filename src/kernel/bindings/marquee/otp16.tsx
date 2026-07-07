@@ -16,6 +16,7 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useEntities, useEntity, useToast } from '@/shared/providers/DataProvider';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
+import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import { api } from '@/shared/api/client';
 import { statusColor, statusLabel } from '@/shared/utils/status';
 import { formatCurrency } from '@/shared/utils/format';
@@ -23,6 +24,7 @@ import type { Entity } from '@/shared/types/entity';
 import type { StepDef } from '@/kernel/registry/types';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 import KpiStrip from '@/kernel/shell/KpiStrip';
+import BasisBadge from '@/shared/components/BasisBadge';
 import { useWorkflowState } from '@/kernel/workflow/useWorkflowState';
 import WorkflowPath from '@/kernel/workflow/WorkflowPath';
 import AgenticHandoffMarker from '@/kernel/workflow/AgenticHandoffMarker';
@@ -108,6 +110,7 @@ function Adjustment({ entityId }: { entityId: string }) {
   const navigate = useNavigate();
   const toast = useToast();
   const user = useSessionUser();
+  const refreshSignals = useRefreshSignals();
   const entity = useEntity(entityId);
   const recordRef = `OTP16-${entityId}`;
   const wf = useWorkflowState('OTP-16', recordRef, user.id, STEPS);
@@ -183,6 +186,7 @@ function Adjustment({ entityId }: { entityId: string }) {
       await wf.clearDraft();
       toast.show('Submitted for review', 'success');
       setSubmitted(adj.id);
+      void refreshSignals(); // bell badge / home Command Center / My work
     } catch (e) {
       toast.show(`Submit failed: ${String(e)}`, 'error');
     } finally {
@@ -308,7 +312,15 @@ function Adjustment({ entityId }: { entityId: string }) {
 const Overview: FC<BindingCtx> = () => {
   const [sp] = useSearchParams();
   const entityId = sp.get('entity') || undefined;
-  return entityId ? <Adjustment entityId={entityId} /> : <Picker />;
+  return (
+    <Stack spacing={2}>
+      {/* The margins driving this adjustment decision — say which P&L basis they're on. */}
+      <Box>
+        <BasisBadge />
+      </Box>
+      {entityId ? <Adjustment entityId={entityId} /> : <Picker />}
+    </Stack>
+  );
 };
 
 export const otp16: ProcessBinding = {

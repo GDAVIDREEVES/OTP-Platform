@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import AppShell from '@/shared/components/layout/AppShell';
+import BasisBadge from '@/shared/components/BasisBadge';
 import {
   Paper,
   Typography,
@@ -64,7 +64,6 @@ export default function SegmentedPnL() {
   const [shift, setShift] = useState(0);
   const [view, setView] = useState<'entity' | 'jurisdiction'>('entity');
   const entities = useEntities();
-  const navigate = useNavigate();
 
   // Post-charge side-by-side (Phase 5 W2). ADDITIVE: the columns render only
   // while a waterfall run is APPLIED (applied_run_id non-null) — with no run
@@ -568,24 +567,7 @@ export default function SegmentedPnL() {
                   {view === 'entity' ? 'by entity' : 'by jurisdiction'}
                 </Typography>
                 <Stack direction="row" spacing={1.5} alignItems="center">
-                  {appliedRunId !== null && (
-                    <Tooltip
-                      title="A TP waterfall run is applied — the Base | IC charges | Post-charge columns read FY figures from /api/pl/adjusted. Click to open the sequence console."
-                      arrow>
-
-                      <Chip
-                      size="small"
-                      clickable
-                      label={`Waterfall ${appliedRunId} applied — post-charge view`}
-                      onClick={() => navigate('/calc-studio/waterfall')}
-                      sx={{
-                        bgcolor: '#EFF6FF',
-                        color: '#1D4ED8',
-                        fontWeight: 700
-                      }} />
-
-                    </Tooltip>
-                  )}
+                  <BasisBadge />
                   <Typography
                   variant="caption"
                   sx={{

@@ -11,7 +11,6 @@ import {
   AppBar,
   Toolbar,
   IconButton,
-  Badge,
   Avatar,
   Select,
   MenuItem,
@@ -27,7 +26,6 @@ import { useTheme } from '@mui/material/styles';
 import DashboardIcon from '@mui/icons-material/SpaceDashboard';
 import GridViewIcon from '@mui/icons-material/GridView';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
-import InboxIcon from '@mui/icons-material/Inbox';
 import HomeIcon from '@mui/icons-material/Home';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import PolicyIcon from '@mui/icons-material/Policy';
@@ -37,14 +35,15 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import SettingsIcon from '@mui/icons-material/Settings';
-import NotificationsIcon from '@mui/icons-material/Notifications';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import FunctionsIcon from '@mui/icons-material/Functions';
+import GppMaybeIcon from '@mui/icons-material/GppMaybe';
 import RefreshIcon from '@mui/icons-material/RestartAlt';
 import ResearchBrainFab from '@/features/research-brain/ResearchBrainFab';
 import ResearchBrainPanel from '@/features/research-brain/ResearchBrainPanel';
+import NotificationBell from '@/shared/components/layout/NotificationBell';
 import {
   useLastFetchedAt,
   useRefetch,
@@ -56,16 +55,25 @@ import {
 } from '@/shared/providers/DataProvider';
 import { periodLabel } from '@/shared/utils/period';
 import { useSession } from '@/shared/providers/SessionProvider';
+import type { Role } from '@/shared/providers/SessionProvider';
 import type { PeriodKey } from '@/shared/types/period';
 
 const DRAWER_WIDTH = 248;
-const navItems = [
+interface NavItem {
+  label: string;
+  icon: React.ReactNode;
+  path: string;
+  /** Render only for these session roles; omitted = visible to everyone.
+   *  Routes stay unconditional in App.tsx — deep links and role switching
+   *  keep working; this only trims the nav. */
+  roles?: Role[];
+}
+const navItems: NavItem[] = [
   { label: 'Home', icon: <HomeIcon />, path: '/home' },
   { label: 'Master Data', icon: <AccountTreeIcon />, path: '/master-data' },
   { label: 'Calc Studio', icon: <FunctionsIcon />, path: '/calc-studio' },
-  { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+  { label: 'Monitoring', icon: <DashboardIcon />, path: '/dashboard' },
   { label: 'Processes', icon: <GridViewIcon />, path: '/process' },
-  { label: 'Inbox', icon: <InboxIcon />, path: '/inbox' },
   { label: 'Review queue', icon: <FactCheckIcon />, path: '/review' },
   { label: 'Price Setting', icon: <CalculateIcon />, path: '/price-setting' },
   { label: 'Policy', icon: <PolicyIcon />, path: '/policy' },
@@ -74,6 +82,7 @@ const navItems = [
   { label: 'Invoicing', icon: <ReceiptLongIcon />, path: '/invoicing' },
   { label: 'Research Brain', icon: <PsychologyIcon />, path: '/research-brain' },
   { label: 'Reports', icon: <SummarizeIcon />, path: '/reports' },
+  { label: 'Exposure & Risk', icon: <GppMaybeIcon />, path: '/director', roles: ['director'] },
   { label: 'Settings', icon: <SettingsIcon />, path: '/settings' },
 ];
 
@@ -172,47 +181,49 @@ export default function AppShell({ pageTitle, children, disableContentPadding = 
       <Divider sx={{ borderColor: '#1E293B' }} />
 
       <List sx={{ flex: 1, px: 1.5, py: 2 }}>
-        {navItems.map((item) => {
-          const active = location.pathname.startsWith(item.path);
-          return (
-            <ListItemButton
-              key={item.path}
-              component={Link}
-              to={item.path}
-              onClick={() => isMobile && setMobileOpen(false)}
-              sx={{
-                borderRadius: 1.5,
-                mb: 0.5,
-                py: 1,
-                px: 1.5,
-                color: active ? 'white' : '#94A3B8',
-                bgcolor: active ? 'rgba(37, 99, 235, 0.18)' : 'transparent',
-                '&:hover': {
-                  bgcolor: active
-                    ? 'rgba(37, 99, 235, 0.25)'
-                    : 'rgba(255,255,255,0.04)',
-                  color: 'white',
-                },
-              }}
-            >
-              <ListItemIcon
+        {navItems
+          .filter((item) => !item.roles || item.roles.includes(role))
+          .map((item) => {
+            const active = location.pathname.startsWith(item.path);
+            return (
+              <ListItemButton
+                key={item.path}
+                component={Link}
+                to={item.path}
+                onClick={() => isMobile && setMobileOpen(false)}
                 sx={{
-                  minWidth: 36,
-                  color: active ? '#60A5FA' : '#64748B',
+                  borderRadius: 1.5,
+                  mb: 0.5,
+                  py: 1,
+                  px: 1.5,
+                  color: active ? 'white' : '#94A3B8',
+                  bgcolor: active ? 'rgba(37, 99, 235, 0.18)' : 'transparent',
+                  '&:hover': {
+                    bgcolor: active
+                      ? 'rgba(37, 99, 235, 0.25)'
+                      : 'rgba(255,255,255,0.04)',
+                    color: 'white',
+                  },
                 }}
               >
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText
-                primary={item.label}
-                primaryTypographyProps={{
-                  fontSize: 14,
-                  fontWeight: active ? 600 : 500,
-                }}
-              />
-            </ListItemButton>
-          );
-        })}
+                <ListItemIcon
+                  sx={{
+                    minWidth: 36,
+                    color: active ? '#60A5FA' : '#64748B',
+                  }}
+                >
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.label}
+                  primaryTypographyProps={{
+                    fontSize: 14,
+                    fontWeight: active ? 600 : 500,
+                  }}
+                />
+              </ListItemButton>
+            );
+          })}
       </List>
       <Divider sx={{ borderColor: '#1E293B' }} />
 
@@ -434,13 +445,7 @@ export default function AppShell({ pageTitle, children, disableContentPadding = 
                 </span>
               </Tooltip>
 
-              <Tooltip title="Notifications">
-                <IconButton aria-label="Notifications">
-                  <Badge badgeContent={3} color="error">
-                    <NotificationsIcon />
-                  </Badge>
-                </IconButton>
-              </Tooltip>
+              <NotificationBell />
 
               <Tooltip title={`${user.name} — switch role`} arrow>
                 <IconButton onClick={(e) => setRoleAnchor(e.currentTarget)} sx={{ p: 0.5 }} aria-label="Switch role">

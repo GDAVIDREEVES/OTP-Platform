@@ -24,6 +24,7 @@ import ReplayIcon from '@mui/icons-material/Replay';
 import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
+import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import type { Parameter, PlAdjusted, PlAdjustedRow, WaterfallRun } from '@/shared/api/types';
 import { fmtAmount, isNonZero, sumCents } from '../allocationLib';
 
@@ -84,6 +85,7 @@ function BasisToggle({
   const user = useSessionUser();
   const toast = useToast();
   const navigate = useNavigate();
+  const refreshSignals = useRefreshSignals();
   const [param, setParam] = useState<Parameter | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -110,6 +112,7 @@ function BasisToggle({
       );
       refresh();
       onChanged();
+      void refreshSignals(); // close-status basis chip / home Command Center
     } catch (e) {
       toast.show(`Toggle failed: ${String(e)}`, 'error');
     } finally {
@@ -165,6 +168,7 @@ export default function WaterfallTab() {
   const user = useSessionUser();
   const toast = useToast();
   const navigate = useNavigate();
+  const refreshSignals = useRefreshSignals();
   const [runs, setRuns] = useState<WaterfallRun[] | null>(null);
   const [adjusted, setAdjusted] = useState<PlAdjusted | null>(null);
   const [busy, setBusy] = useState(false);
@@ -190,6 +194,7 @@ export default function WaterfallTab() {
         run.status === 'applied' ? 'success' : 'error',
       );
       refresh();
+      void refreshSignals(); // waterfall close step / home Command Center
     } catch (e) {
       toast.show(`Run failed: ${String(e)}`, 'error');
     } finally {
@@ -203,6 +208,7 @@ export default function WaterfallTab() {
       const res = await api.rollbackWaterfall(runId, { actor });
       toast.show(`${runId} rolled back — ${res.reversed_lines} reversing rows appended`, 'success');
       refresh();
+      void refreshSignals(); // waterfall close step / home Command Center
     } catch (e) {
       toast.show(`Rollback failed: ${String(e)}`, 'error');
     } finally {
