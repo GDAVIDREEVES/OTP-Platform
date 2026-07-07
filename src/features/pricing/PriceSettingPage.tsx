@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import AppShell from '@/shared/components/layout/AppShell';
+import RunsAsProcessBanner from '@/shared/components/RunsAsProcessBanner';
 import {
-  Alert,
   Paper,
   Typography,
   Box,
@@ -24,7 +23,6 @@ import { useEntities, useLastFetchedAt } from '@/shared/providers/DataProvider';
 import { formatCurrency } from '@/shared/utils/format';
 import ProductPricing from '@/features/pricing/ProductPricing';
 export default function PriceSetting() {
-  const navigate = useNavigate();
   const [tab, setTab] = useState(0);
   const entities = useEntities();
   const lastFetchedAt = useLastFetchedAt();
@@ -33,30 +31,13 @@ export default function PriceSetting() {
   const failed = tested.filter((e) => e.status === 'out-of-range').length;
   return (
     <AppShell pageTitle="Price Setting & Arm's Length Testing">
-      <Alert
-        severity="info"
-        variant="outlined"
-        sx={{ mb: 2.5, alignItems: 'center' }}>
+      <RunsAsProcessBanner
+        note="Price setting runs as guided processes — this is a read-only reference view."
+        processes={[
+        { id: 'OTP-1', label: 'OTP-1 · goods' },
+        { id: 'OTP-3', label: 'OTP-3 · royalty' },
+        { id: 'OTP-4', label: 'OTP-4 · services' }]} />
 
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Price setting runs as guided processes — this is a read-only reference view.
-          </Typography>
-          {[
-          { id: 'OTP-1', label: 'OTP-1 · goods' },
-          { id: 'OTP-3', label: 'OTP-3 · royalty' },
-          { id: 'OTP-4', label: 'OTP-4 · services' }].
-          map((p) =>
-          <Chip
-            key={p.id}
-            size="small"
-            label={p.label}
-            onClick={() => navigate(`/process/${p.id}/overview`)}
-            sx={{ cursor: 'pointer', fontWeight: 600 }} />
-
-          )}
-        </Stack>
-      </Alert>
       <Box sx={{ mb: 2 }}>
         <Typography
           variant="h5"

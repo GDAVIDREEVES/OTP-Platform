@@ -22,6 +22,7 @@ import { WorkSignalsProvider } from '@/shared/providers/WorkSignalsProvider';
 import { ReviewHandoffProvider } from '@/kernel/review/ReviewHandoff';
 import CommandPalette from '@/kernel/navigation/CommandPalette';
 import ErrorBoundary from '@/shared/components/ErrorBoundary';
+import { adjustmentRoute } from '@/kernel/workflow/originRoute';
 
 // Each route is a separate JS chunk loaded on first navigation.
 // This keeps the initial bundle small (login + dashboard only) and pays the
@@ -72,10 +73,7 @@ function RouteFallback() {
 function AdjustmentRedirect() {
   const { id } = useParams();
   return (
-    <Navigate
-      to={`/process/OTP-16/overview?entity=${id ?? ''}`}
-      replace
-    />);
+    <Navigate to={adjustmentRoute(id ?? '')} replace />);
 }
 
 export function App() {

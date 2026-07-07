@@ -17,6 +17,16 @@ const overview = (otp: string) => `/process/${otp}/overview`;
 const idAfter = (recordRef: string, prefix: string) =>
   encodeURIComponent(recordRef.slice(prefix.length));
 
+/**
+ * Deep-link to start / resume an in-period adjustment for an entity in the
+ * canonical OTP-16 guided process. Single point for the route + encoding —
+ * used by the retired `/adjustment` redirect and every "Adjust" affordance
+ * (monitoring alerts, entity table/detail, the OTP-20 flag hand-off).
+ */
+export function adjustmentRoute(entityId: string): string {
+  return `${overview('OTP-16')}?entity=${encodeURIComponent(entityId)}`;
+}
+
 export function originRoute(recordRef: string): string | null {
   if (!recordRef) return null;
 

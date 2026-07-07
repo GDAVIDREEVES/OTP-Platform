@@ -13,6 +13,7 @@ import ErrorIcon from '@mui/icons-material/Error';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import WarningIcon from '@mui/icons-material/Warning';
 import { useNavigate } from 'react-router-dom';
+import { adjustmentRoute } from '@/kernel/workflow/originRoute';
 import type { Entity } from '@/shared/types/entity';
 import { useResearchBrain } from '@/features/research-brain/ResearchBrainContext';
 
@@ -169,7 +170,7 @@ export default function AlertsRail({ alerts, entities }: AlertsRailProps) {
                   size="small"
                   variant="contained"
                   color={isHigh ? 'error' : 'warning'}
-                  onClick={() => navigate(`/process/OTP-16/overview?entity=${a.entityId}`)}
+                  onClick={() => navigate(adjustmentRoute(a.entityId))}
                   sx={{ color: 'white' }}
                 >
                   {a.primaryAction}

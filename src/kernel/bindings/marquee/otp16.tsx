@@ -34,6 +34,7 @@ import BasisBadge from '@/shared/components/BasisBadge';
 import { useWorkflowState } from '@/kernel/workflow/useWorkflowState';
 import WorkflowPath from '@/kernel/workflow/WorkflowPath';
 import AgenticHandoffMarker from '@/kernel/workflow/AgenticHandoffMarker';
+import { adjustmentRoute } from '@/kernel/workflow/originRoute';
 
 const STEPS: StepDef[] = [
   { key: 'prepare', label: 'Prepare', actor: 'assistant', description: 'Research Brain pulls postings, applies policy, quantifies the gap' },
@@ -101,7 +102,7 @@ function Picker() {
               · {pct(e.actualMargin ?? 0)} vs {e.targetMarginLabel}
             </Typography>
           </Typography>
-          <Button size="small" variant="outlined" onClick={() => navigate(`/process/OTP-16/overview?entity=${e.id}`)}>
+          <Button size="small" variant="outlined" onClick={() => navigate(adjustmentRoute(e.id))}>
             Start adjustment
           </Button>
         </Stack>
@@ -121,7 +122,8 @@ function Adjustment({ entityId }: { entityId: string }) {
   const entity = useEntity(entityId);
   // Ported from the retired /adjustment page: the supporting ACDOCA postings the
   // adjustment will sit alongside — read-only audit context shown at the gate.
-  const journal = useJournalEntries({ entity: entityId, limit: 25 });
+  // Fetch exactly what we render (8) — the old page over-fetched 25 to show 12.
+  const journal = useJournalEntries({ entity: entityId, limit: 8 });
   const recordRef = `OTP16-${entityId}`;
   const wf = useWorkflowState('OTP-16', recordRef, user.id, STEPS);
   const [preparing, setPreparing] = useState(false);
@@ -301,15 +303,20 @@ function Adjustment({ entityId }: { entityId: string }) {
             Supporting postings
           </Typography>
           <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mb: 1 }}>
-            Recent ACDOCA lines for {entity.id} — the entries this adjustment sits alongside.
+            Recent ACDOCA lines for {entity.id} — the entries this adjustment sits alongside
+            {journal.data && journal.data.length > 0 ? ` (latest ${journal.data.length}).` : '.'}
           </Typography>
           {journal.loading ? (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>Loading postings…</Typography>
+          ) : journal.error ? (
+            <Alert severity="warning" variant="outlined" sx={{ maxWidth: 620 }}>
+              Couldn&rsquo;t load supporting postings — the adjustment can still be submitted.
+            </Alert>
           ) : journal.data && journal.data.length > 0 ? (
             <Box sx={{ overflowX: 'auto', maxWidth: 620 }}>
               <Table size="small">
                 <TableBody>
-                  {journal.data.slice(0, 8).map((j, i) => (
+                  {journal.data.map((j, i) => (
                     <TableRow key={`${j.BELNR}-${j.DOCLN}-${i}`} hover>
                       <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>{j.BUDAT}</TableCell>
                       <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{j.BELNR}/{j.DOCLN}</TableCell>

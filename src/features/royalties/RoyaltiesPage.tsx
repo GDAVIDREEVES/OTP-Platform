@@ -1,8 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '@/shared/components/layout/AppShell';
+import RunsAsProcessBanner from '@/shared/components/RunsAsProcessBanner';
 import {
-  Alert,
   Paper,
   Typography,
   Table,
@@ -28,29 +28,12 @@ export default function Royalties() {
   const flagged = royalties.filter((r) => !r.withinBenchmark).length;
   return (
     <AppShell pageTitle="Royalties & Concept Fees">
-      <Alert
-        severity="info"
-        variant="outlined"
-        sx={{ mb: 2.5, alignItems: 'center' }}>
+      <RunsAsProcessBanner
+        note="Royalty work runs as guided processes — this is a read-only reference view."
+        processes={[
+        { id: 'OTP-3', label: 'OTP-3 · set rates' },
+        { id: 'OTP-9', label: 'OTP-9 · charge batch' }]} />
 
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Royalty work runs as guided processes — this is a read-only reference view.
-          </Typography>
-          <Chip
-            size="small"
-            label="OTP-3 · set rates"
-            onClick={() => navigate('/process/OTP-3/overview')}
-            sx={{ cursor: 'pointer', fontWeight: 600 }} />
-
-          <Chip
-            size="small"
-            label="OTP-9 · charge batch"
-            onClick={() => navigate('/process/OTP-9/overview')}
-            sx={{ cursor: 'pointer', fontWeight: 600 }} />
-
-        </Stack>
-      </Alert>
       <Grid
         container
         spacing={2.5}

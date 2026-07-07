@@ -1,5 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { adjustmentRoute } from '@/kernel/workflow/originRoute';
 import AppShell from '@/shared/components/layout/AppShell';
 import {
   Paper,
@@ -243,7 +244,7 @@ export default function EntityDetail() {
                 color="inherit"
                 size="small"
                 variant="contained"
-                onClick={() => navigate(`/process/OTP-16/overview?entity=${e.id}`)}
+                onClick={() => navigate(adjustmentRoute(e.id))}
                 startIcon={<PlayArrowIcon />}>
                 
                     Run Adjustment
@@ -483,7 +484,7 @@ export default function EntityDetail() {
                 variant="contained"
                 startIcon={<PlayArrowIcon />}
                 fullWidth
-                onClick={() => navigate(`/process/OTP-16/overview?entity=${e.id}`)}
+                onClick={() => navigate(adjustmentRoute(e.id))}
                 disabled={e.status === 'in-range'}>
                 
                 Run adjustment

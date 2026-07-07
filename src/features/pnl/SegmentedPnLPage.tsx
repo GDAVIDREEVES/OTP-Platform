@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import AppShell from '@/shared/components/layout/AppShell';
 import BasisBadge from '@/shared/components/BasisBadge';
+import RunsAsProcessBanner from '@/shared/components/RunsAsProcessBanner';
 import {
-  Alert,
   Paper,
   Typography,
   Box,
@@ -62,7 +61,6 @@ function overlayProvenance(row: PlAdjustedRow, runId: string): string {
 }
 
 export default function SegmentedPnL() {
-  const navigate = useNavigate();
   const [tab, setTab] = useState(0);
   const [shift, setShift] = useState(0);
   const [view, setView] = useState<'entity' | 'jurisdiction'>('entity');
@@ -209,30 +207,13 @@ export default function SegmentedPnL() {
   const blendedETR = 24.3;
   return (
     <AppShell pageTitle="Segmented P&L">
-      <Alert
-        severity="info"
-        variant="outlined"
-        sx={{ mb: 2.5, alignItems: 'center' }}>
+      <RunsAsProcessBanner
+        note="This scenario & post-charge view also runs as guided processes:"
+        processes={[
+        { id: 'OTP-21', label: 'OTP-21 · throughout FY' },
+        { id: 'OTP-22', label: 'OTP-22 · FYE' },
+        { id: 'OTP-23', label: 'OTP-23 · statutory YE' }]} />
 
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            This scenario &amp; post-charge view also runs as guided processes:
-          </Typography>
-          {[
-          { id: 'OTP-21', label: 'OTP-21 · throughout FY' },
-          { id: 'OTP-22', label: 'OTP-22 · FYE' },
-          { id: 'OTP-23', label: 'OTP-23 · statutory YE' }].
-          map((p) =>
-          <Chip
-            key={p.id}
-            size="small"
-            label={p.label}
-            onClick={() => navigate(`/process/${p.id}/overview`)}
-            sx={{ cursor: 'pointer', fontWeight: 600 }} />
-
-          )}
-        </Stack>
-      </Alert>
       <Box
         sx={{
           borderBottom: '1px solid #E2E8F0',
@@ -462,11 +443,8 @@ export default function SegmentedPnL() {
                 variant="outlined"
                 size="small"
                 onClick={() => setShift(0)}>
-                
+
                   Reset
-                </Button>
-                <Button variant="contained" size="small">
-                  Save scenario
                 </Button>
               </Stack>
             </Paper>
