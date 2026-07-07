@@ -23,7 +23,7 @@ import state.drafts as drafts
 import state.master_data as master_data
 import state.parameters as parameters
 import state.review as review
-from routers.close import build_close_status
+from routers.close import _OPEN_STAGING, _plural, build_close_status
 
 STEP_KEYS = {"id", "label", "status", "owner", "route", "counts", "detail"}
 STATUSES = {"complete", "active", "attention", "pending"}
@@ -58,9 +58,36 @@ def test_shape_and_enum(state_db):
         assert s["status"] in STATUSES
         assert s["owner"] == OWNERS[s["id"]]
         assert isinstance(s["counts"], dict)
+        # counts are badge numbers — every value an int, bools encoded 1/0
+        assert all(type(v) is int for v in s["counts"].values()), s["counts"]
         assert isinstance(s["detail"], str) and s["detail"]
         assert s["route"] and s["route"].startswith("/")
     assert 0 <= body["current_index"] < len(steps)
+
+
+def test_plural_pins_irregular_nouns():
+    assert _plural(1, "tested party", "tested parties") == "1 tested party"
+    assert _plural(6, "tested party", "tested parties") == "6 tested parties"
+    assert _plural(2, "draft") == "2 drafts"
+
+
+def test_monitor_and_adjust_details_pluralize_party(state_db):
+    """The demo warehouse has out-of-range parties — the detail sentence must
+    read "parties", never "partys"."""
+    body = build_close_status("u_maria")
+    monitor = _step(body, "monitor")
+    counts = monitor["counts"]
+    if counts["out"]:
+        expected = (f"{counts['out']} tested "
+                    f"{'party' if counts['out'] == 1 else 'parties'} out of range")
+    elif counts["watch"]:
+        expected = (f"{counts['watch']} tested "
+                    f"{'party' if counts['watch'] == 1 else 'parties'} on watch")
+    else:
+        expected = "All tested parties in range"
+    assert monitor["detail"] == expected
+    for step_id in ("monitor", "adjust"):
+        assert "partys" not in _step(body, step_id)["detail"]
 
 
 def test_readonly_invariant(state_db):
@@ -165,8 +192,7 @@ def test_adjustments_step_tracks_monitor_when_no_pending(state_db):
 def test_master_data_open_items(state_db):
     master_data.seed_if_empty()
     open_items = [
-        i for i in master_data.list_staging()
-        if i["status"] in ("unmapped", "proposed", "in_review")
+        i for i in master_data.list_staging() if i["status"] in _OPEN_STAGING
     ]
     assert open_items  # the inbound seed stages unmapped SAP-delta items
     step = _step(build_close_status("u_maria"), "master_data")

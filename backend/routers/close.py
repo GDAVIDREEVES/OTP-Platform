@@ -16,6 +16,9 @@ Step statuses:
 
 ``current_index`` is the index of the first non-complete step; when every
 step is complete the close is done and it points at the final step.
+
+Every value in a step's ``counts`` is an int — the frontend renders them as
+badges, so booleans are encoded 1/0 (the raw bool lives in ``basis``).
 """
 
 from __future__ import annotations
@@ -43,21 +46,23 @@ _OPEN_STAGING = ("unmapped", "proposed", "in_review")
 
 
 def _step(
-    *, id: str, label: str, status: str, owner: str, route: str,
+    *, step_id: str, label: str, status: str, owner: str, route: str,
     counts: dict[str, Any], detail: str,
 ) -> dict[str, Any]:
-    return {"id": id, "label": label, "status": status, "owner": owner,
+    return {"id": step_id, "label": label, "status": status, "owner": owner,
             "route": route, "counts": counts, "detail": detail}
 
 
-def _plural(n: int, noun: str) -> str:
-    return f"{n} {noun}{'' if n == 1 else 's'}"
+def _plural(n: int, noun: str, plural: str | None = None) -> str:
+    """"1 draft" / "2 drafts"; irregular nouns pass their plural explicitly
+    ("6 tested parties", never "6 tested partys")."""
+    return f"{n} {noun if n == 1 else (plural or noun + 's')}"
 
 
 def _master_data_step() -> dict[str, Any]:
     n = sum(1 for i in master_data.list_staging() if i["status"] in _OPEN_STAGING)
     return _step(
-        id="master_data", label="Master data",
+        step_id="master_data", label="Master data",
         status="active" if n else "complete",
         owner="operator", route="/master-data", counts={"open": n},
         detail=(f"{_plural(n, 'inbound item')} awaiting mapping" if n
@@ -65,14 +70,16 @@ def _master_data_step() -> dict[str, Any]:
     )
 
 
-def _price_setting_step(user: str) -> dict[str, Any]:
-    pending = sum(1 for it in review.list_queue("pending")
+def _price_setting_step(
+    user: str, pending_reviews: list[dict[str, Any]]
+) -> dict[str, Any]:
+    pending = sum(1 for it in pending_reviews
                   if it["process_id"] in _PRICE_PROCESSES)
     open_drafts = sum(1 for d in drafts.list_for_user(user)
                       if d["process_id"] in _PRICE_PROCESSES)
     n = pending + open_drafts
     return _step(
-        id="price_setting", label="Price setting",
+        step_id="price_setting", label="Price setting",
         status="active" if n else "complete",
         owner="operator", route="/process/OTP-3/overview",
         counts={"pending_reviews": pending, "drafts": open_drafts},
@@ -94,7 +101,7 @@ def _charges_step(year: int) -> dict[str, Any]:
     else:
         status, detail = "pending", f"No actual allocation run for {year} yet"
     return _step(
-        id="charges", label="Charge & allocate", status=status,
+        step_id="charges", label="Charge & allocate", status=status,
         owner="operator", route="/calc-studio/allocations",
         counts={"succeeded": succeeded, "running": running}, detail=detail,
     )
@@ -113,9 +120,9 @@ def _waterfall_step(applied_run_id: str | None, param_on: bool) -> dict[str, Any
     else:
         status, detail = "pending", "No charges applied yet"
     return _step(
-        id="waterfall", label="Apply charges (waterfall)", status=status,
+        step_id="waterfall", label="Apply charges (waterfall)", status=status,
         owner="operator", route="/calc-studio/waterfall",
-        counts={"applied_runs": 1 if applied else 0, "param_on": param_on},
+        counts={"applied_runs": int(applied), "param_on": int(param_on)},
         detail=detail,
     )
 
@@ -125,13 +132,15 @@ def _monitor_step(year: int) -> dict[str, Any]:
     counts = {"in": k["entitiesInRange"], "watch": k["entitiesWatch"],
               "out": k["entitiesOutOfRange"]}
     if counts["out"]:
-        status, detail = "attention", f"{_plural(counts['out'], 'tested party')} out of range"
+        status = "attention"
+        detail = f"{_plural(counts['out'], 'tested party', 'tested parties')} out of range"
     elif counts["watch"]:
-        status, detail = "active", f"{_plural(counts['watch'], 'tested party')} on watch"
+        status = "active"
+        detail = f"{_plural(counts['watch'], 'tested party', 'tested parties')} on watch"
     else:
         status, detail = "complete", "All tested parties in range"
     return _step(
-        id="monitor", label="Monitor margins", status=status,
+        step_id="monitor", label="Monitor margins", status=status,
         owner="shared", route="/process/OTP-20/overview",
         counts=counts, detail=detail,
     )
@@ -144,22 +153,24 @@ def _adjust_step(out_of_range: int) -> dict[str, Any]:
         status, detail = "active", f"{_plural(pending, 'adjustment')} pending approval"
     elif out_of_range:
         status = "attention"
-        detail = f"{_plural(out_of_range, 'party')} out of range with no adjustment in flight"
+        detail = (f"{_plural(out_of_range, 'party', 'parties')} out of range "
+                  "with no adjustment in flight")
     else:
         status, detail = "complete", "No true-ups outstanding"
     return _step(
-        id="adjust", label="Adjust & true-up", status=status,
+        step_id="adjust", label="Adjust & true-up", status=status,
         owner="operator", route="/process/OTP-16/overview",
         counts={"pending": pending, "out_of_range": out_of_range}, detail=detail,
     )
 
 
-def _review_step(user: str) -> dict[str, Any]:
+def _review_step(
+    user: str, pending_reviews: list[dict[str, Any]]
+) -> dict[str, Any]:
     # Segregation of duties, same split as the worklist: you act on others'
     # submissions; your own only wait on someone else.
-    items = review.list_queue("pending")
-    to_approve = sum(1 for it in items if it["maker"] != user)
-    awaiting = sum(1 for it in items if it["maker"] == user)
+    to_approve = sum(1 for it in pending_reviews if it["maker"] != user)
+    awaiting = sum(1 for it in pending_reviews if it["maker"] == user)
     if to_approve:
         status, detail = "attention", f"{_plural(to_approve, 'item')} waiting on your approval"
     elif awaiting:
@@ -167,7 +178,7 @@ def _review_step(user: str) -> dict[str, Any]:
     else:
         status, detail = "complete", "Review queue clear"
     return _step(
-        id="review", label="Review & sign-off", status=status,
+        step_id="review", label="Review & sign-off", status=status,
         owner="reviewer", route="/review",
         counts={"to_approve": to_approve, "awaiting": awaiting}, detail=detail,
     )
@@ -176,7 +187,7 @@ def _review_step(user: str) -> dict[str, Any]:
 def _document_step() -> dict[str, Any]:
     n = sum(1 for c in cases.list_cases() if c["status"] != "closed")
     return _step(
-        id="document", label="Document & reserve",
+        step_id="document", label="Document & reserve",
         status="active" if n else "complete",
         owner="director", route="/process/OTP-45/overview",
         counts={"open_cases": n},
@@ -188,15 +199,17 @@ def _document_step() -> dict[str, Any]:
 def build_close_status(user: str, year: int = 2026) -> dict[str, Any]:
     applied = post_charge.applied_run_id()
     param_on = bool(parameters.get_param(post_charge.PARAM_KEY, False))
+    # One queue read serves both the price-setting scope and the review step.
+    pending_reviews = review.list_queue("pending")
     monitor = _monitor_step(year)
     steps = [
         _master_data_step(),
-        _price_setting_step(user),
+        _price_setting_step(user, pending_reviews),
         _charges_step(year),
         _waterfall_step(applied, param_on),
         monitor,
         _adjust_step(monitor["counts"]["out"]),
-        _review_step(user),
+        _review_step(user, pending_reviews),
         _document_step(),
     ]
     current_index = next(
