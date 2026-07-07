@@ -91,7 +91,7 @@ function OverlayLinesHistory({ lines }: { lines: PlOverlayLine[] }) {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        <Box sx={{ p: 1.5, maxWidth: 380 }}>
+        <Box sx={{ p: 1.5, maxWidth: 380, maxHeight: '60vh', overflowY: 'auto' }}>
           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, display: 'block', mb: 0.5 }}>
             {lines.length} overlay line{lines.length === 1 ? '' : 's'} — each hash-chained at overlay:&#123;id&#125;
           </Typography>

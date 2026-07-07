@@ -29,6 +29,7 @@ import PovChip from '@/shared/components/PovChip';
 import type { CalcDefResolved, CalcRun, CalcRunResult, ShapedStep } from '@/shared/api/types';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
 import { HistoryButton } from '@/kernel/audit/HistoryDrawer';
+import LifecycleChip from '@/shared/components/LifecycleChip';
 import { provKind, shapeTermSteps, valueText, PROV_META } from '../lib';
 import TraceTree from './TraceTree';
 import RuleCard from './RuleCard';
@@ -177,12 +178,7 @@ export default function CalcDetailDrawer({
                     sx={{ height: 22 }}
                   />
                   <Chip size="small" variant="outlined" label={`v${detail.version}`} sx={{ height: 22 }} />
-                  <Chip
-                    size="small"
-                    color={detail.status === 'active' ? 'success' : 'default'}
-                    label={detail.status}
-                    sx={{ height: 22, fontWeight: 700 }}
-                  />
+                  <LifecycleChip status={detail.status} />
                 </>
               )}
             </Stack>
@@ -346,12 +342,7 @@ export default function CalcDetailDrawer({
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(r.ts).toLocaleString()}</TableCell>
                           <TableCell>{r.actor}</TableCell>
                           <TableCell>
-                            <Chip
-                              size="small"
-                              color={r.status === 'succeeded' ? 'success' : 'error'}
-                              label={r.status}
-                              sx={{ height: 20, fontSize: 11 }}
-                            />
+                            <LifecycleChip status={r.status} />
                           </TableCell>
                           <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                             {r.duration_ms != null ? `${r.duration_ms} ms` : '—'}
