@@ -13,6 +13,7 @@ import { ResearchBrainProvider } from '@/features/research-brain/ResearchBrainCo
 import { DataProvider } from '@/shared/providers/DataProvider';
 import { SessionProvider } from '@/shared/providers/SessionProvider';
 import { WorkSignalsProvider } from '@/shared/providers/WorkSignalsProvider';
+import { ReviewHandoffProvider } from '@/kernel/review/ReviewHandoff';
 import CommandPalette from '@/kernel/navigation/CommandPalette';
 import ErrorBoundary from '@/shared/components/ErrorBoundary';
 
@@ -67,6 +68,7 @@ export function App() {
         <DataProvider>
           <SessionProvider>
           <WorkSignalsProvider>
+          <ReviewHandoffProvider>
           <ResearchBrainProvider>
             <ErrorBoundary>
             <Suspense fallback={<RouteFallback />}>
@@ -103,6 +105,7 @@ export function App() {
             </ErrorBoundary>
             <CommandPalette />
           </ResearchBrainProvider>
+          </ReviewHandoffProvider>
           </WorkSignalsProvider>
           </SessionProvider>
         </DataProvider>
