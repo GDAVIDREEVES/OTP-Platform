@@ -184,46 +184,46 @@ export default function AppShell({ pageTitle, children, disableContentPadding = 
         {navItems
           .filter((item) => !item.roles || item.roles.includes(role))
           .map((item) => {
-          const active = location.pathname.startsWith(item.path);
-          return (
-            <ListItemButton
-              key={item.path}
-              component={Link}
-              to={item.path}
-              onClick={() => isMobile && setMobileOpen(false)}
-              sx={{
-                borderRadius: 1.5,
-                mb: 0.5,
-                py: 1,
-                px: 1.5,
-                color: active ? 'white' : '#94A3B8',
-                bgcolor: active ? 'rgba(37, 99, 235, 0.18)' : 'transparent',
-                '&:hover': {
-                  bgcolor: active
-                    ? 'rgba(37, 99, 235, 0.25)'
-                    : 'rgba(255,255,255,0.04)',
-                  color: 'white',
-                },
-              }}
-            >
-              <ListItemIcon
+            const active = location.pathname.startsWith(item.path);
+            return (
+              <ListItemButton
+                key={item.path}
+                component={Link}
+                to={item.path}
+                onClick={() => isMobile && setMobileOpen(false)}
                 sx={{
-                  minWidth: 36,
-                  color: active ? '#60A5FA' : '#64748B',
+                  borderRadius: 1.5,
+                  mb: 0.5,
+                  py: 1,
+                  px: 1.5,
+                  color: active ? 'white' : '#94A3B8',
+                  bgcolor: active ? 'rgba(37, 99, 235, 0.18)' : 'transparent',
+                  '&:hover': {
+                    bgcolor: active
+                      ? 'rgba(37, 99, 235, 0.25)'
+                      : 'rgba(255,255,255,0.04)',
+                    color: 'white',
+                  },
                 }}
               >
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText
-                primary={item.label}
-                primaryTypographyProps={{
-                  fontSize: 14,
-                  fontWeight: active ? 600 : 500,
-                }}
-              />
-            </ListItemButton>
-          );
-        })}
+                <ListItemIcon
+                  sx={{
+                    minWidth: 36,
+                    color: active ? '#60A5FA' : '#64748B',
+                  }}
+                >
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.label}
+                  primaryTypographyProps={{
+                    fontSize: 14,
+                    fontWeight: active ? 600 : 500,
+                  }}
+                />
+              </ListItemButton>
+            );
+          })}
       </List>
       <Divider sx={{ borderColor: '#1E293B' }} />
 

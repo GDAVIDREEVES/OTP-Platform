@@ -75,7 +75,10 @@ export default function CloseCommandCenter() {
                   <Typography variant="body2" noWrap sx={{ fontWeight: spotlight ? 700 : 500, color: spotlight ? 'text.primary' : 'text.secondary' }}>{step.label}</Typography>
                   {step.id === 'waterfall' && (
                     <Typography variant="caption" noWrap sx={{ color: 'text.secondary' }}>
-                      · {close.basis.mode === 'post_charge' ? 'post-charge' : 'base'}
+                      {/* Same effective-basis predicate as BasisBadge — basis.mode alone
+                          reflects only the parameter and would contradict the header
+                          badge after a rollback with the toggle still on. */}
+                      · {close.basis.param_on && close.basis.applied_run_id !== null ? 'post-charge' : 'base'}
                     </Typography>
                   )}
                 </Stack>
