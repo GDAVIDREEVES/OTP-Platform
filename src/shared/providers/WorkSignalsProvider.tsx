@@ -8,7 +8,8 @@
  * Re-fetches on mount, on persona switch (user.id), on fiscal-year change and
  * whenever DataProvider's bootstrap load lands (lastFetchedAt) — so any code
  * already calling `refetch()` transparently invalidates the work signals too.
- * Failures degrade to empty/null (a backend hiccup never crashes the shell).
+ * Failures are swallowed and the last good values stay on screen (a backend
+ * hiccup never crashes the shell or blanks the stepper).
  */
 
 import React, {
@@ -17,6 +18,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { api } from '@/shared/api/client';
@@ -40,14 +42,23 @@ export function WorkSignalsProvider({ children }: { children: React.ReactNode })
   const lastFetchedAt = useLastFetchedAt();
   const [worklist, setWorklist] = useState<WorklistItem[]>([]);
   const [close, setClose] = useState<CloseStatus | null>(null);
+  // Monotonic fetch sequence: a slow response from an OLDER refresh (rapid
+  // persona/year switches) must never clobber a newer one. The guard lives
+  // inside refresh itself because useRefreshSignals hands it to any caller.
+  const seqRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    const seq = ++seqRef.current;
+    // Each failure resolves to null so one bad endpoint keeps the other's
+    // result — and a transient error KEEPS the last good value on screen
+    // instead of blanking the worklist / reverting the stepper to skeleton.
     const [wl, cs] = await Promise.all([
-      api.worklist(user.id).catch(() => [] as WorklistItem[]),
+      api.worklist(user.id).catch(() => null),
       api.closeStatus(user.id, year).catch(() => null),
     ]);
-    setWorklist(wl);
-    setClose(cs);
+    if (seq !== seqRef.current) return; // superseded by a newer refresh
+    if (wl) setWorklist(wl);
+    if (cs) setClose(cs);
   }, [user.id, year]);
 
   // One fetch effect: mount + persona/year change (via `refresh` identity) +

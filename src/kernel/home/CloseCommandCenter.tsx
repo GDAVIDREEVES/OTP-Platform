@@ -79,6 +79,7 @@ export default function CloseCommandCenter() {
                 )}
               </Stack>
               {i < close.steps.length - 1 && (
+                // mt 15px centers the 2px rail on the dot row: 4px cell padding + 12px half-dot − 1px half-rail (revisit if the 24px dot changes).
                 <Box sx={{ flex: 1, height: 2, bgcolor: complete ? tokens.ok : '#E2E8F0', mx: 1, mt: '15px' }} />
               )}
             </Box>
