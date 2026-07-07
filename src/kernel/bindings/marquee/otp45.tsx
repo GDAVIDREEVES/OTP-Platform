@@ -69,4 +69,4 @@ const Reserves: FC<BindingCtx> = ({ def }) => {
   );
 };
 
-export const otp45: ProcessBinding = { kpis: Kpis, tabs: { overview: Reserves, calculation: Reserves } };
+export const otp45: ProcessBinding = { kpis: Kpis, tabs: { overview: Reserves } };

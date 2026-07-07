@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Alert, Box, Button, Chip, CircularProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography,
 } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SubmitSuccess from '@/kernel/shell/SubmitSuccess';
 import { formatCurrency } from '@/shared/utils/format';
 import type { StepDef } from '@/kernel/registry/types';
 import KpiStrip from '@/kernel/shell/KpiStrip';
@@ -145,13 +145,11 @@ const Wizard: FC<BindingCtx> = () => {
 
   if (g.submitted) {
     return (
-      <Stack spacing={2} sx={{ maxWidth: 760 }}>
-        <Alert icon={<CheckCircleIcon />} severity="success">Guarantee fees submitted for review.</Alert>
-        <Stack direction="row" spacing={1.5}>
-          <Button variant="outlined" onClick={() => navigate(`/evidence/${encodeURIComponent(RECORD_REF)}`)}>Evidence packet</Button>
-          <Button variant="outlined" onClick={() => navigate('/review')}>Open review queue</Button>
-        </Stack>
-      </Stack>
+      <SubmitSuccess
+        message="Guarantee fees submitted for review."
+        recordRef={RECORD_REF}
+        processId="OTP-7"
+      />
     );
   }
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Alert, Box, Button, Chip, CircularProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography,
 } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SubmitSuccess from '@/kernel/shell/SubmitSuccess';
 import { useEntities, useInvoices } from '@/shared/providers/DataProvider';
 import { formatCurrency } from '@/shared/utils/format';
 import type { Entity } from '@/shared/types/entity';
@@ -120,13 +120,11 @@ const Wizard: FC<BindingCtx> = () => {
 
   if (g.submitted) {
     return (
-      <Stack spacing={2} sx={{ maxWidth: 760 }}>
-        <Alert icon={<CheckCircleIcon />} severity="success">Service charge batch ({batch.length} lines, {formatCurrency(total, 'USD', true)}) posted for review.</Alert>
-        <Stack direction="row" spacing={1.5}>
-          <Button variant="outlined" onClick={() => navigate(`/evidence/${encodeURIComponent('OTP10-service-batch')}`)}>Evidence packet</Button>
-          <Button variant="outlined" onClick={() => navigate('/review')}>Open review queue</Button>
-        </Stack>
-      </Stack>
+      <SubmitSuccess
+        message={<>Service charge batch ({batch.length} lines, {formatCurrency(total, 'USD', true)}) posted for review.</>}
+        recordRef="OTP10-service-batch"
+        processId="OTP-10"
+      />
     );
   }
   if (!g.wf.loaded) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;

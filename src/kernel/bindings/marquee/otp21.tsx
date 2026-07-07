@@ -141,4 +141,4 @@ const Grid: FC<BindingCtx> = () => {
   );
 };
 
-export const otp21: ProcessBinding = { kpis: Kpis, tabs: { overview: Grid, calculation: Grid } };
+export const otp21: ProcessBinding = { kpis: Kpis, tabs: { overview: Grid } };

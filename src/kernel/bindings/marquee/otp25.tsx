@@ -1,9 +1,8 @@
 import type { FC } from 'react';
-import { useNavigate } from 'react-router-dom';
+import SubmitSuccess from '@/kernel/shell/SubmitSuccess';
 import {
   Alert, Box, Button, Chip, CircularProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography,
 } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import type { StepDef } from '@/kernel/registry/types';
 import KpiStrip from '@/kernel/shell/KpiStrip';
 import WorkflowPath from '@/kernel/workflow/WorkflowPath';
@@ -86,7 +85,6 @@ const Sets: FC<BindingCtx> = () => {
 };
 
 const Wizard: FC<BindingCtx> = () => {
-  const navigate = useNavigate();
   const user = useSessionUser();
   const { data } = useReference<BM>('benchmarks');
   const sets = data?.sets ?? [];
@@ -97,13 +95,11 @@ const Wizard: FC<BindingCtx> = () => {
 
   if (g.submitted) {
     return (
-      <Stack spacing={2} sx={{ maxWidth: 760 }}>
-        <Alert icon={<CheckCircleIcon />} severity="success">Benchmarking range for <b>{set?.applies_to}</b> accepted and submitted for review.</Alert>
-        <Stack direction="row" spacing={1.5}>
-          <Button variant="outlined" onClick={() => navigate(`/evidence/${encodeURIComponent('OTP25-refresh')}`)}>Evidence packet</Button>
-          <Button variant="outlined" onClick={() => navigate('/review')}>Open review queue</Button>
-        </Stack>
-      </Stack>
+      <SubmitSuccess
+        message={<>Benchmarking range for <b>{set?.applies_to}</b> accepted and submitted for review.</>}
+        recordRef="OTP25-refresh"
+        processId="OTP-25"
+      />
     );
   }
   if (!g.wf.loaded) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;

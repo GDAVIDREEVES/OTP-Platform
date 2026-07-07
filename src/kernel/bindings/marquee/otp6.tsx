@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Alert, Box, Button, Chip, CircularProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography,
 } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SubmitSuccess from '@/kernel/shell/SubmitSuccess';
 import { api } from '@/shared/api/client';
 import { formatCurrency } from '@/shared/utils/format';
 import type { TreasuryModel } from '@/shared/api/types';
@@ -122,13 +122,11 @@ const Wizard: FC<BindingCtx> = () => {
 
   if (g.submitted) {
     return (
-      <Stack spacing={2} sx={{ maxWidth: 760 }}>
-        <Alert icon={<CheckCircleIcon />} severity="success">IC loan / cash-pool rates submitted for review.</Alert>
-        <Stack direction="row" spacing={1.5}>
-          <Button variant="outlined" onClick={() => navigate(`/evidence/${encodeURIComponent('OTP6-ic-rate-setting')}`)}>Evidence packet</Button>
-          <Button variant="outlined" onClick={() => navigate('/review')}>Open review queue</Button>
-        </Stack>
-      </Stack>
+      <SubmitSuccess
+        message="IC loan / cash-pool rates submitted for review."
+        recordRef="OTP6-ic-rate-setting"
+        processId="OTP-6"
+      />
     );
   }
 

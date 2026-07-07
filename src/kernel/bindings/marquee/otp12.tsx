@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { FC } from 'react';
-import { useNavigate } from 'react-router-dom';
+import SubmitSuccess from '@/kernel/shell/SubmitSuccess';
 import {
   Alert, Box, Button, CircularProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography,
 } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { api } from '@/shared/api/client';
 import { formatCurrency } from '@/shared/utils/format';
 import { tokens } from '@/shared/theme';
@@ -103,20 +102,17 @@ const Outputs: FC<BindingCtx> = () => {
 };
 
 const Wizard: FC<BindingCtx> = () => {
-  const navigate = useNavigate();
   const { model, loading } = useProfitSplit();
   const g = useGuidedWorkflow('OTP-12', 'OTP12-psm-true-up', STEPS);
   const prepared = !!g.wf.payload.prepared;
 
   if (g.submitted) {
     return (
-      <Stack spacing={2} sx={{ maxWidth: 760 }}>
-        <Alert icon={<CheckCircleIcon />} severity="success">PSM balancing invoices posted for review.</Alert>
-        <Stack direction="row" spacing={1.5}>
-          <Button variant="outlined" onClick={() => navigate(`/evidence/${encodeURIComponent('OTP12-psm-true-up')}`)}>Evidence packet</Button>
-          <Button variant="outlined" onClick={() => navigate('/review')}>Open review queue</Button>
-        </Stack>
-      </Stack>
+      <SubmitSuccess
+        message="PSM balancing invoices posted for review."
+        recordRef="OTP12-psm-true-up"
+        processId="OTP-12"
+      />
     );
   }
 

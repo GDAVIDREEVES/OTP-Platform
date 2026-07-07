@@ -121,4 +121,4 @@ const LocalFile: FC<BindingCtx> = () => {
   );
 };
 
-export const otp32: ProcessBinding = { kpis: Kpis, tabs: { overview: LocalFile, calculation: LocalFile, docs: LocalFile } };
+export const otp32: ProcessBinding = { kpis: Kpis, tabs: { overview: LocalFile } };

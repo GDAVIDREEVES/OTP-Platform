@@ -1,9 +1,8 @@
 import type { FC } from 'react';
-import { useNavigate } from 'react-router-dom';
+import SubmitSuccess from '@/kernel/shell/SubmitSuccess';
 import {
   Alert, Box, Button, Chip, CircularProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography,
 } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useEntities, useInvoices } from '@/shared/providers/DataProvider';
 import { formatCurrency } from '@/shared/utils/format';
 import type { Entity } from '@/shared/types/entity';
@@ -77,7 +76,6 @@ const Outputs: FC<BindingCtx> = () => (
 );
 
 const Wizard: FC<BindingCtx> = () => {
-  const navigate = useNavigate();
   const batch = useBatch();
   const total = batch.reduce((s, i) => s + i.amount, 0);
   const g = useGuidedWorkflow('OTP-9', 'OTP9-royalty-batch', STEPS);
@@ -85,13 +83,11 @@ const Wizard: FC<BindingCtx> = () => {
 
   if (g.submitted) {
     return (
-      <Stack spacing={2} sx={{ maxWidth: 760 }}>
-        <Alert icon={<CheckCircleIcon />} severity="success">Royalty charge batch ({batch.length} lines, {formatCurrency(total, 'USD', true)}) posted for review.</Alert>
-        <Stack direction="row" spacing={1.5}>
-          <Button variant="outlined" onClick={() => navigate(`/evidence/${encodeURIComponent('OTP9-royalty-batch')}`)}>Evidence packet</Button>
-          <Button variant="outlined" onClick={() => navigate('/review')}>Open review queue</Button>
-        </Stack>
-      </Stack>
+      <SubmitSuccess
+        message={<>Royalty charge batch ({batch.length} lines, {formatCurrency(total, 'USD', true)}) posted for review.</>}
+        recordRef="OTP9-royalty-batch"
+        processId="OTP-9"
+      />
     );
   }
   if (!g.wf.loaded) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;

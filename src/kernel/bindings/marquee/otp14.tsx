@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { FC } from 'react';
-import { useNavigate } from 'react-router-dom';
+import SubmitSuccess from '@/kernel/shell/SubmitSuccess';
 import {
   Alert, Box, Button, CircularProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography,
 } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { api } from '@/shared/api/client';
 import { formatCurrency } from '@/shared/utils/format';
 import { tokens } from '@/shared/theme';
@@ -113,20 +112,17 @@ const Outputs: FC<BindingCtx> = () => {
 };
 
 const Wizard: FC<BindingCtx> = () => {
-  const navigate = useNavigate();
   const { model, loading } = useTreasury();
   const g = useGuidedWorkflow('OTP-14', 'OTP14-pool-settlement', STEPS);
   const prepared = !!g.wf.payload.prepared;
 
   if (g.submitted) {
     return (
-      <Stack spacing={2} sx={{ maxWidth: 760 }}>
-        <Alert icon={<CheckCircleIcon />} severity="success">Cash-pool interest settlement batch posted for review.</Alert>
-        <Stack direction="row" spacing={1.5}>
-          <Button variant="outlined" onClick={() => navigate(`/evidence/${encodeURIComponent('OTP14-pool-settlement')}`)}>Evidence packet</Button>
-          <Button variant="outlined" onClick={() => navigate('/review')}>Open review queue</Button>
-        </Stack>
-      </Stack>
+      <SubmitSuccess
+        message="Cash-pool interest settlement batch posted for review."
+        recordRef="OTP14-pool-settlement"
+        processId="OTP-14"
+      />
     );
   }
 

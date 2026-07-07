@@ -18,12 +18,6 @@ export interface BindingCtx {
   def: ProcessDef;
 }
 
-export interface PrimaryAction {
-  label: string;
-  disabled?: boolean;
-  hint?: string;
-}
-
 /** The standard tab set, in fixed order. 'audit' is shell-owned (every module
  *  gets identical, total audit affordances), so bindings can't supply it. */
 export type TabKey =
@@ -42,6 +36,18 @@ export type BindableTab = Exclude<TabKey, 'audit'>;
 export interface ProcessBinding {
   /** Answer-first KPI strip, as a component so it can read live data via hooks. */
   kpis?: FC<BindingCtx>;
+  /**
+   * Per-tab content. ONE convention governs the layout:
+   *
+   *   **Overview is always the primary working surface** — a guided wizard for
+   *   wizard-archetype processes, a worklist/register for batch-monitor
+   *   processes, or a grid/workpaper for calculation processes.
+   *
+   * The other tabs (inputs / calculation / outputs / docs) appear ONLY when
+   * they carry distinct content; don't re-register Overview's component under
+   * a second key just to fill the tab bar. The shell hides any tab a binding
+   * doesn't wire (audit excepted — it is always shown), so an unwired tab
+   * simply won't render.
+   */
   tabs?: Partial<Record<BindableTab, FC<BindingCtx>>>;
-  primaryAction?: (ctx: BindingCtx) => PrimaryAction;
 }

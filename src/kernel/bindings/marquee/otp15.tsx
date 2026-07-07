@@ -173,4 +173,4 @@ const Register: FC<BindingCtx> = () => {
   );
 };
 
-export const otp15: ProcessBinding = { kpis: Kpis, tabs: { overview: Register, calculation: Register } };
+export const otp15: ProcessBinding = { kpis: Kpis, tabs: { overview: Register } };

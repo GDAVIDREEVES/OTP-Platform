@@ -13,7 +13,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SubmitSuccess from '@/kernel/shell/SubmitSuccess';
 import { useEntities, useEntity, useToast } from '@/shared/providers/DataProvider';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
@@ -138,18 +138,17 @@ function Adjustment({ entityId }: { entityId: string }) {
 
   if (submitted) {
     return (
-      <Stack spacing={2} sx={{ maxWidth: 760 }}>
-        <Alert icon={<CheckCircleIcon />} severity="success">
-          Adjustment <b>{submitted}</b> submitted for review. It now awaits a second set of eyes — a
-          maker can&rsquo;t approve their own work.
-        </Alert>
-        <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', gap: 1 }}>
-          <Button variant="outlined" onClick={() => navigate(`/evidence/${encodeURIComponent('adj:' + submitted)}`)}>Evidence packet</Button>
-          <Button variant="outlined" onClick={() => navigate('/process/OTP-16/audit')}>View audit trail</Button>
-          <Button variant="outlined" onClick={() => navigate('/review')}>Open review queue</Button>
-          <Button onClick={() => navigate('/process/OTP-20/worklist')}>Back to monitoring</Button>
-        </Stack>
-      </Stack>
+      <SubmitSuccess
+        message={
+          <>
+            Adjustment <b>{submitted}</b> submitted for review. It now awaits a second set of eyes — a
+            maker can&rsquo;t approve their own work.
+          </>
+        }
+        recordRef={`adj:${submitted}`}
+        processId="OTP-16"
+        backTo={{ label: 'Back to monitoring', path: '/process/OTP-20/worklist' }}
+      />
     );
   }
 
