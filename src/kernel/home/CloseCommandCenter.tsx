@@ -13,6 +13,7 @@ import { Box, Chip, LinearProgress, Paper, Stack, Typography } from '@mui/materi
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import { useCloseStatus } from '@/shared/providers/WorkSignalsProvider';
 import { useSession } from '@/shared/providers/SessionProvider';
+import BasisBadge from '@/shared/components/BasisBadge';
 import { tokens } from '@/shared/theme';
 import type { CloseStep } from '@/shared/api/types';
 
@@ -43,9 +44,16 @@ export default function CloseCommandCenter() {
 
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
-      <Typography variant="overline" sx={{ color: 'text.secondary' }}>
-        Close cycle · FY{close.year}
-      </Typography>
+      {/* The BasisBadge lives in the header row, not on the waterfall step row —
+          a full-width chip inside the tightly packed 8-step stepper would
+          collapse the connector rails and wrap the stepper. The step keeps its
+          subtle "· base / · post-charge" caption as the step-local anchor. */}
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+        <Typography variant="overline" sx={{ color: 'text.secondary' }}>
+          Close cycle · FY{close.year}
+        </Typography>
+        <BasisBadge size="small" />
+      </Stack>
       <Stack direction="row" alignItems="flex-start" sx={{ mt: 0.5, flexWrap: 'wrap' }}>
         {close.steps.map((step, i) => {
           const complete = step.status === 'complete';

@@ -13,6 +13,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AppShell from '@/shared/components/layout/AppShell';
+import BasisBadge from '@/shared/components/BasisBadge';
 import WorldMap from '@/features/dashboard/WorldMap';
 import { useEntities, useKpis, useMarginTrend } from '@/shared/providers/DataProvider';
 import { formatCurrency } from '@/shared/utils/format';
@@ -45,6 +46,10 @@ export default function Dashboard() {
       <Grid container spacing={2.5}>
         {/* Main column */}
         <Grid item xs={12} lg={8}>
+          {/* P&L basis for every margin/KPI on this page */}
+          <Box sx={{ mb: 1.5 }}>
+            <BasisBadge />
+          </Box>
           {/* KPI Strip */}
           <Grid container spacing={2} sx={{ mb: 2.5 }}>
             <Grid item xs={12} sm={6} md={3}>

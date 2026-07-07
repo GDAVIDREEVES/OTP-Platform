@@ -39,6 +39,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import FunctionsIcon from '@mui/icons-material/Functions';
+import GppMaybeIcon from '@mui/icons-material/GppMaybe';
 import RefreshIcon from '@mui/icons-material/RestartAlt';
 import ResearchBrainFab from '@/features/research-brain/ResearchBrainFab';
 import ResearchBrainPanel from '@/features/research-brain/ResearchBrainPanel';
@@ -54,10 +55,20 @@ import {
 } from '@/shared/providers/DataProvider';
 import { periodLabel } from '@/shared/utils/period';
 import { useSession } from '@/shared/providers/SessionProvider';
+import type { Role } from '@/shared/providers/SessionProvider';
 import type { PeriodKey } from '@/shared/types/period';
 
 const DRAWER_WIDTH = 248;
-const navItems = [
+interface NavItem {
+  label: string;
+  icon: React.ReactNode;
+  path: string;
+  /** Render only for these session roles; omitted = visible to everyone.
+   *  Routes stay unconditional in App.tsx — deep links and role switching
+   *  keep working; this only trims the nav. */
+  roles?: Role[];
+}
+const navItems: NavItem[] = [
   { label: 'Home', icon: <HomeIcon />, path: '/home' },
   { label: 'Master Data', icon: <AccountTreeIcon />, path: '/master-data' },
   { label: 'Calc Studio', icon: <FunctionsIcon />, path: '/calc-studio' },
@@ -71,6 +82,7 @@ const navItems = [
   { label: 'Invoicing', icon: <ReceiptLongIcon />, path: '/invoicing' },
   { label: 'Research Brain', icon: <PsychologyIcon />, path: '/research-brain' },
   { label: 'Reports', icon: <SummarizeIcon />, path: '/reports' },
+  { label: 'Exposure & Risk', icon: <GppMaybeIcon />, path: '/director', roles: ['director'] },
   { label: 'Settings', icon: <SettingsIcon />, path: '/settings' },
 ];
 
@@ -169,7 +181,9 @@ export default function AppShell({ pageTitle, children, disableContentPadding = 
       <Divider sx={{ borderColor: '#1E293B' }} />
 
       <List sx={{ flex: 1, px: 1.5, py: 2 }}>
-        {navItems.map((item) => {
+        {navItems
+          .filter((item) => !item.roles || item.roles.includes(role))
+          .map((item) => {
           const active = location.pathname.startsWith(item.path);
           return (
             <ListItemButton

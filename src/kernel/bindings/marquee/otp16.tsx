@@ -24,6 +24,7 @@ import type { Entity } from '@/shared/types/entity';
 import type { StepDef } from '@/kernel/registry/types';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 import KpiStrip from '@/kernel/shell/KpiStrip';
+import BasisBadge from '@/shared/components/BasisBadge';
 import { useWorkflowState } from '@/kernel/workflow/useWorkflowState';
 import WorkflowPath from '@/kernel/workflow/WorkflowPath';
 import AgenticHandoffMarker from '@/kernel/workflow/AgenticHandoffMarker';
@@ -311,7 +312,15 @@ function Adjustment({ entityId }: { entityId: string }) {
 const Overview: FC<BindingCtx> = () => {
   const [sp] = useSearchParams();
   const entityId = sp.get('entity') || undefined;
-  return entityId ? <Adjustment entityId={entityId} /> : <Picker />;
+  return (
+    <Stack spacing={2}>
+      {/* The margins driving this adjustment decision — say which P&L basis they're on. */}
+      <Box>
+        <BasisBadge />
+      </Box>
+      {entityId ? <Adjustment entityId={entityId} /> : <Picker />}
+    </Stack>
+  );
 };
 
 export const otp16: ProcessBinding = {
