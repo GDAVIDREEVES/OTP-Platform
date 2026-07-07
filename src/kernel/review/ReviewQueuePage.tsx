@@ -23,7 +23,7 @@ import AppShell from '@/shared/components/layout/AppShell';
 import { api } from '@/shared/api/client';
 import { originRoute } from '@/kernel/workflow/originRoute';
 import { useToast } from '@/shared/providers/DataProvider';
-import { useSession } from '@/shared/providers/SessionProvider';
+import { nextReviewerFor, useSession } from '@/shared/providers/SessionProvider';
 import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import type { ReviewItem } from '@/shared/api/types';
 
@@ -35,10 +35,7 @@ export default function ReviewQueuePage() {
 
   // The one-click persona hop for the demo's SoD beat — the first OTHER
   // persona, preferring the reviewer (the same pick as ReviewHandoff).
-  const nextPersona = useMemo(() => {
-    const others = users.filter((u) => u.id !== user.id);
-    return others.find((u) => u.role === 'reviewer') ?? others[0] ?? null;
-  }, [users, user.id]);
+  const nextPersona = useMemo(() => nextReviewerFor(users, user), [users, user]);
   const makerName = useCallback(
     (id: string) => users.find((u) => u.id === id)?.name ?? id,
     [users],
@@ -112,6 +109,12 @@ export default function ReviewQueuePage() {
     }
   };
 
+  // Only offer the persona hop when the current user actually can't act — i.e.
+  // they submitted at least one of the pending items (so switching to the
+  // reviewer unblocks an approval). Otherwise the reviewer would be nudged to
+  // hop back to the operator for no reason.
+  const blockedByOwnItem = items.some((it) => it.maker === user.id);
+
   return (
     <AppShell pageTitle="Review queue">
       <Stack spacing={2}>
@@ -119,11 +122,11 @@ export default function ReviewQueuePage() {
           severity="info"
           variant="outlined"
           action={
-            nextPersona && (
+            nextPersona && blockedByOwnItem ? (
               <Button color="inherit" size="small" onClick={() => setRole(nextPersona.role)}>
                 Act as {nextPersona.name}
               </Button>
-            )
+            ) : undefined
           }
         >
           Acting as <b>{user.name}</b> ({user.title}). A maker can&rsquo;t approve their own work —

@@ -323,15 +323,17 @@ export default function ScenariosTab() {
 
   // ?scenario={id} focus deep-link (the "Fix & resubmit" landing for a
   // rejected scenario:{id} review item): highlight the row and, while it is
-  // still editable (draft), auto-open the edit dialog. Consumed once.
+  // still editable (draft), auto-open the edit dialog. Keyed on the id (the
+  // CockpitPage ?calc= idiom) so it fires once per target — and re-fires if the
+  // deep-link target changes in place — without a bare once-flag.
   const [searchParams] = useSearchParams();
   const focusId = searchParams.get('scenario');
-  const focusConsumedRef = useRef(false);
+  const focusLoadedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!focusId || focusConsumedRef.current || list === null) return;
+    if (!focusId || focusLoadedRef.current === focusId || list === null) return;
     const target = list.find((s) => s.id === focusId);
     if (!target) return;
-    focusConsumedRef.current = true;
+    focusLoadedRef.current = focusId;
     if (target.status === 'draft') setDialog({ mode: 'edit', scenario: target });
   }, [focusId, list]);
 

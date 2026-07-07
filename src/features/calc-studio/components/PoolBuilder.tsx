@@ -29,6 +29,8 @@ import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import SendOutlinedIcon from '@mui/icons-material/Send';
 import { api } from '@/shared/api/client';
 import { useToast } from '@/shared/providers/DataProvider';
+import { useSessionUser } from '@/shared/providers/SessionProvider';
+import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
 import type {
@@ -447,20 +449,29 @@ function DryRunResult({
 
 // -------------------------------------------------------------------- main --
 
-const ACTOR = 'u_demo';
-
 export default function PoolBuilder({
   entities,
   initialPoolId,
+  onInitialPoolConsumed,
 }: {
   entities: AllocationEntityRow[];
   /** Preload this pool into the form on mount (?view=build&pool={id} deep-link
    *  — the "Fix & resubmit" landing for a rejected allocpool:{id} item). */
   initialPoolId?: string;
+  /** Called once the deep-link pool has been loaded, so the owner can clear the
+   *  `pool` URL param and a later remount can't re-clobber in-progress edits. */
+  onInitialPoolConsumed?: () => void;
 }) {
   const toast = useToast();
   const navigate = useNavigate();
+  const user = useSessionUser();
+  const refreshSignals = useRefreshSignals();
   const { notifySubmitted } = useReviewHandoff();
+  // Every authoring mutation acts as the current persona (maker-checker: the
+  // review item's maker must be the signed-in user so SoD engages). This is
+  // PoolBuilder's slice of the GP3 u_demo cleanup, pulled forward because GP1's
+  // SoD affordances depend on it.
+  const ACTOR = user.id;
   const entityName = useMemo(
     () => Object.fromEntries(entities.map((e) => [e.entity_id, e.legal_entity_name])),
     [entities],
@@ -574,16 +585,16 @@ export default function PoolBuilder({
   };
 
   // Deep-link preload: once the pools arrive, load the ?pool= target into the
-  // form and bring it into view (consume the param only once).
+  // form, bring it into view, and ask the owner to clear the param — so a
+  // remount (Build → other tab → Build) can't re-run over the user's edits.
   const formRef = useRef<HTMLDivElement | null>(null);
-  const initialConsumedRef = useRef(false);
   useEffect(() => {
-    if (!initialPoolId || initialConsumedRef.current || pools === null) return;
+    if (!initialPoolId || pools === null) return;
     const target = pools.find((p) => p.id === initialPoolId);
     if (!target) return;
-    initialConsumedRef.current = true;
     loadIntoForm(target);
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    onInitialPoolConsumed?.();
     // loadIntoForm is recreated per render; keying on the data is enough.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPoolId, pools]);
@@ -648,6 +659,7 @@ export default function PoolBuilder({
     try {
       const updated = await api.submitAuthoredPoolActivation(editingId, ACTOR);
       await refreshPools();
+      void refreshSignals(); // bell badge / home Command Center / My work
       notifySubmitted({
         recordRef: `allocpool:${updated.id}`,
         processId: updated.process_id ?? undefined,

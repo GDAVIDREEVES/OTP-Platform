@@ -24,7 +24,7 @@ import {
   DialogTitle,
   Typography,
 } from '@mui/material';
-import { useSession } from '@/shared/providers/SessionProvider';
+import { nextReviewerFor, useSession } from '@/shared/providers/SessionProvider';
 
 export interface ReviewHandoffRequest {
   /** The audit record_ref now sitting in the queue (e.g. "scenario:3"). */
@@ -58,10 +58,7 @@ export function ReviewHandoffProvider({ children }: { children: React.ReactNode 
   const close = useCallback(() => setOpen(false), []);
   const clearPending = useCallback(() => setPending(null), []);
 
-  const nextReviewer = useMemo(() => {
-    const others = users.filter((u) => u.id !== user.id);
-    return others.find((u) => u.role === 'reviewer') ?? others[0] ?? null;
-  }, [users, user.id]);
+  const nextReviewer = useMemo(() => nextReviewerFor(users, user), [users, user]);
 
   const switchAndOpenQueue = useCallback(() => {
     if (nextReviewer) setRole(nextReviewer.role);

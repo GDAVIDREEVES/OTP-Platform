@@ -12,6 +12,7 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
+import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
 import type {
   AuthoredDataset, AuthoredDatasetStatus, AuthoredPool, AuthoredPoolStatus,
@@ -53,6 +54,7 @@ export default function CockpitPage() {
   const user = useSessionUser();
   const toast = useToast();
   const model = useGraphModel();
+  const refreshSignals = useRefreshSignals();
   const { notifySubmitted } = useReviewHandoff();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -215,6 +217,7 @@ export default function CockpitPage() {
     try {
       const next = await api.submitUserCalcActivation(saved.id, { maker: user.id });
       setSaved(next);
+      void refreshSignals(); // bell badge / home Command Center / My work
       notifySubmitted({
         recordRef: `ucalc:${next.id}`,
         processId: next.process_id ?? undefined,
@@ -274,6 +277,7 @@ export default function CockpitPage() {
     try {
       const next = await api.submitAuthoredPoolActivation(savedPool.id, user.id);
       setSavedPool(next);
+      void refreshSignals(); // bell badge / home Command Center / My work
       notifySubmitted({
         recordRef: `allocpool:${next.id}`,
         processId: next.process_id ?? undefined,
@@ -329,6 +333,7 @@ export default function CockpitPage() {
     try {
       const next = await api.submitAuthoredDatasetActivation(savedDataset.id, user.id);
       setSavedDataset(next);
+      void refreshSignals(); // bell badge / home Command Center / My work
       notifySubmitted({
         recordRef: `dataset:${next.id}`,
         processId: next.process_id ?? undefined,

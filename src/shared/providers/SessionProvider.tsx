@@ -62,3 +62,16 @@ export function useSession(): SessionState {
 export function useSessionUser(): SessionUser {
   return useSession().user;
 }
+
+/** The canonical "who approves this?" pick for the maker-checker handoff: the
+ *  first persona who is NOT the current user, preferring role 'reviewer' (Sam),
+ *  so the demo's SoD affordances always name a real second set of eyes. Shared
+ *  by ReviewHandoff (the submit dialog) and ReviewQueuePage (the "Act as …"
+ *  hop) so the two never drift. */
+export function nextReviewerFor(
+  users: SessionUser[],
+  currentUser: SessionUser,
+): SessionUser | null {
+  const others = users.filter((u) => u.id !== currentUser.id);
+  return others.find((u) => u.role === 'reviewer') ?? others[0] ?? null;
+}

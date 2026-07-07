@@ -909,7 +909,17 @@ export default function AllocationsTab() {
       {view === 'exceptions' && exceptionsView}
       {view === 'charges' && chargesView}
       {view === 'docs' && docsView}
-      {view === 'build' && <PoolBuilder entities={entities} initialPoolId={poolParam ?? undefined} />}
+      {view === 'build' && (
+        <PoolBuilder
+          entities={entities}
+          initialPoolId={poolParam ?? undefined}
+          onInitialPoolConsumed={() => {
+            const next = new URLSearchParams(searchParams);
+            next.delete('pool');
+            setSearchParams(next, { replace: true });
+          }}
+        />
+      )}
       <AllocationChargeDrawer chargeId={chargeId} onClose={() => setChargeId(null)} />
     </Stack>
   );
