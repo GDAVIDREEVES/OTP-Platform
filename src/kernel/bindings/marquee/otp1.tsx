@@ -126,7 +126,6 @@ const Review: FC<BindingCtx> = () => {
 };
 
 const Wizard: FC<BindingCtx> = ({ def }) => {
-  const navigate = useNavigate();
   const reset = isReset(def);
   const { rows, loading } = useGoodsPricing();
   const recordRef = reset ? 'OTP2-goods-reset' : 'OTP1-goods-boy';

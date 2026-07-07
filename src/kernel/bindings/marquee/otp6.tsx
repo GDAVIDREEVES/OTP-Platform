@@ -114,7 +114,6 @@ const Rates: FC<BindingCtx> = () => {
 };
 
 const Wizard: FC<BindingCtx> = () => {
-  const navigate = useNavigate();
   const { model, loading } = useTreasury();
   const g = useGuidedWorkflow('OTP-6', 'OTP6-ic-rate-setting', STEPS);
   const benchmarkRefreshed = useBenchmarkRefreshed('OTP6-ic-rate-setting');

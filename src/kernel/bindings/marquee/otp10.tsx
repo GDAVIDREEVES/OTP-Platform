@@ -112,7 +112,6 @@ const Outputs: FC<BindingCtx> = () => {
 };
 
 const Wizard: FC<BindingCtx> = () => {
-  const navigate = useNavigate();
   const batch = useBatch();
   const { total, markup } = totalsOf(batch);
   const g = useGuidedWorkflow('OTP-10', 'OTP10-service-batch', STEPS);
