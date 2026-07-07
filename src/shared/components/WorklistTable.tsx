@@ -23,8 +23,9 @@ type Kind = WorklistItem['kind'];
 
 /** Section ordering + presentation, keyed by item kind. The order here is the
  *  order sections render in: act-now exceptions and approvals first, then your
- *  own in-flight work. Each kind picks an icon + accent color (meaning-coded). */
-const SECTIONS: { kind: Kind; label: string; icon: JSX.Element; color: string }[] = [
+ *  own in-flight work. Each kind picks an icon + accent color (meaning-coded).
+ *  Exported so the shell's NotificationBell reuses the exact same iconography. */
+export const SECTIONS: { kind: Kind; label: string; icon: JSX.Element; color: string }[] = [
   { kind: 'exception', label: 'Exceptions', icon: <WarningAmberIcon fontSize="small" />, color: tokens.risk },
   { kind: 'review', label: 'Review queue', icon: <FactCheckIcon fontSize="small" />, color: tokens.action },
   { kind: 'case', label: 'Open cases', icon: <FolderSpecialIcon fontSize="small" />, color: tokens.watch },

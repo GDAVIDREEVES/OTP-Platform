@@ -11,7 +11,6 @@ import {
   AppBar,
   Toolbar,
   IconButton,
-  Badge,
   Avatar,
   Select,
   MenuItem,
@@ -36,7 +35,6 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import SettingsIcon from '@mui/icons-material/Settings';
-import NotificationsIcon from '@mui/icons-material/Notifications';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -44,6 +42,7 @@ import FunctionsIcon from '@mui/icons-material/Functions';
 import RefreshIcon from '@mui/icons-material/RestartAlt';
 import ResearchBrainFab from '@/features/research-brain/ResearchBrainFab';
 import ResearchBrainPanel from '@/features/research-brain/ResearchBrainPanel';
+import NotificationBell from '@/shared/components/layout/NotificationBell';
 import {
   useLastFetchedAt,
   useRefetch,
@@ -432,13 +431,7 @@ export default function AppShell({ pageTitle, children, disableContentPadding = 
                 </span>
               </Tooltip>
 
-              <Tooltip title="Notifications">
-                <IconButton aria-label="Notifications">
-                  <Badge badgeContent={3} color="error">
-                    <NotificationsIcon />
-                  </Badge>
-                </IconButton>
-              </Tooltip>
+              <NotificationBell />
 
               <Tooltip title={`${user.name} — switch role`} arrow>
                 <IconButton onClick={(e) => setRoleAnchor(e.currentTarget)} sx={{ p: 0.5 }} aria-label="Switch role">
