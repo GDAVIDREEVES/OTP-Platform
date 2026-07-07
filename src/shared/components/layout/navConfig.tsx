@@ -90,6 +90,9 @@ export const NAV_SECTIONS: NavSection[] = [
  *  `/reports` never matches `/review`, and `/director` resolves to Exposure &
  *  Risk rather than Monitoring. Returns null when nothing matches (e.g. login). */
 export function activeNavItem(pathname: string): NavItem | null {
+  // Match on the path only — callers may pass an origin that carries a query
+  // string (e.g. `/director?x=1`), which must still resolve to its item.
+  pathname = pathname.split('?')[0];
   let best: NavItem | null = null;
   let bestLen = -1;
   for (const section of NAV_SECTIONS) {

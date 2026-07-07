@@ -71,7 +71,9 @@ export default function ProcessLibraryPage() {
   const [searchParams] = useSearchParams();
   const { catalog, loading, error } = useProcesses();
   // A `?cat=A…G` deep link (e.g. from a process breadcrumb) pre-selects that
-  // lifecycle category; anything else falls back to "all".
+  // lifecycle category; anything else falls back to "all". Seeded once on mount
+  // — the only entry point is arriving on this route fresh (which remounts), so
+  // there is no need to re-sync `selected` if the query later changes in place.
   const catParam = searchParams.get('cat');
   const [selected, setSelected] = useState<CategoryFilter>(
     catParam && (CATEGORY_ORDER as string[]).includes(catParam) ? (catParam as Category) : 'all',

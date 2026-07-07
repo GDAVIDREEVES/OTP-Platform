@@ -57,7 +57,12 @@ export default function AppBreadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
               fontSize: 14,
               fontWeight: 500,
               color: '#64748B',
+              display: 'inline-block',
+              maxWidth: { xs: 180, md: 460 },
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
+              verticalAlign: 'bottom',
               '&:hover': { color: '#2563EB' },
             }}
           >
