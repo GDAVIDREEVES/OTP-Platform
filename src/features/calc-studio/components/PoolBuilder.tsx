@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -29,6 +29,7 @@ import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import SendOutlinedIcon from '@mui/icons-material/Send';
 import { api } from '@/shared/api/client';
 import { useToast } from '@/shared/providers/DataProvider';
+import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
 import type {
   AllocationDimensionOption,
@@ -448,9 +449,18 @@ function DryRunResult({
 
 const ACTOR = 'u_demo';
 
-export default function PoolBuilder({ entities }: { entities: AllocationEntityRow[] }) {
+export default function PoolBuilder({
+  entities,
+  initialPoolId,
+}: {
+  entities: AllocationEntityRow[];
+  /** Preload this pool into the form on mount (?view=build&pool={id} deep-link
+   *  — the "Fix & resubmit" landing for a rejected allocpool:{id} item). */
+  initialPoolId?: string;
+}) {
   const toast = useToast();
   const navigate = useNavigate();
+  const { notifySubmitted } = useReviewHandoff();
   const entityName = useMemo(
     () => Object.fromEntries(entities.map((e) => [e.entity_id, e.legal_entity_name])),
     [entities],
@@ -563,6 +573,21 @@ export default function PoolBuilder({ entities }: { entities: AllocationEntityRo
     setPreview(null);
   };
 
+  // Deep-link preload: once the pools arrive, load the ?pool= target into the
+  // form and bring it into view (consume the param only once).
+  const formRef = useRef<HTMLDivElement | null>(null);
+  const initialConsumedRef = useRef(false);
+  useEffect(() => {
+    if (!initialPoolId || initialConsumedRef.current || pools === null) return;
+    const target = pools.find((p) => p.id === initialPoolId);
+    if (!target) return;
+    initialConsumedRef.current = true;
+    loadIntoForm(target);
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // loadIntoForm is recreated per render; keying on the data is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPoolId, pools]);
+
   // -------- persistence + lifecycle --------
 
   /** Save the form as a draft (create or edit), returning the persisted pool. */
@@ -623,10 +648,11 @@ export default function PoolBuilder({ entities }: { entities: AllocationEntityRo
     try {
       const updated = await api.submitAuthoredPoolActivation(editingId, ACTOR);
       await refreshPools();
-      toast.show(
-        `${updated.id} queued for review — a different reviewer approves it in the /review queue`,
-        'success',
-      );
+      notifySubmitted({
+        recordRef: `allocpool:${updated.id}`,
+        processId: updated.process_id ?? undefined,
+        label: updated.name,
+      });
     } catch (e) {
       toast.show(`Submit failed: ${String(e)}`, 'error');
     } finally {
@@ -689,7 +715,7 @@ export default function PoolBuilder({ entities }: { entities: AllocationEntityRo
       </Alert>
 
       {/* ---------------- the builder form ---------------- */}
-      <Paper variant="outlined" sx={{ p: 2 }}>
+      <Paper ref={formRef} variant="outlined" sx={{ p: 2 }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 800, flex: 1 }}>
             {editingId ? `Editing ${editingId}` : 'New authored pool'}

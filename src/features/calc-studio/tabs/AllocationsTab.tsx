@@ -189,6 +189,9 @@ export default function AllocationsTab() {
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const view: ViewKey = (VIEWS.find((v) => v.key === searchParams.get('view'))?.key ?? 'console') as ViewKey;
+  // Deep-link into the Build view with a pool preloaded (?view=build&pool=AP-1)
+  // — how a rejected allocpool:{id} review item's "Fix & resubmit" lands here.
+  const poolParam = searchParams.get('pool');
   const setView = (v: ViewKey | null) => {
     if (!v) return;
     const next = new URLSearchParams(searchParams);
@@ -906,7 +909,7 @@ export default function AllocationsTab() {
       {view === 'exceptions' && exceptionsView}
       {view === 'charges' && chargesView}
       {view === 'docs' && docsView}
-      {view === 'build' && <PoolBuilder entities={entities} />}
+      {view === 'build' && <PoolBuilder entities={entities} initialPoolId={poolParam ?? undefined} />}
       <AllocationChargeDrawer chargeId={chargeId} onClose={() => setChargeId(null)} />
     </Stack>
   );

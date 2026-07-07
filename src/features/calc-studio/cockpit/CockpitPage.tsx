@@ -12,6 +12,7 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
+import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
 import type {
   AuthoredDataset, AuthoredDatasetStatus, AuthoredPool, AuthoredPoolStatus,
   Scenario, UserCalc,
@@ -52,6 +53,7 @@ export default function CockpitPage() {
   const user = useSessionUser();
   const toast = useToast();
   const model = useGraphModel();
+  const { notifySubmitted } = useReviewHandoff();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // The user-calc this canvas is bound to (null = unsaved new calc).
@@ -115,6 +117,31 @@ export default function CockpitPage() {
     // model.loadGraph is stable enough; intentionally not in deps to avoid reloads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadCalcId]);
+
+  // Load an existing authored dataset's graph (?dataset=ID) — the dataset
+  // analogue of ?calc=, so a rejected dataset:{id} review item's "Fix &
+  // resubmit" reopens the graph on the canvas (the graph IS the source of
+  // truth; family is derived from its nodes).
+  const loadDatasetId = searchParams.get('dataset');
+  const loadedDatasetRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!loadDatasetId || loadedDatasetRef.current === loadDatasetId) return;
+    loadedDatasetRef.current = loadDatasetId;
+    void (async () => {
+      try {
+        const ds = await api.authoredDataset(loadDatasetId);
+        setSavedDataset(ds);
+        setName(ds.name);
+        setProcessId(ds.process_id ?? DEFAULT_PROCESS);
+        model.loadGraph(ds.graph);
+        toast.show(`Loaded ${ds.id} onto the canvas`, 'info');
+      } catch (e) {
+        toast.show(`Could not load dataset: ${String(e)}`, 'error');
+      }
+    })();
+    // model.loadGraph is stable enough; intentionally not in deps to avoid reloads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadDatasetId]);
 
   const overridesFor = (sid: string): Record<string, unknown> =>
     (scenarios.find((s) => s.id === sid)?.overrides as Record<string, unknown>) ?? {};
@@ -188,7 +215,11 @@ export default function CockpitPage() {
     try {
       const next = await api.submitUserCalcActivation(saved.id, { maker: user.id });
       setSaved(next);
-      toast.show(`${next.id} queued for review — a DIFFERENT reviewer must approve (maker-checker)`, 'info');
+      notifySubmitted({
+        recordRef: `ucalc:${next.id}`,
+        processId: next.process_id ?? undefined,
+        label: next.name,
+      });
     } catch (e) {
       toast.show(`Submit failed: ${String(e)}`, 'error');
     } finally {
@@ -243,7 +274,11 @@ export default function CockpitPage() {
     try {
       const next = await api.submitAuthoredPoolActivation(savedPool.id, user.id);
       setSavedPool(next);
-      toast.show(`${next.id} queued for review — a DIFFERENT reviewer must approve (maker-checker)`, 'info');
+      notifySubmitted({
+        recordRef: `allocpool:${next.id}`,
+        processId: next.process_id ?? undefined,
+        label: next.name,
+      });
     } catch (e) {
       toast.show(`Submit failed: ${String(e)}`, 'error');
     } finally {
@@ -294,7 +329,11 @@ export default function CockpitPage() {
     try {
       const next = await api.submitAuthoredDatasetActivation(savedDataset.id, user.id);
       setSavedDataset(next);
-      toast.show(`${next.id} queued for review — a DIFFERENT reviewer must approve (maker-checker)`, 'info');
+      notifySubmitted({
+        recordRef: `dataset:${next.id}`,
+        processId: next.process_id ?? undefined,
+        label: next.name,
+      });
     } catch (e) {
       toast.show(`Submit failed: ${String(e)}`, 'error');
     } finally {
@@ -339,8 +378,10 @@ export default function CockpitPage() {
     setProcessId(DEFAULT_PROCESS);
     model.clearGraph();
     loadedRef.current = null;
-    if (searchParams.get('calc')) {
+    loadedDatasetRef.current = null;
+    if (searchParams.get('calc') || searchParams.get('dataset')) {
       searchParams.delete('calc');
+      searchParams.delete('dataset');
       setSearchParams(searchParams, { replace: true });
     }
   };
