@@ -11,6 +11,7 @@ import AgenticHandoffMarker from '@/kernel/workflow/AgenticHandoffMarker';
 import { useGuidedWorkflow } from '@/kernel/workflow/useGuidedWorkflow';
 import { useReference } from '@/kernel/data/useReference';
 import { api } from '@/shared/api/client';
+import { useSessionUser } from '@/shared/providers/SessionProvider';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 
 /** Downstream prices that consume a benchmarking set: refreshing the set hands
@@ -86,6 +87,7 @@ const Sets: FC<BindingCtx> = () => {
 
 const Wizard: FC<BindingCtx> = () => {
   const navigate = useNavigate();
+  const user = useSessionUser();
   const { data } = useReference<BM>('benchmarks');
   const sets = data?.sets ?? [];
   const g = useGuidedWorkflow('OTP-25', 'OTP25-refresh', STEPS);
@@ -120,7 +122,7 @@ const Wizard: FC<BindingCtx> = () => {
           record_ref: downstream.record_ref,
           from_process: 'OTP-25',
           to_process: downstream.to_process,
-          actor: 'u_demo',
+          actor: user.id,
           summary: downstream.summary,
         })
         .catch(() => undefined);

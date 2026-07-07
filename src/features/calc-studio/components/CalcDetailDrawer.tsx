@@ -23,13 +23,12 @@ import CloseIcon from '@mui/icons-material/Close';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { api } from '@/shared/api/client';
+import { useSessionUser } from '@/shared/providers/SessionProvider';
 import type { CalcDefResolved, CalcRun, CalcRunResult, ShapedStep } from '@/shared/api/types';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
 import { provKind, shapeTermSteps, valueText, PROV_META } from '../lib';
 import TraceTree from './TraceTree';
 import RuleCard from './RuleCard';
-
-const ACTOR = 'u_demo';
 
 /** One label/value cell in the metadata grid. */
 function Meta({ label, value }: { label: string; value: string }) {
@@ -67,6 +66,8 @@ export default function CalcDetailDrawer({
   onChanged: () => void;
 }) {
   const navigate = useNavigate();
+  // Runs audit as the signed-in persona (GP3 — real actor, not a ghost).
+  const ACTOR = useSessionUser().id;
   const [detail, setDetail] = useState<CalcDefResolved | null>(null);
   const [runs, setRuns] = useState<CalcRun[] | null>(null);
   const [running, setRunning] = useState(false);

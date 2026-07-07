@@ -41,7 +41,6 @@ import { fmtAmount, isNonZero, sumCents } from '../allocationLib';
  *  to the post-charge basis server-side. Overlay amounts are exact decimal
  *  strings rendered lexically (../allocationLib.ts) — no float math. */
 
-const ACTOR_FALLBACK = 'u_demo';
 const YEAR = 2026;
 const PARAM_KEY = 'pl.use_post_charge';
 
@@ -101,7 +100,7 @@ function BasisToggle({
     try {
       await api.patchParameter(PARAM_KEY, {
         value: next,
-        actor: user?.id ?? ACTOR_FALLBACK,
+        actor: user.id,
         rationale: next
           ? 'Switch the OTP-20/16/1 margin reads to the post-charge P&L basis'
           : 'Return the OTP-20/16/1 margin reads to the base P&L basis',
@@ -179,7 +178,7 @@ export default function WaterfallTab() {
   }, []);
   useEffect(() => { refresh(); }, [refresh]);
 
-  const actor = user?.id ?? ACTOR_FALLBACK;
+  const actor = user.id;
   const appliedRunId = adjusted?.applied_run_id ?? null;
   const latest = runs?.[0] ?? null;
 

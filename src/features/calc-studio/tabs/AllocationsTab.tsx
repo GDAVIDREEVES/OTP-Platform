@@ -25,6 +25,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DownloadIcon from '@mui/icons-material/Download';
 import { api } from '@/shared/api/client';
 import { useToast } from '@/shared/providers/DataProvider';
+import { useSessionUser } from '@/shared/providers/SessionProvider';
 import type {
   AllocationArtifact,
   AllocationCharge,
@@ -52,8 +53,6 @@ import { fmtAmount, fmtPct, isNonZero, sumCents } from '../allocationLib';
  *  to their constituent cost lines, and download the run's doc pack. Every
  *  figure is read from the engine's API — amounts are exact decimal strings
  *  rendered without float math (see ../allocationLib.ts). */
-
-const ACTOR = 'u_demo';
 
 const VIEWS = [
   { key: 'console', label: 'Run console' },
@@ -187,6 +186,8 @@ function RunPicker({
 export default function AllocationsTab() {
   const navigate = useNavigate();
   const toast = useToast();
+  // Runs are audited as the signed-in persona (GP3 — real actor, not a ghost).
+  const ACTOR = useSessionUser().id;
   const [searchParams, setSearchParams] = useSearchParams();
   const view: ViewKey = (VIEWS.find((v) => v.key === searchParams.get('view'))?.key ?? 'console') as ViewKey;
   // Deep-link into the Build view with a pool preloaded (?view=build&pool=AP-1)
