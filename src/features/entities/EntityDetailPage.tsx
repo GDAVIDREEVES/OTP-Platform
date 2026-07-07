@@ -14,8 +14,6 @@ import {
   TableBody,
   TableRow,
   TableCell,
-  Breadcrumbs,
-  Link as MuiLink,
   Divider,
   Alert } from
 '@mui/material';
@@ -102,34 +100,10 @@ export default function EntityDetail() {
   }];
 
   return (
-    <AppShell pageTitle={`${e.id} — ${e.name}`}>
-      <Breadcrumbs
-        sx={{
-          mb: 2,
-          fontSize: 13
-        }}>
-        
-        <MuiLink
-          underline="hover"
-          color="inherit"
-          onClick={() => navigate('/dashboard')}
-          sx={{
-            cursor: 'pointer'
-          }}>
-          
-          Dashboard
-        </MuiLink>
-        <Typography
-          variant="body2"
-          sx={{
-            color: '#0F172A',
-            fontWeight: 600
-          }}>
-          
-          {e.id}
-        </Typography>
-      </Breadcrumbs>
-
+    <AppShell
+      pageTitle={`${e.id} — ${e.name}`}
+      breadcrumbs={[{ label: 'Monitoring', to: '/dashboard' }, { label: e.name }]}
+    >
       <Grid container spacing={2.5}>
         <Grid item xs={12} md={8}>
           <Paper

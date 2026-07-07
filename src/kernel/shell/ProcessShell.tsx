@@ -15,7 +15,8 @@ import {
 } from '@mui/material';
 import HistoryIcon from '@mui/icons-material/History';
 import AppShell from '@/shared/components/layout/AppShell';
-import { useProcess } from '../registry/useProcesses';
+import { useProcess, useProcesses } from '../registry/useProcesses';
+import { FALLBACK_CATALOG } from '../registry/fallback';
 import { getBinding } from '../bindings';
 import type { BindableTab, BindingCtx, TabKey } from '../bindings/types';
 import ProcessHeader from './ProcessHeader';
@@ -39,6 +40,7 @@ export default function ProcessShell() {
   const { otpId, tab } = useParams();
   const navigate = useNavigate();
   const { def, loading } = useProcess(otpId);
+  const { catalog } = useProcesses();
   const [railOpen, setRailOpen] = useState(false);
 
   if (loading) {
@@ -69,6 +71,14 @@ export default function ProcessShell() {
   }
 
   const activeTab: TabKey = (tab && TAB_KEYS.includes(tab as TabKey) ? tab : 'overview') as TabKey;
+  const catLabel =
+    catalog?.categories?.[def.category] ?? FALLBACK_CATALOG.categories[def.category] ?? def.category;
+  const crumbs = [
+    { label: 'Processes', to: '/process' },
+    { label: catLabel, to: `/process?cat=${def.category}` },
+    { label: `${def.id} · ${def.name}`, to: `/process/${def.id}/overview` },
+    { label: labelFor(activeTab) },
+  ];
   const binding = getBinding(def);
   const ctx: BindingCtx = { def };
   const KpisComp = binding.kpis;
@@ -83,7 +93,7 @@ export default function ProcessShell() {
   }
 
   return (
-    <AppShell pageTitle={`${def.id} · ${def.name}`}>
+    <AppShell pageTitle={`${def.id} · ${def.name}`} breadcrumbs={crumbs}>
       <Stack spacing={2.5}>
         <ProcessHeader def={def} />
         {KpisComp && <KpisComp def={def} />}

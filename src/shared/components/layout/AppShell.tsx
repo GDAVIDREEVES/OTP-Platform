@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
   Drawer,
-  List,
   ListItemButton,
   ListItemIcon,
   ListItemText,
@@ -23,27 +22,15 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import DashboardIcon from '@mui/icons-material/SpaceDashboard';
-import GridViewIcon from '@mui/icons-material/GridView';
-import FactCheckIcon from '@mui/icons-material/FactCheck';
-import HomeIcon from '@mui/icons-material/Home';
-import CalculateIcon from '@mui/icons-material/Calculate';
-import PolicyIcon from '@mui/icons-material/Policy';
-import PieChartIcon from '@mui/icons-material/PieChart';
-import PaidIcon from '@mui/icons-material/Paid';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
-import PsychologyIcon from '@mui/icons-material/Psychology';
-import SummarizeIcon from '@mui/icons-material/Summarize';
 import SettingsIcon from '@mui/icons-material/Settings';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
-import FunctionsIcon from '@mui/icons-material/Functions';
-import GppMaybeIcon from '@mui/icons-material/GppMaybe';
 import RefreshIcon from '@mui/icons-material/RestartAlt';
 import ResearchBrainFab from '@/features/research-brain/ResearchBrainFab';
 import ResearchBrainPanel from '@/features/research-brain/ResearchBrainPanel';
 import NotificationBell from '@/shared/components/layout/NotificationBell';
+import { NAV_SECTIONS, activeNavItem } from '@/shared/components/layout/navConfig';
+import AppBreadcrumbs, { type Crumb } from '@/shared/components/layout/AppBreadcrumbs';
 import {
   useLastFetchedAt,
   useRefetch,
@@ -55,36 +42,9 @@ import {
 } from '@/shared/providers/DataProvider';
 import { periodLabel } from '@/shared/utils/period';
 import { useSession } from '@/shared/providers/SessionProvider';
-import type { Role } from '@/shared/providers/SessionProvider';
 import type { PeriodKey } from '@/shared/types/period';
 
 const DRAWER_WIDTH = 248;
-interface NavItem {
-  label: string;
-  icon: React.ReactNode;
-  path: string;
-  /** Render only for these session roles; omitted = visible to everyone.
-   *  Routes stay unconditional in App.tsx — deep links and role switching
-   *  keep working; this only trims the nav. */
-  roles?: Role[];
-}
-const navItems: NavItem[] = [
-  { label: 'Home', icon: <HomeIcon />, path: '/home' },
-  { label: 'Master Data', icon: <AccountTreeIcon />, path: '/master-data' },
-  { label: 'Calc Studio', icon: <FunctionsIcon />, path: '/calc-studio' },
-  { label: 'Monitoring', icon: <DashboardIcon />, path: '/dashboard' },
-  { label: 'Processes', icon: <GridViewIcon />, path: '/process' },
-  { label: 'Review queue', icon: <FactCheckIcon />, path: '/review' },
-  { label: 'Price Setting', icon: <CalculateIcon />, path: '/price-setting' },
-  { label: 'Policy', icon: <PolicyIcon />, path: '/policy' },
-  { label: 'Segmented P&L', icon: <PieChartIcon />, path: '/segmented-pnl' },
-  { label: 'Royalties', icon: <PaidIcon />, path: '/royalties' },
-  { label: 'Invoicing', icon: <ReceiptLongIcon />, path: '/invoicing' },
-  { label: 'Research Brain', icon: <PsychologyIcon />, path: '/research-brain' },
-  { label: 'Reports', icon: <SummarizeIcon />, path: '/reports' },
-  { label: 'Exposure & Risk', icon: <GppMaybeIcon />, path: '/director', roles: ['director'] },
-  { label: 'Settings', icon: <SettingsIcon />, path: '/settings' },
-];
 
 interface Props {
   pageTitle: string;
@@ -92,6 +52,9 @@ interface Props {
   /** Drop the main content padding (full-bleed) — the Calc Studio cockpit lays
    *  out its own 3-pane shell edge-to-edge. */
   disableContentPadding?: boolean;
+  /** When supplied, the Toolbar shows this trail instead of the bare page title;
+   *  the last crumb keeps the title's weight. `pageTitle` stays the fallback. */
+  breadcrumbs?: Crumb[];
 }
 
 /** Render "Data as of …" using a relative phrase that auto-rolls. */
@@ -107,7 +70,7 @@ function formatAsOf(d: Date): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export default function AppShell({ pageTitle, children, disableContentPadding = false }: Props) {
+export default function AppShell({ pageTitle, children, disableContentPadding = false, breadcrumbs }: Props) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
@@ -128,6 +91,7 @@ export default function AppShell({ pageTitle, children, disableContentPadding = 
     const t = window.setInterval(() => forceTick((n) => n + 1), 30_000);
     return () => window.clearInterval(t);
   }, []);
+  const current = activeNavItem(location.pathname);
   const drawer = (
     <Box
       sx={{
@@ -180,51 +144,74 @@ export default function AppShell({ pageTitle, children, disableContentPadding = 
       </Box>
       <Divider sx={{ borderColor: '#1E293B' }} />
 
-      <List sx={{ flex: 1, px: 1.5, py: 2 }}>
-        {navItems
-          .filter((item) => !item.roles || item.roles.includes(role))
-          .map((item) => {
-            const active = location.pathname.startsWith(item.path);
-            return (
-              <ListItemButton
-                key={item.path}
-                component={Link}
-                to={item.path}
-                onClick={() => isMobile && setMobileOpen(false)}
+      <Box sx={{ flex: 1, overflowY: 'auto', px: 1.5, py: 1.5 }}>
+        {NAV_SECTIONS.map((section) => {
+          const items = section.items.filter(
+            (item) => !item.roles || item.roles.includes(role),
+          );
+          if (items.length === 0) return null;
+          return (
+            <Box key={section.header} sx={{ mb: 1 }}>
+              <Typography
+                variant="overline"
                 sx={{
-                  borderRadius: 1.5,
-                  mb: 0.5,
-                  py: 1,
+                  display: 'block',
                   px: 1.5,
-                  color: active ? 'white' : '#94A3B8',
-                  bgcolor: active ? 'rgba(37, 99, 235, 0.18)' : 'transparent',
-                  '&:hover': {
-                    bgcolor: active
-                      ? 'rgba(37, 99, 235, 0.25)'
-                      : 'rgba(255,255,255,0.04)',
-                    color: 'white',
-                  },
+                  mt: 1.25,
+                  mb: 0.25,
+                  color: '#64748B',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
                 }}
               >
-                <ListItemIcon
-                  sx={{
-                    minWidth: 36,
-                    color: active ? '#60A5FA' : '#64748B',
-                  }}
-                >
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  primaryTypographyProps={{
-                    fontSize: 14,
-                    fontWeight: active ? 600 : 500,
-                  }}
-                />
-              </ListItemButton>
-            );
-          })}
-      </List>
+                {section.header}
+              </Typography>
+              {items.map((item) => {
+                const active = current?.path === item.path;
+                return (
+                  <ListItemButton
+                    key={item.path}
+                    component={Link}
+                    to={item.path}
+                    onClick={() => isMobile && setMobileOpen(false)}
+                    sx={{
+                      borderRadius: 1.5,
+                      mb: 0.5,
+                      py: 1,
+                      px: 1.5,
+                      color: active ? 'white' : '#94A3B8',
+                      bgcolor: active ? 'rgba(37, 99, 235, 0.18)' : 'transparent',
+                      '&:hover': {
+                        bgcolor: active
+                          ? 'rgba(37, 99, 235, 0.25)'
+                          : 'rgba(255,255,255,0.04)',
+                        color: 'white',
+                      },
+                    }}
+                  >
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 36,
+                        color: active ? '#60A5FA' : '#64748B',
+                      }}
+                    >
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={item.label}
+                      primaryTypographyProps={{
+                        fontSize: 14,
+                        fontWeight: active ? 600 : 500,
+                      }}
+                    />
+                  </ListItemButton>
+                );
+              })}
+            </Box>
+          );
+        })}
+      </Box>
       <Divider sx={{ borderColor: '#1E293B' }} />
 
       <Box
@@ -276,6 +263,7 @@ export default function AppShell({ pageTitle, children, disableContentPadding = 
         sx={{
           width: { md: DRAWER_WIDTH },
           flexShrink: { md: 0 },
+          '@media print': { display: 'none' },
         }}
       >
         <Drawer
@@ -322,6 +310,7 @@ export default function AppShell({ pageTitle, children, disableContentPadding = 
             bgcolor: 'white',
             color: '#0F172A',
             borderBottom: '1px solid #E2E8F0',
+            '@media print': { display: 'none' },
           }}
         >
           <Toolbar
@@ -338,16 +327,20 @@ export default function AppShell({ pageTitle, children, disableContentPadding = 
             >
               <MenuIcon />
             </IconButton>
-            <Typography
-              variant="h6"
-              sx={{
-                fontWeight: 700,
-                flex: 1,
-                fontSize: { xs: 16, md: 18 },
-              }}
-            >
-              {pageTitle}
-            </Typography>
+            {breadcrumbs && breadcrumbs.length > 0 ? (
+              <AppBreadcrumbs crumbs={breadcrumbs} />
+            ) : (
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 700,
+                  flex: 1,
+                  fontSize: { xs: 16, md: 18 },
+                }}
+              >
+                {pageTitle}
+              </Typography>
+            )}
 
             <Stack direction="row" spacing={1.5} alignItems="center">
               {availableYears.length > 1 && (
@@ -479,6 +472,7 @@ export default function AppShell({ pageTitle, children, disableContentPadding = 
             flex: 1,
             p: disableContentPadding ? 0 : { xs: 2, md: 3 },
             minWidth: 0,
+            '@media print': { p: 0 },
           }}
         >
           {children}

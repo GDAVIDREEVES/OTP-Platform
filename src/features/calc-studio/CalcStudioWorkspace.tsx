@@ -40,10 +40,15 @@ export default function CalcStudioWorkspace() {
   const navigate = useNavigate();
   // The cockpit is the default Calc Studio view.
   const active = TABS.find((t) => t.key === tab)?.key ?? 'cockpit';
+  const activeLabel = TABS.find((t) => t.key === active)?.label ?? '';
   const isCockpit = active === 'cockpit';
 
   return (
-    <AppShell pageTitle="Calc Studio" disableContentPadding={isCockpit}>
+    <AppShell
+      pageTitle="Calc Studio"
+      disableContentPadding={isCockpit}
+      breadcrumbs={[{ label: 'Calc Studio', to: '/calc-studio' }, { label: activeLabel }]}
+    >
       {!isCockpit && (
         <Box sx={{ mb: 2 }}>
           <Stack direction="row" alignItems="flex-start" spacing={1}>

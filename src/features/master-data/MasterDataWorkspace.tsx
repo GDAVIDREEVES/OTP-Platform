@@ -21,6 +21,7 @@ export default function MasterDataWorkspace() {
   const { tab } = useParams();
   const navigate = useNavigate();
   const active = TABS.find((t) => t.key === tab)?.key ?? 'matrix';
+  const activeLabel = TABS.find((t) => t.key === active)?.label ?? '';
   const [unmapped, setUnmapped] = useState(0);
 
   const refreshCount = () =>
@@ -31,7 +32,10 @@ export default function MasterDataWorkspace() {
   useEffect(() => { refreshCount(); }, [active]);
 
   return (
-    <AppShell pageTitle="Master Data">
+    <AppShell
+      pageTitle="Master Data"
+      breadcrumbs={[{ label: 'Master Data', to: '/master-data' }, { label: activeLabel }]}
+    >
       <Box sx={{ mb: 2 }}>
         <Typography variant="overline" sx={{ color: 'text.secondary' }}>Front of the close cycle</Typography>
         <Typography variant="h5" sx={{ fontWeight: 700 }}>Master Data</Typography>
