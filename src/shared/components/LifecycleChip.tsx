@@ -9,7 +9,8 @@
  *  - info             = machine-produced / in-flight, not yet human-gated
  *                       (proposed, tested, running, in_progress)
  *  - warning          = a human must act (in_review, pending, open, submitted)
- *  - success          = live governed effect (active, applied, promoted, approved)
+ *  - success          = live governed effect (active, applied, promoted,
+ *                       approved, succeeded)
  *  - error            = the gate said no (rejected → "Returned", failed)
  *  - default outlined = terminal and inert — pushed into the background
  *                       (discarded, superseded, rolled_back, closed)
@@ -24,8 +25,10 @@
  *    in-flight, awaiting its human gate.
  *  - in_review/pending=warning: unanimous — ScenariosTab and PoolBuilder both
  *    color in_review 'warning'; review-queue pending is the same gate.
- *  - active/applied/promoted/approved=success: unanimous — PoolBuilder active,
- *    WaterfallTab applied, ScenariosTab promoted, InboundMapping applied.
+ *  - active/applied/promoted/approved/succeeded=success: unanimous —
+ *    PoolBuilder active, WaterfallTab applied, ScenariosTab promoted,
+ *    InboundMapping applied, AllocationsTab StatusChip succeeded (the
+ *    allocation/calc run vocabulary).
  *  - rejected/failed=error: WaterfallTab + AllocationsTab failed='error';
  *    InboundMapping rejected=#DC2626. Label "Returned" because the review
  *    queue guides work back to the maker — nothing is deleted.
@@ -74,6 +77,7 @@ export const STATUS_META: Record<string, StatusMeta> = {
   applied: { label: 'Applied', color: 'success' },
   promoted: { label: 'Promoted', color: 'success' },
   approved: { label: 'Approved', color: 'success' },
+  succeeded: { label: 'Succeeded', color: 'success' },
   // the gate said no
   rejected: { label: 'Returned', color: 'error' },
   failed: { label: 'Failed', color: 'error' },

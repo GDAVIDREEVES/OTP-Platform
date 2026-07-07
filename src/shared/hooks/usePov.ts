@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { usePeriod } from '@/shared/providers/DataProvider';
 import { periodLabel } from '@/shared/utils/period';
 import type { PeriodKey } from '@/shared/types/period';
@@ -17,9 +18,12 @@ export interface Pov {
  *  <PovChip pinnedYear={...}>. */
 export function usePov(): Pov {
   const period = usePeriod();
-  return {
-    year: period.year,
-    key: period.key,
-    label: `FY${period.year} · ${periodLabel(period.key)}`,
-  };
+  return useMemo(
+    () => ({
+      year: period.year,
+      key: period.key,
+      label: `FY${period.year} · ${periodLabel(period.key)}`,
+    }),
+    [period.year, period.key],
+  );
 }

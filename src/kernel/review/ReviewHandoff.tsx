@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -28,7 +29,8 @@ import { useSession } from '@/shared/providers/SessionProvider';
 export interface ReviewHandoffRequest {
   /** The audit record_ref now sitting in the queue (e.g. "scenario:3"). */
   recordRef: string;
-  /** Owning process, when the caller knows it (e.g. "OTP-3"). */
+  /** Owning process, when the caller knows it (e.g. "OTP-3") — shown as a
+   *  small chip in the dialog. */
   processId?: string;
   /** Human name for the dialog; falls back to recordRef. */
   label?: string;
@@ -45,9 +47,16 @@ export function ReviewHandoffProvider({ children }: { children: React.ReactNode 
   const { user, users, setRole } = useSession();
   const navigate = useNavigate();
   const [pending, setPending] = useState<ReviewHandoffRequest | null>(null);
+  const [open, setOpen] = useState(false);
 
-  const notifySubmitted = useCallback((req: ReviewHandoffRequest) => setPending(req), []);
-  const close = useCallback(() => setPending(null), []);
+  const notifySubmitted = useCallback((req: ReviewHandoffRequest) => {
+    setPending(req);
+    setOpen(true);
+  }, []);
+  // Close only hides the dialog; the request stays mounted until the fade-out
+  // finishes (TransitionProps.onExited) so the content never blanks mid-fade.
+  const close = useCallback(() => setOpen(false), []);
+  const clearPending = useCallback(() => setPending(null), []);
 
   const nextReviewer = useMemo(() => {
     const others = users.filter((u) => u.id !== user.id);
@@ -65,9 +74,23 @@ export function ReviewHandoffProvider({ children }: { children: React.ReactNode 
   return (
     <Ctx.Provider value={value}>
       {children}
-      <Dialog open={pending !== null} onClose={close} maxWidth="sm" fullWidth>
+      <Dialog
+        open={open}
+        onClose={close}
+        maxWidth="sm"
+        fullWidth
+        TransitionProps={{ onExited: clearPending }}
+      >
         <DialogTitle>Awaiting approval</DialogTitle>
         <DialogContent>
+          {pending?.processId && (
+            <Chip
+              size="small"
+              variant="outlined"
+              label={pending.processId}
+              sx={{ mb: 1, height: 20, fontSize: 11, fontWeight: 700 }}
+            />
+          )}
           <Typography variant="body2">
             <Box component="span" sx={{ fontWeight: 700 }}>
               {pending?.label ?? pending?.recordRef}

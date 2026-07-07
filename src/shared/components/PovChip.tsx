@@ -1,11 +1,11 @@
 /**
  * PovChip — the point-of-view badge for any data-bearing surface.
  *
- * Normally a quiet outlined "FY {year}" echo of the global period selector
+ * Normally a quiet outlined "FY{year}" echo of the global period selector
  * (tooltip carries the full POV, e.g. "FY2026 · Full Year"). But when a
  * surface is hard-pinned to a different fiscal year than the selector —
  * several consoles fetch with a fixed year — it turns into a warning chip
- * "Pinned FY {pinned} ≠ FY {global}" so nobody reads a 2026 number believing
+ * "Pinned FY{pinned} ≠ FY{global}" so nobody reads a 2026 number believing
  * it follows the 2025 selector. Zero fetches: reads the already-loaded period
  * from DataProvider via usePov().
  */
@@ -33,7 +33,7 @@ const PovChip: FC<Props> = ({ pinnedYear, size = 'small' }) => {
         <Chip
           size={size}
           color="warning"
-          label={`Pinned FY ${pinnedYear} ≠ FY ${pov.year}`}
+          label={`Pinned FY${pinnedYear} ≠ FY${pov.year}`}
           sx={{ ...compact, fontWeight: 700 }}
         />
       </Tooltip>
@@ -42,7 +42,7 @@ const PovChip: FC<Props> = ({ pinnedYear, size = 'small' }) => {
 
   return (
     <Tooltip arrow title={`Point of view: ${pov.label}`}>
-      <Chip size={size} variant="outlined" label={`FY ${pov.year}`} sx={{ ...compact, fontWeight: 700 }} />
+      <Chip size={size} variant="outlined" label={`FY${pov.year}`} sx={{ ...compact, fontWeight: 700 }} />
     </Tooltip>
   );
 };

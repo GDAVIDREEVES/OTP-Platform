@@ -113,12 +113,12 @@ function EventRow({ e, diff }: { e: AuditEvent; diff?: EvidenceDiff }) {
 
 interface HistoryDrawerProps {
   /** The audit record_ref this drawer narrates (e.g. "scenario:3", "param:csa.pct_mult"). */
-  refId: string;
+  recordRef: string;
   open: boolean;
   onClose: () => void;
 }
 
-export default function HistoryDrawer({ refId, open, onClose }: HistoryDrawerProps) {
+export default function HistoryDrawer({ recordRef, open, onClose }: HistoryDrawerProps) {
   const navigate = useNavigate();
   const [packet, setPacket] = useState<Packet | null>(null);
   const [loading, setLoading] = useState(false);
@@ -127,12 +127,12 @@ export default function HistoryDrawer({ refId, open, onClose }: HistoryDrawerPro
   const retry = useCallback(() => setNonce((n) => n + 1), []);
 
   useEffect(() => {
-    if (!open || !refId) return undefined;
+    if (!open || !recordRef) return undefined;
     let alive = true;
     setLoading(true);
     setError(null);
     api
-      .evidence(refId)
+      .evidence(recordRef)
       .then((p) => alive && setPacket(p))
       .catch((e) => {
         if (!alive) return;
@@ -143,7 +143,7 @@ export default function HistoryDrawer({ refId, open, onClose }: HistoryDrawerPro
     return () => {
       alive = false;
     };
-  }, [open, refId, nonce]);
+  }, [open, recordRef, nonce]);
 
   // Per-event field diffs, keyed by the owning event.
   const diffByEvent = useMemo(() => {
@@ -159,10 +159,10 @@ export default function HistoryDrawer({ refId, open, onClose }: HistoryDrawerPro
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="overline" sx={{ color: 'text.secondary' }}>History</Typography>
             <Typography variant="subtitle1" sx={{ fontWeight: 800, wordBreak: 'break-all' }}>
-              {packet?.subject || refId}
+              {packet?.subject || recordRef}
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap' }}>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{refId}</Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{recordRef}</Typography>
               {packet && (
                 <Chip
                   size="small"
@@ -187,11 +187,11 @@ export default function HistoryDrawer({ refId, open, onClose }: HistoryDrawerPro
               severity="error"
               action={<Button color="inherit" size="small" onClick={retry}>Retry</Button>}
             >
-              Could not load the history for {refId}: {error}
+              Could not load the history for {recordRef}: {error}
             </Alert>
           ) : !packet || packet.events.length === 0 ? (
             <Alert severity="info" variant="outlined">
-              No events recorded for {refId} yet. The trail is a by-product of the
+              No events recorded for {recordRef} yet. The trail is a by-product of the
               work — events are written automatically, never as a separate step.
             </Alert>
           ) : (
@@ -208,7 +208,7 @@ export default function HistoryDrawer({ refId, open, onClose }: HistoryDrawerPro
           <Typography variant="caption" sx={{ color: 'text.secondary', flex: 1 }}>
             Append-only, hash-chained. Integrity verified at render.
           </Typography>
-          <Button size="small" onClick={() => navigate(`/evidence/${encodeURIComponent(refId)}`)}>
+          <Button size="small" onClick={() => navigate(`/evidence/${encodeURIComponent(recordRef)}`)}>
             Open full evidence packet
           </Button>
         </Stack>
@@ -220,8 +220,8 @@ export default function HistoryDrawer({ refId, open, onClose }: HistoryDrawerPro
 /** One-click history affordance for any table row or card: a small History
  *  IconButton that owns its drawer state and never triggers the row's own
  *  onClick (stopPropagation). */
-export const HistoryButton: FC<{ refId: string; size?: 'small' | 'medium' }> = ({
-  refId,
+export const HistoryButton: FC<{ recordRef: string; size?: 'small' | 'medium' }> = ({
+  recordRef,
   size = 'small',
 }) => {
   const [open, setOpen] = useState(false);
@@ -232,11 +232,11 @@ export const HistoryButton: FC<{ refId: string; size?: 'small' | 'medium' }> = (
   return (
     <>
       <Tooltip title="History" arrow>
-        <IconButton size={size} onClick={onOpen} aria-label={`History for ${refId}`}>
+        <IconButton size={size} onClick={onOpen} aria-label={`History for ${recordRef}`}>
           <HistoryIcon fontSize={size === 'small' ? 'small' : 'medium'} />
         </IconButton>
       </Tooltip>
-      <HistoryDrawer refId={refId} open={open} onClose={() => setOpen(false)} />
+      <HistoryDrawer recordRef={recordRef} open={open} onClose={() => setOpen(false)} />
     </>
   );
 };
