@@ -14,6 +14,7 @@ import {
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import { useWorklist } from '@/shared/providers/WorkSignalsProvider';
 import { SECTIONS } from '@/shared/components/WorklistTable';
+import { WORKLIST_STATUS_AWAITING_CHECKER } from '@/shared/api/types';
 import type { WorklistItem } from '@/shared/api/types';
 
 /** Cap the dropdown at the top handful — the full plate lives on /home. */
@@ -23,7 +24,7 @@ const MAX_MENU_ITEMS = 7;
  *  review rows are the maker's own submissions parked with someone else —
  *  passive, so they neither count toward the badge nor appear in the menu. */
 const isActionable = (it: WorklistItem): boolean =>
-  !(it.kind === 'review' && it.status === 'awaiting checker');
+  !(it.kind === 'review' && it.status === WORKLIST_STATUS_AWAITING_CHECKER);
 
 /** Live notification bell: badge = actionable worklist items, dropdown = the
  *  top few with deep links, mirroring WorklistTable's kind iconography.
@@ -74,7 +75,7 @@ export default function NotificationBell() {
                   secondaryTypographyProps={{ variant: 'caption', noWrap: true }}
                 />
                 {it.process_id && (
-                  <Chip size="small" label={it.process_id} sx={{ ml: 1.5, fontWeight: 700 }} />
+                  <Chip size="small" label={it.process_id} sx={{ ml: 1.5, fontWeight: 700, flexShrink: 0 }} />
                 )}
               </MenuItem>
             );
@@ -83,7 +84,7 @@ export default function NotificationBell() {
         <Divider />
         <MenuItem onClick={() => go('/home')}>
           <ListItemText
-            primary="View all work"
+            primary={`View all work (${actionable.length})`}
             primaryTypographyProps={{ variant: 'body2', fontWeight: 600, color: 'primary' }}
           />
         </MenuItem>

@@ -23,12 +23,14 @@ import { api } from '@/shared/api/client';
 import { originRoute } from '@/kernel/workflow/originRoute';
 import { useToast } from '@/shared/providers/DataProvider';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
+import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import type { ReviewItem } from '@/shared/api/types';
 
 export default function ReviewQueuePage() {
   const toast = useToast();
   const user = useSessionUser();
   const navigate = useNavigate();
+  const refreshSignals = useRefreshSignals();
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [returned, setReturned] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +67,7 @@ export default function ReviewQueuePage() {
       await api.approveReview(it.id, { checker: user.id });
       toast.show(`Approved ${it.record_ref}`, 'success');
       refresh();
+      void refreshSignals(); // bell badge / home Command Center / My work
     } catch (e) {
       toast.show(`Approve failed: ${String(e)}`, 'error');
     } finally {
@@ -81,6 +84,7 @@ export default function ReviewQueuePage() {
       setRejecting(null);
       setComment('');
       refresh();
+      void refreshSignals(); // bell badge / home Command Center / My work
     } catch (e) {
       toast.show(`Reject failed: ${String(e)}`, 'error');
     } finally {

@@ -208,6 +208,12 @@ export interface WorklistItem {
   status: string;
 }
 
+/** The backend's status for a `kind: 'review'` worklist row that is the
+ *  current persona's OWN submission, parked with someone else (segregation
+ *  of duties) — passive, nothing for this user to do. Mirrors
+ *  backend/routers/worklist.py `_review_items`. */
+export const WORKLIST_STATUS_AWAITING_CHECKER = 'awaiting checker';
+
 export interface ChainVerify {
   ok: boolean;
   broken_at: number | null;
