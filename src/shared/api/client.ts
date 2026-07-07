@@ -31,6 +31,7 @@ import type {
   Draft,
   ReviewItem,
   WorklistItem,
+  CloseStatus,
   LineageStep,
   EvidencePacket,
   TpFunction,
@@ -345,6 +346,12 @@ export const api = {
   /** Unified worklist / Inbox — the user's cross-process "what's on my plate"
    *  feed (drafts, review items, OTP-20 exceptions, open cases), overdue-first. */
   worklist: (userId: string) => getJSON<WorklistItem[]>('/api/worklist', { user: userId }),
+
+  /** Live close-cycle status — the ordered 8-step close sequence with per-step
+   *  status/owner/counts/route plus the active P&L basis. Read-only aggregation
+   *  over signals the platform already keeps (Close Command Center home). */
+  closeStatus: (userId: string, year: number) =>
+    getJSON<CloseStatus>('/api/close/status', { user: userId, year }),
 
   evidence: (recordRef: string) =>
     getJSON<EvidencePacket>(`/api/evidence/${encodeURIComponent(recordRef)}`),

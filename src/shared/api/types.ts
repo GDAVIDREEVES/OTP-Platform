@@ -1963,3 +1963,47 @@ export interface PlAdjusted {
 /** P&L basis selector for the margin-bearing reads (W2). Omitted = the
  *  governed pl.use_post_charge parameter resolves it server-side. */
 export type PlBasis = 'base' | 'post_charge';
+
+// ---------------- Close Command Center (GET /api/close/status) ----------------
+
+/** The P&L basis the platform is reporting on right now. */
+export interface CloseBasis {
+  mode: PlBasis;
+  /** The governed pl.use_post_charge parameter. */
+  param_on: boolean;
+  /** The applied waterfall run — null = no charges applied. */
+  applied_run_id: string | null;
+}
+
+export type CloseStepId =
+  | 'master_data'
+  | 'price_setting'
+  | 'charges'
+  | 'waterfall'
+  | 'monitor'
+  | 'adjust'
+  | 'review'
+  | 'document';
+
+export type CloseStepStatus = 'complete' | 'active' | 'attention' | 'pending';
+
+/** One step of the ordered 8-step close sequence. */
+export interface CloseStep {
+  id: CloseStepId;
+  label: string;
+  status: CloseStepStatus;
+  owner: 'operator' | 'reviewer' | 'director' | 'shared';
+  route: string;
+  /** All ints — booleans are encoded 1/0 (the raw bool lives in `basis`). */
+  counts: Record<string, number>;
+  /** One human sentence summarising where the step stands. */
+  detail: string;
+}
+
+export interface CloseStatus {
+  year: number;
+  basis: CloseBasis;
+  /** Index of the first non-complete step (the last step once all complete). */
+  current_index: number;
+  steps: CloseStep[];
+}

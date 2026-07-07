@@ -12,6 +12,7 @@ import { theme } from '@/shared/theme';
 import { ResearchBrainProvider } from '@/features/research-brain/ResearchBrainContext';
 import { DataProvider } from '@/shared/providers/DataProvider';
 import { SessionProvider } from '@/shared/providers/SessionProvider';
+import { WorkSignalsProvider } from '@/shared/providers/WorkSignalsProvider';
 import CommandPalette from '@/kernel/navigation/CommandPalette';
 import ErrorBoundary from '@/shared/components/ErrorBoundary';
 
@@ -66,6 +67,7 @@ export function App() {
       <BrowserRouter>
         <DataProvider>
           <SessionProvider>
+          <WorkSignalsProvider>
           <ResearchBrainProvider>
             <ErrorBoundary>
             <Suspense fallback={<RouteFallback />}>
@@ -101,6 +103,7 @@ export function App() {
             </ErrorBoundary>
             <CommandPalette />
           </ResearchBrainProvider>
+          </WorkSignalsProvider>
           </SessionProvider>
         </DataProvider>
       </BrowserRouter>

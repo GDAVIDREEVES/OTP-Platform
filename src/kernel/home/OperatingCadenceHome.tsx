@@ -15,6 +15,7 @@ import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import HistoryIcon from '@mui/icons-material/History';
 import AppShell from '@/shared/components/layout/AppShell';
+import CloseCommandCenter from '@/kernel/home/CloseCommandCenter';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useEntities, useKpis } from '@/shared/providers/DataProvider';
 import { api } from '@/shared/api/client';
@@ -22,17 +23,6 @@ import { formatCurrency } from '@/shared/utils/format';
 import { statusColor, statusLabel } from '@/shared/utils/status';
 import { tokens } from '@/shared/theme';
 import type { Draft, ReviewItem } from '@/shared/api/types';
-
-const CYCLE: { label: string; route: string }[] = [
-  { label: 'Master Data', route: '/master-data' },
-  { label: 'Price Setting', route: '/process/OTP-3' },
-  { label: 'Royalty Calculation', route: '/process/OTP-9' },
-  { label: 'Service Allocations', route: '/process/OTP-10' },
-  { label: 'Monitor margins', route: '/process/OTP-20' },
-  { label: 'Adjust & true-up', route: '/process/OTP-16' },
-  { label: 'Reserve & provision', route: '/process/OTP-45' },
-];
-const CURRENT = 4; // demo period sits in monitoring / adjustment
 
 function timeAgo(iso: string): string {
   try {
@@ -44,35 +34,6 @@ function timeAgo(iso: string): string {
   } catch {
     return '';
   }
-}
-
-function LifecycleStepper() {
-  const navigate = useNavigate();
-  return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Typography variant="overline" sx={{ color: 'text.secondary' }}>Close cycle · FY2026</Typography>
-      <Stack direction="row" alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap' }}>
-        {CYCLE.map((step, i) => {
-          const done = i < CURRENT;
-          const active = i === CURRENT;
-          const color = active ? tokens.action : done ? tokens.ok : '#CBD5E1';
-          return (
-            <Box key={step.label} sx={{ display: 'flex', alignItems: 'center', flex: i < CYCLE.length - 1 ? 1 : '0 0 auto', minWidth: 0 }}>
-              <Stack
-                direction="row" spacing={0.75} alignItems="center"
-                onClick={() => navigate(step.route)}
-                sx={{ minWidth: 0, cursor: 'pointer', borderRadius: 1, p: 0.5, '&:hover': { bgcolor: '#F1F5F9' } }}
-              >
-                <Box sx={{ width: 24, height: 24, borderRadius: '50%', bgcolor: color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{i + 1}</Box>
-                <Typography variant="body2" noWrap sx={{ fontWeight: active ? 700 : 500, color: active ? 'text.primary' : 'text.secondary' }}>{step.label}</Typography>
-              </Stack>
-              {i < CYCLE.length - 1 && <Box sx={{ flex: 1, height: 2, bgcolor: i < CURRENT ? tokens.ok : '#E2E8F0', mx: 1 }} />}
-            </Box>
-          );
-        })}
-      </Stack>
-    </Paper>
-  );
 }
 
 function CloseMeter() {
@@ -231,7 +192,7 @@ export default function OperatingCadenceHome() {
             Here&rsquo;s what your role owns this close. {user.title}.
           </Typography>
         </Box>
-        <LifecycleStepper />
+        <CloseCommandCenter />
         <CloseMeter />
         {user.role === 'operator' && <OperatorHome userId={user.id} />}
         {user.role === 'reviewer' && <ReviewerHome />}
