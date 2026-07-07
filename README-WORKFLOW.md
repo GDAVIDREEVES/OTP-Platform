@@ -16,7 +16,7 @@ hash-chained audit trail; any record's evidence packet is at
  Master Data ─▶ Price Setting ─▶ Charge & Invoice ─▶ Monitor ─▶ Adjust ─▶ Review ─▶ Document/Comply
  (OTP-27/41)    (OTP-1..8)       (OTP-9..15)         (OTP-20)   (OTP-16)  (/review)  (OTP-32..39)
       ▲              ▲                 ▲                │                     │
-      │              │                 │                └── exceptions ──▶ Inbox
+      │              │                 │                └── exceptions ──▶ Home
       │         benchmark refresh      │
       │         flags stale prices     ├── explained by the ALLOCATION ENGINE
       │         (OTP-25 → 3/6)         │    (Calc Studio ▸ Allocations)
@@ -34,7 +34,7 @@ hash-chained audit trail; any record's evidence packet is at
 
 | # | Step | Where | What happens |
 |---|------|-------|--------------|
-| 1 | **Start in the Inbox** | `/inbox` | Your unified worklist: drafts, reviews awaiting you, out-of-range entities, open cases — urgency-sorted. Click any row to deep-link. |
+| 1 | **Start at Home** | `/home` | The "My work" panel is your unified worklist: drafts, reviews awaiting you, out-of-range entities, open cases — urgency-sorted. Click any row to deep-link. |
 | 2 | **Master data is governed** | `/master-data` | A seeded SAP delta (new entity, GL account) arrives in *Inbound mapping*; the assistant proposes a characterization; you review and submit; a **different role** approves (maker ≠ checker, AI never the checker). |
 | 3 | **Prices are set** | `/process/OTP-3` (royalty), OTP-1/2 (goods), OTP-4 (services), OTP-5 (CSA), OTP-6/7/8 (financing) | Guided wizards: assistant prepares from the warehouse + benchmark bands → you review → gated submit → review queue. Provenance chips link each rate to its OTP-25 benchmark study. |
 | 4 | **Charges are billed** | OTP-9 (royalty batch), OTP-10 (service batch), OTP-11 (CSA true-up), OTP-13/14 (treasury) | Generate → stage → post batches. OTP-10's $14.34M service charges are **produced by the allocation engine** (Flow 3). |

@@ -618,11 +618,11 @@ export default function Onboarding() {
               variant="contained"
               endIcon={<ArrowForwardIcon />}
               onClick={() =>
-              step === 2 ? navigate('/dashboard') : setStep((s) => s + 1)
+              step === 2 ? navigate('/home') : setStep((s) => s + 1)
               }
               disabled={step === 0 && !connected}>
-              
-              {step === 2 ? 'Finish & Go to Dashboard' : 'Continue'}
+
+              {step === 2 ? 'Finish & Go to Home' : 'Continue'}
             </Button>
           </Stack>
         </Paper>

@@ -2,39 +2,23 @@ import { useEffect, useState } from 'react';
 import type { FC } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Alert,
   Box,
   Button,
-  Chip,
   LinearProgress,
   Paper,
   Stack,
   Typography,
 } from '@mui/material';
-import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
-import HistoryIcon from '@mui/icons-material/History';
 import AppShell from '@/shared/components/layout/AppShell';
 import CloseCommandCenter from '@/kernel/home/CloseCommandCenter';
+import WorklistTable from '@/shared/components/WorklistTable';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
-import { useEntities, useKpis } from '@/shared/providers/DataProvider';
+import { useKpis } from '@/shared/providers/DataProvider';
+import { useWorklist } from '@/shared/providers/WorkSignalsProvider';
 import { api } from '@/shared/api/client';
 import { formatCurrency } from '@/shared/utils/format';
-import { statusColor, statusLabel } from '@/shared/utils/status';
 import { tokens } from '@/shared/theme';
-import type { Draft, ReviewItem } from '@/shared/api/types';
-
-function timeAgo(iso: string): string {
-  try {
-    const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
-    if (s < 60) return 'just now';
-    const m = Math.floor(s / 60);
-    if (m < 60) return `${m}m ago`;
-    return `${Math.floor(m / 60)}h ago`;
-  } catch {
-    return '';
-  }
-}
 
 function CloseMeter() {
   const k = useKpis();
@@ -60,92 +44,29 @@ const SectionCard: FC<{ title: string; children: React.ReactNode }> = ({ title, 
   </Paper>
 );
 
-function ResumeSurface({ userId }: { userId: string }) {
-  const [drafts, setDrafts] = useState<Draft[]>([]);
+/** The unified "what's on my plate" panel — every kind (exceptions, reviews,
+ *  cases, drafts) in one grouped table, fed live by WorkSignalsProvider. */
+function MyWork() {
   const navigate = useNavigate();
-  useEffect(() => {
-    let alive = true;
-    api.drafts(userId).then((d) => alive && setDrafts(d)).catch(() => alive && setDrafts([]));
-    return () => { alive = false; };
-  }, [userId]);
-  if (!drafts.length) return null;
-  const resume = (d: Draft) => {
-    const entity = d.record_ref.startsWith('OTP16-') ? d.record_ref.slice(6) : '';
-    navigate(`/process/${d.process_id}/overview${entity ? `?entity=${entity}` : ''}`);
-  };
+  const items = useWorklist();
+  const toApprove = items.filter((it) => it.status === 'to approve').length;
   return (
-    <SectionCard title="Pick up where you left off">
-      <Stack spacing={1}>
-        {drafts.map((d) => (
-          <Stack key={d.id} direction="row" alignItems="center" spacing={1.5} sx={{ py: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}>
-            <HistoryIcon sx={{ color: '#94A3B8' }} />
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>{d.process_id} · {d.record_ref}</Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>Step {d.step_index + 1} · {d.step} · saved {timeAgo(d.updated_at)}</Typography>
-            </Box>
-            <Button size="small" variant="outlined" endIcon={<TrendingFlatIcon />} onClick={() => resume(d)}>Resume</Button>
-          </Stack>
-        ))}
+    <Paper variant="outlined" sx={{ p: 2 }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>My work</Typography>
+        {toApprove > 0 && (
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<FactCheckIcon />}
+            onClick={() => navigate('/review')}
+          >
+            Open review queue ({toApprove})
+          </Button>
+        )}
       </Stack>
-    </SectionCard>
-  );
-}
-
-function OperatorHome({ userId }: { userId: string }) {
-  const navigate = useNavigate();
-  const flagged = useEntities().filter((e) => e.status === 'out-of-range' || e.status === 'watch');
-  return (
-    <Stack spacing={2}>
-      <ResumeSurface userId={userId} />
-      <SectionCard title={`Your worklist — ${flagged.length} flagged tested parties`}>
-        <Stack spacing={1}>
-          {flagged.map((e) => (
-            <Stack key={e.id} direction="row" alignItems="center" spacing={1.5} sx={{ py: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}>
-              <Chip size="small" label={statusLabel[e.status]} sx={{ bgcolor: statusColor[e.status], color: 'white', fontWeight: 700 }} />
-              <Typography variant="body2" sx={{ flex: 1, fontWeight: 700 }}>
-                {e.name}{' '}
-                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>
-                  · {e.actualMargin?.toFixed(1) ?? '—'}% vs {e.targetMarginLabel}
-                </Typography>
-              </Typography>
-              <Button size="small" variant="outlined" endIcon={<TrendingFlatIcon />} onClick={() => navigate(`/process/OTP-16/overview?entity=${e.id}`)}>Adjust</Button>
-            </Stack>
-          ))}
-        </Stack>
-      </SectionCard>
-    </Stack>
-  );
-}
-
-function ReviewerHome() {
-  const navigate = useNavigate();
-  const [queue, setQueue] = useState<ReviewItem[]>([]);
-  useEffect(() => {
-    let alive = true;
-    api.reviewQueue('pending').then((q) => alive && setQueue(q)).catch(() => alive && setQueue([]));
-    return () => { alive = false; };
-  }, []);
-  return (
-    <SectionCard title={`Sign-off queue — ${queue.length} awaiting your review`}>
-      {queue.length === 0 ? (
-        <Alert severity="success" variant="outlined">Nothing awaiting review.</Alert>
-      ) : (
-        <Stack spacing={1}>
-          {queue.map((it) => (
-            <Stack key={it.id} direction="row" alignItems="center" spacing={1.5} sx={{ py: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}>
-              <Chip size="small" label={it.process_id} sx={{ fontWeight: 700 }} />
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>{it.record_ref}</Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>maker {it.maker} · {timeAgo(it.created_at)}</Typography>
-              </Box>
-            </Stack>
-          ))}
-          <Box>
-            <Button variant="contained" startIcon={<FactCheckIcon />} onClick={() => navigate('/review')}>Open review queue</Button>
-          </Box>
-        </Stack>
-      )}
-    </SectionCard>
+      <WorklistTable items={items} />
+    </Paper>
   );
 }
 
@@ -194,8 +115,7 @@ export default function OperatingCadenceHome() {
         </Box>
         <CloseCommandCenter />
         <CloseMeter />
-        {user.role === 'operator' && <OperatorHome userId={user.id} />}
-        {user.role === 'reviewer' && <ReviewerHome />}
+        <MyWork />
         {user.role === 'director' && <DirectorHome />}
       </Stack>
     </AppShell>

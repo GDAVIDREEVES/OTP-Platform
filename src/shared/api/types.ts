@@ -193,9 +193,10 @@ export interface ReviewItem {
   decided_at: string | null;
 }
 
-/** One row in the unified worklist / Inbox — a cross-process "what's on my
- *  plate" feed aggregating drafts, review items, OTP-20 exceptions, and open
- *  cases. Read-only: `route` deep-links back to the owning work surface. */
+/** One row in the unified worklist ("My work" on /home) — a cross-process
+ *  "what's on my plate" feed aggregating drafts, review items, OTP-20
+ *  exceptions, and open cases. Read-only: `route` deep-links back to the
+ *  owning work surface. */
 export interface WorklistItem {
   kind: 'draft' | 'review' | 'exception' | 'case';
   title: string;

@@ -343,8 +343,9 @@ export const api = {
   rejectReview: (id: number, body: { checker: string; comments: string }) =>
     sendJSON<ReviewItem>('POST', `/api/review/${id}/reject`, body),
 
-  /** Unified worklist / Inbox — the user's cross-process "what's on my plate"
-   *  feed (drafts, review items, OTP-20 exceptions, open cases), overdue-first. */
+  /** Unified worklist ("My work" on /home) — the user's cross-process "what's
+   *  on my plate" feed (drafts, review items, OTP-20 exceptions, open cases),
+   *  overdue-first. */
   worklist: (userId: string) => getJSON<WorklistItem[]>('/api/worklist', { user: userId }),
 
   /** Live close-cycle status — the ordered 8-step close sequence with per-step

@@ -27,7 +27,6 @@ import { useTheme } from '@mui/material/styles';
 import DashboardIcon from '@mui/icons-material/SpaceDashboard';
 import GridViewIcon from '@mui/icons-material/GridView';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
-import InboxIcon from '@mui/icons-material/Inbox';
 import HomeIcon from '@mui/icons-material/Home';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import PolicyIcon from '@mui/icons-material/Policy';
@@ -63,9 +62,8 @@ const navItems = [
   { label: 'Home', icon: <HomeIcon />, path: '/home' },
   { label: 'Master Data', icon: <AccountTreeIcon />, path: '/master-data' },
   { label: 'Calc Studio', icon: <FunctionsIcon />, path: '/calc-studio' },
-  { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+  { label: 'Monitoring', icon: <DashboardIcon />, path: '/dashboard' },
   { label: 'Processes', icon: <GridViewIcon />, path: '/process' },
-  { label: 'Inbox', icon: <InboxIcon />, path: '/inbox' },
   { label: 'Review queue', icon: <FactCheckIcon />, path: '/review' },
   { label: 'Price Setting', icon: <CalculateIcon />, path: '/price-setting' },
   { label: 'Policy', icon: <PolicyIcon />, path: '/policy' },

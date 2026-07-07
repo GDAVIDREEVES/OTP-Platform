@@ -41,7 +41,7 @@ export default function Dashboard() {
   const alerts = useMemo(() => buildAlerts(entities), [entities]);
 
   return (
-    <AppShell pageTitle="Global TP Monitoring Dashboard">
+    <AppShell pageTitle="Monitoring">
       <Grid container spacing={2.5}>
         {/* Main column */}
         <Grid item xs={12} lg={8}>
