@@ -44,12 +44,29 @@ const SectionCard: FC<{ title: string; children: React.ReactNode }> = ({ title, 
   </Paper>
 );
 
+/** The backend's status string for a pending review item where the current
+ *  user is the checker (backend/routers/worklist.py `_review_items` —
+ *  segregation of duties: your own submissions read "awaiting checker"). */
+const STATUS_TO_APPROVE = 'to approve';
+
 /** The unified "what's on my plate" panel — every kind (exceptions, reviews,
  *  cases, drafts) in one grouped table, fed live by WorkSignalsProvider. */
 function MyWork() {
   const navigate = useNavigate();
   const items = useWorklist();
-  const toApprove = items.filter((it) => it.status === 'to approve').length;
+
+  // Null = first fetch still in flight; show a slim progress bar (same idiom
+  // as CloseCommandCenter's skeleton), never a false "nothing on your plate".
+  if (!items) {
+    return (
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>My work</Typography>
+        <LinearProgress sx={{ mt: 1.5, height: 4, borderRadius: 2 }} />
+      </Paper>
+    );
+  }
+
+  const toApprove = items.filter((it) => it.status === STATUS_TO_APPROVE).length;
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>

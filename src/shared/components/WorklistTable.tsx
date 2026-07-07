@@ -42,17 +42,14 @@ const fmtDue = (due: string | null): string => due ?? '—';
 
 interface Props {
   items: WorklistItem[];
-  /** Row-click handler for items carrying a route. Defaults to react-router
-   *  navigation; `route: null` rows (e.g. "awaiting checker" review items the
-   *  maker cannot act on) stay non-clickable either way. */
-  onNavigate?: (route: string) => void;
 }
 
 /** The grouped, deep-linking worklist table (formerly the Inbox page body):
- *  sections by kind, priority chips, overdue highlighting, per-row routing. */
-export default function WorklistTable({ items, onNavigate }: Props) {
+ *  sections by kind, priority chips, overdue highlighting, per-row routing.
+ *  `route: null` rows (e.g. "awaiting checker" review items the maker cannot
+ *  act on) stay non-clickable. */
+export default function WorklistTable({ items }: Props) {
   const navigate = useNavigate();
-  const go = onNavigate ?? ((route: string) => navigate(route));
 
   // Group once; the backend already returns items overdue-first, so each
   // section preserves that order.
@@ -106,10 +103,17 @@ export default function WorklistTable({ items, onNavigate }: Props) {
                     <TableRow
                       key={`${it.kind}:${it.ref}`}
                       hover={clickable}
-                      onClick={() => it.route && go(it.route)}
+                      onClick={() => it.route && navigate(it.route)}
                       sx={{ cursor: clickable ? 'pointer' : 'default' }}
                     >
-                      <TableCell sx={{ fontWeight: 600 }}>{it.title}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{it.title}</Typography>
+                        {/* The ref disambiguates same-titled rows (e.g. two
+                            "Resume propose" drafts on different entities). */}
+                        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                          {it.ref}
+                        </Typography>
+                      </TableCell>
                       <TableCell>
                         {it.process_id ? (
                           <Chip size="small" label={it.process_id} sx={{ fontWeight: 700 }} />

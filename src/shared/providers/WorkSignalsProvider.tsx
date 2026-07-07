@@ -27,7 +27,9 @@ import { useLastFetchedAt, usePeriod } from '@/shared/providers/DataProvider';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 
 interface WorkSignalsState {
-  worklist: WorklistItem[];
+  /** Null until the first fetch lands (or when the backend is unreachable) —
+   *  so callers can tell "still loading" apart from a genuinely empty plate. */
+  worklist: WorklistItem[] | null;
   /** Null until the first fetch lands (or when the backend is unreachable). */
   close: CloseStatus | null;
   /** Re-fetch both signals now (e.g. right after a mutation lands). */
@@ -40,7 +42,7 @@ export function WorkSignalsProvider({ children }: { children: React.ReactNode })
   const user = useSessionUser();
   const { year } = usePeriod();
   const lastFetchedAt = useLastFetchedAt();
-  const [worklist, setWorklist] = useState<WorklistItem[]>([]);
+  const [worklist, setWorklist] = useState<WorklistItem[] | null>(null);
   const [close, setClose] = useState<CloseStatus | null>(null);
   // Monotonic fetch sequence: a slow response from an OLDER refresh (rapid
   // persona/year switches) must never clobber a newer one. The guard lives
@@ -83,7 +85,7 @@ export function useWorkSignals(): WorkSignalsState {
 
 // ----------------- selector hooks -----------------
 
-export const useWorklist = (): WorklistItem[] => useWorkSignals().worklist;
+export const useWorklist = (): WorklistItem[] | null => useWorkSignals().worklist;
 export const useCloseStatus = (): CloseStatus | null => useWorkSignals().close;
 export const useBasis = (): CloseBasis | null => useWorkSignals().close?.basis ?? null;
 export const useRefreshSignals = () => useWorkSignals().refresh;
