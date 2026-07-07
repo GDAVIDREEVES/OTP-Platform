@@ -65,19 +65,35 @@ const esc = (s: unknown) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
-/** Print a report as a clean tabular document in a new window. Returns false if
- *  the pop-up was blocked. */
-function printReport(
+/** Open the print window SYNCHRONOUSLY on the click gesture — before any
+ *  await. Safari blocks a window opened after an async boundary even when
+ *  pop-ups are enabled, so we must claim the handle inside the user gesture and
+ *  fill it later. Returns null only when pop-ups are genuinely blocked; shows a
+ *  placeholder until renderPrintWindow writes the built table. */
+function openPrintWindow(): Window | null {
+  const w = window.open('', '_blank', 'width=1024,height=768');
+  if (!w) return null;
+  w.document.write(
+    `<!doctype html><html><head><meta charset="utf-8"><title>Preparing report…</title>
+    <style>body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#64748B;margin:48px;font-size:14px;}</style>
+    </head><body>Preparing report…</body></html>`,
+  );
+  return w;
+}
+
+/** Fill an already-open print window (from openPrintWindow) with the built
+ *  table and trigger the print dialog. */
+function renderPrintWindow(
+  w: Window,
   title: string,
   columns: string[],
   rows: (string | number)[][],
-): boolean {
-  const w = window.open('', '_blank', 'width=1024,height=768');
-  if (!w) return false;
+): void {
   const thead = columns.map((c) => `<th>${esc(c)}</th>`).join('');
   const tbody = rows
     .map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`)
     .join('');
+  w.document.open();
   w.document.write(
     `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
     <style>
@@ -98,10 +114,9 @@ function printReport(
   w.document.close();
   w.focus();
   w.print();
-  return true;
 }
 
-interface ReportSpec {
+interface ReportSpec<T> {
   id: string;
   title: string;
   desc: string;
@@ -109,25 +124,33 @@ interface ReportSpec {
   icon: React.ReactNode;
   /** Fetch the live payload — used verbatim for the JSON download and derived
    *  into the print table. */
-  load: () => Promise<unknown>;
-  toPrint: (data: any) => { columns: string[]; rows: (string | number)[][] };
+  load: () => Promise<T>;
+  toPrint: (data: T) => { columns: string[]; rows: (string | number)[][] };
+}
+
+/** Author a spec with `load` and `toPrint` type-linked (T inferred from
+ *  `load`), then erase T so the heterogeneous registry array stays typeable.
+ *  The single deliberate cast is here — call sites hand `toPrint` an `unknown`
+ *  that only ever came from this spec's own `load`. */
+function defineReport<T>(spec: ReportSpec<T>): ReportSpec<unknown> {
+  return spec as ReportSpec<unknown>;
 }
 
 // Every card maps to a REAL endpoint. Excel/PDF exports were removed — the
 // platform only produces what it can honestly generate client-side: the
 // endpoint's structured JSON and a print-friendly table over the same data.
-const REPORTS: ReportSpec[] = [
-  {
+const REPORTS: ReportSpec<unknown>[] = [
+  defineReport({
     id: 'policy',
     title: 'TP Policy Summary',
     desc: 'Every configured intercompany flow with its method, PLI and reviewer — governed policy overrides layered on top.',
     filename: 'otp-tp-policy-summary.json',
     icon: <DescriptionIcon />,
-    load: async () => {
+    load: async (): Promise<{ flows: TransactionFlow[]; overrides: Record<string, PolicyOverride> }> => {
       const [flows, overrides] = await Promise.all([api.flows(), api.policyOverrides()]);
       return { flows, overrides };
     },
-    toPrint: (d: { flows: TransactionFlow[]; overrides: Record<string, PolicyOverride> }) => ({
+    toPrint: (d) => ({
       columns: ['Flow', 'Type', 'Payors → Payees', 'Method', 'PLI', 'Reviewer', 'YTD volume'],
       rows: d.flows.map((f) => {
         const o = d.overrides[f.id];
@@ -142,8 +165,8 @@ const REPORTS: ReportSpec[] = [
         ];
       }),
     }),
-  },
-  {
+  }),
+  defineReport({
     id: 'segment-pl',
     title: 'Segmented P&L',
     desc: 'Revenue, cost and operating profit by entity, role and segment — the tested-party basis for every margin.',
@@ -174,8 +197,8 @@ const REPORTS: ReportSpec[] = [
         `${(r.operating_margin * 100).toFixed(1)}%`,
       ]),
     }),
-  },
-  {
+  }),
+  defineReport({
     id: 'adjustments',
     title: 'Adjustment History',
     desc: 'Every submitted year-end true-up and compensating adjustment with its full approval trail.',
@@ -195,8 +218,8 @@ const REPORTS: ReportSpec[] = [
         a.approvedBy ?? '—',
       ]),
     }),
-  },
-  {
+  }),
+  defineReport({
     id: 'audit',
     title: 'Audit Log',
     desc: 'The complete hash-chained event stream — every price-setting decision, policy change, adjustment and approval.',
@@ -215,19 +238,29 @@ const REPORTS: ReportSpec[] = [
           e.rationale ?? '',
         ]),
     }),
-  },
+  }),
 ];
 
 function ReportCard({
   spec,
   onError,
 }: {
-  spec: ReportSpec;
+  spec: ReportSpec<unknown>;
   onError: (message: string) => void;
 }) {
   const [busy, setBusy] = useState<null | 'json' | 'print'>(null);
 
   const run = async (kind: 'json' | 'print') => {
+    // The print window MUST be claimed inside the synchronous click gesture
+    // (before the await below) or Safari blocks it even with pop-ups enabled.
+    let win: Window | null = null;
+    if (kind === 'print') {
+      win = openPrintWindow();
+      if (!win) {
+        onError('Enable pop-ups to print this report.');
+        return;
+      }
+    }
     setBusy(kind);
     try {
       const data = await spec.load();
@@ -235,11 +268,10 @@ function ReportCard({
         downloadJson(spec.filename, data);
       } else {
         const { columns, rows } = spec.toPrint(data);
-        if (!printReport(spec.title, columns, rows)) {
-          onError('Enable pop-ups to print this report.');
-        }
+        renderPrintWindow(win!, spec.title, columns, rows);
       }
     } catch (e) {
+      win?.close();
       onError(`Could not build ${spec.title}: ${(e as Error).message}`);
     } finally {
       setBusy(null);
