@@ -256,9 +256,10 @@ export default function AllocationsTab() {
   // Launch console state. Billing periods come from the data (the Stage-3
   // exclusion register's effective months ∪ recorded run periods) — never a
   // hardcoded list — filtered/defaulted to the global POV year (GP6, shared
-  // useBillingPeriods hook). When the selected year has no data the hook falls
-  // back to all months and the PovChip flags the divergence.
-  const bp = useBillingPeriods(year);
+  // useBillingPeriods hook, pure over the already-loaded seeds/runs). When the
+  // selected year has no data it falls back to all months and the PovChip flags
+  // the divergence. Passed down to PoolBuilder so nothing re-fetches.
+  const bp = useBillingPeriods(year, exclusions, runs);
   const [period, setPeriod] = useState('');
   // Re-default whenever the shown period list changes (initial load, or the FY
   // selector moving to a year whose months differ) — keep a still-valid choice.
@@ -916,6 +917,8 @@ export default function AllocationsTab() {
       {view === 'build' && (
         <PoolBuilder
           entities={entities}
+          periods={bp.periods}
+          defaultPeriod={bp.defaultPeriod}
           initialPoolId={poolParam ?? undefined}
           onInitialPoolConsumed={() => {
             const next = new URLSearchParams(searchParams);

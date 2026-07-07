@@ -104,7 +104,7 @@ export default function CalcDetailDrawer({
     : null;
 
   // Only the seed defs whose arg schema declares `year` accept a POV year (13
-  // of 14). User-defined calcs are fully declarative and REJECT any args
+  // of 15). User-defined calcs are fully declarative and REJECT any args
   // (services/calc_registry.py `_run_user`), so never pass them one — the
   // arg-schema check naturally excludes them (their args are {}).
   const declaresYear = !!detail && detail.args != null && 'year' in detail.args;
