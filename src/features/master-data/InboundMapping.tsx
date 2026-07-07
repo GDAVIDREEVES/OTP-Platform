@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Alert, Box, Button, Chip, CircularProgress, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography,
+  Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
+  Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from '@mui/material';
 import { api } from '@/shared/api/client';
 import AgenticHandoffMarker from '@/kernel/workflow/AgenticHandoffMarker';
@@ -14,11 +15,36 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function InboundMapping({ onChange }: { onChange?: () => void }) {
   const [items, setItems] = useState<MdStagingItem[] | null>(null);
-  const refresh = () => api.mdStaging().then(setItems).catch(() => setItems([]));
+  // The checker's rejection comment lives on the review row, not the staging row —
+  // load rejected mdmap:* review items and keep the latest comment per staging id
+  // so a returned mapping shows WHY, then re-enables its fix/resubmit affordances.
+  const [rejectComment, setRejectComment] = useState<Record<string, string>>({});
+  const refresh = () => {
+    api.mdStaging().then(setItems).catch(() => setItems([]));
+    api.reviewQueue('rejected')
+      .then((rows) => {
+        const byId: Record<string, string> = {};
+        for (const r of rows) {
+          if (!r.record_ref.startsWith('mdmap:') || !r.comments) continue;
+          byId[r.record_ref.slice('mdmap:'.length)] = r.comments; // rows are id-ordered → latest wins
+        }
+        setRejectComment(byId);
+      })
+      .catch(() => setRejectComment({}));
+  };
   useEffect(() => { refresh(); }, []);
   const wf = useMappingWorkflow(() => { refresh(); onChange?.(); });
   const [params] = useSearchParams();
   const focus = params.get('focus');
+  const [rejecting, setRejecting] = useState<MdStagingItem | null>(null);
+  const [comment, setComment] = useState('');
+
+  const doReject = async () => {
+    if (!rejecting) return;
+    await wf.reject(rejecting.id, comment);
+    setRejecting(null);
+    setComment('');
+  };
 
   const simulate = async () => { await api.mdSimulate(); refresh(); };
 
@@ -66,20 +92,34 @@ export default function InboundMapping({ onChange }: { onChange?: () => void }) 
               </Box>
             )}
 
+            {it.status === 'rejected' && rejectComment[it.id] && (
+              <Alert severity="warning" variant="outlined" sx={{ mt: 1.5 }}>
+                Returned for changes: <em>“{rejectComment[it.id]}”</em> — revise and re-submit.
+              </Alert>
+            )}
+
             <Stack direction="row" spacing={1.5} sx={{ mt: 1.5 }}>
-              {it.status === 'unmapped' && (
+              {(it.status === 'unmapped' || it.status === 'rejected') && (
                 <Button variant="contained" disabled={wf.busyId === it.id} onClick={() => wf.propose(it.id)}
                   startIcon={wf.busyId === it.id ? <CircularProgress size={16} color="inherit" /> : undefined}>
-                  🧠 Propose mapping
+                  🧠 {it.status === 'rejected' ? 'Re-propose mapping' : 'Propose mapping'}
                 </Button>
               )}
-              {(it.status === 'proposed' || (proposed && it.status === 'unmapped')) && (
-                <Button variant="contained" disabled={wf.busyId === it.id} onClick={() => wf.submit(it.id)}>Submit for review →</Button>
+              {(it.status === 'proposed' || (proposed && (it.status === 'unmapped' || it.status === 'rejected'))) && (
+                <Button variant="contained" disabled={wf.busyId === it.id} onClick={() => wf.submit(it.id)}>
+                  {it.status === 'rejected' ? 'Re-submit for review →' : 'Submit for review →'}
+                </Button>
               )}
               {it.status === 'in_review' && (
-                <Button variant="contained" color="success" disabled={wf.busyId === it.id} onClick={() => wf.approve(it.id)}>
-                  Approve &amp; apply (as {wf.user.name})
-                </Button>
+                <>
+                  <Button variant="contained" color="success" disabled={wf.busyId === it.id} onClick={() => wf.approve(it.id)}>
+                    Approve &amp; apply (as {wf.user.name})
+                  </Button>
+                  <Button variant="outlined" color="error" disabled={wf.busyId === it.id}
+                    onClick={() => { setRejecting(it); setComment(''); }}>
+                    Return for changes
+                  </Button>
+                </>
               )}
             </Stack>
             {it.status === 'in_review' && (
@@ -90,6 +130,28 @@ export default function InboundMapping({ onChange }: { onChange?: () => void }) 
           </Paper>
         );
       })}
+
+      <Dialog open={!!rejecting} onClose={() => setRejecting(null)} fullWidth maxWidth="sm">
+        <DialogTitle>Return for changes</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            multiline
+            minRows={2}
+            label="Reason (required)"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRejecting(null)}>Cancel</Button>
+          <Button color="error" variant="contained" disabled={!comment.trim() || wf.busyId != null} onClick={() => void doReject()}>
+            Return
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

@@ -105,16 +105,20 @@ def _review_item_id(record_ref: str) -> int | None:
     return r["id"] if r else None
 
 
+# The in-page approve/reject are THIN DELEGATES onto review.decide(): it enforces
+# SoD (checker!=maker, AI-never-checker, reject-needs-comment) AND owns the mapping
+# side-effect (apply on approve / mark rejected on reject). This route and the
+# universal /review queue therefore converge on ONE side-effect — no double-apply.
 @router.post("/api/master-data/staging/{item_id}/approve")
 def approve(item_id: str, body: MappingDecisionIn):
     rid = _review_item_id(f"mdmap:{item_id}")
     if rid is None:
         raise HTTPException(404, f"no pending review for {item_id}")
     try:
-        review.decide(rid, body.checker, "approve", body.comments)   # enforces checker!=maker, AI-never-checker
+        review.decide(rid, body.checker, "approve", body.comments)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return md.apply_mapping(item_id, applied_by=body.checker)
+    return md.get_staging(item_id)
 
 
 @router.post("/api/master-data/staging/{item_id}/reject")
@@ -126,5 +130,4 @@ def reject(item_id: str, body: MappingDecisionIn):
         review.decide(rid, body.checker, "reject", body.comments)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    md.mark_status(item_id, "rejected")
-    return {"id": item_id, "status": "rejected"}
+    return md.get_staging(item_id)
