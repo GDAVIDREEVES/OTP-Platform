@@ -280,3 +280,43 @@ def test_scenario_promotion_still_applies_in_bounds(state_db):
     ]
     assert edited and edited[0]["rationale"]  # non-empty synthetic rationale
     assert audit.verify_chain()["ok"] is True
+
+
+def test_scenario_promotion_fails_closed_on_out_of_bounds(state_db):
+    """A scenario mixing an in-bounds and an out-of-bounds override must NOT
+    half-apply: promotion is blocked before the first write, so NEITHER
+    governed value changes, no param:{key} edit is written, and the scenario is
+    not left partially promoted (GP5 review fix — all-or-nothing)."""
+    import pytest
+    import state.scenarios as scenarios
+
+    parameters.seed_if_empty()
+    growth_before = parameters.get_param("csa.growth")   # 0.08 (bounds 0.0…1.0)
+    rate_before = parameters.get_param("beat.rate_pct")  # 10.0 (bounds 0.0…100.0)
+
+    # csa.growth 0.10 is in bounds; beat.rate_pct 999 exceeds the max of 100.
+    sc = scenarios.create_scenario(
+        name="Mixed", overrides={"csa.growth": 0.10, "beat.rate_pct": 999},
+        actor="u_maria",
+    )
+    scenarios.submit_for_review(sc["id"], maker="u_maria")
+
+    # Approving triggers apply_promotion, which must raise BEFORE any set_param.
+    with pytest.raises(ValueError):
+        scenarios.apply_promotion(sc["id"], checker="u_sam")
+
+    # Fail closed: NEITHER governed value changed — not even the in-bounds one.
+    assert parameters.get_param("csa.growth") == growth_before
+    assert parameters.get_param("beat.rate_pct") == rate_before
+    # No param edit was written for either key.
+    for key in ("csa.growth", "beat.rate_pct"):
+        edited = [
+            e
+            for e in audit.list_events(record_ref=f"param:{key}")
+            if e["event_type"] == "edited"
+        ]
+        assert edited == []
+    # The scenario was NOT marked promoted (no half-applied state).
+    assert scenarios.get_scenario(sc["id"])["status"] == "in_review"
+    # The hash-chain is intact.
+    assert audit.verify_chain()["ok"] is True

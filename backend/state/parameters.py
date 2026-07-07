@@ -134,6 +134,22 @@ def _check_bounds(row: dict[str, Any], value: Any) -> None:
         raise ValueError(f"{row['key']} = {value} is above the maximum {hi}")
 
 
+def check_bounds(key: str, value: Any) -> None:
+    """Validate ``value`` against ``key``'s governed bounds WITHOUT writing.
+
+    Raises ``ValueError`` if the key is unknown or a numeric value is out of
+    range — the SAME rule ``set_param`` enforces, reused so a caller can fail
+    closed. Scenario promotion pre-validates every override with this before
+    the first ``set_param``, so an out-of-range value blocks the whole apply
+    (all-or-nothing) instead of committing some params and raising on a later
+    one (GP5 review fix).
+    """
+    row = get_param_row(key)
+    if row is None:
+        raise ValueError(f"unknown parameter: {key}")
+    _check_bounds(row, value)
+
+
 def set_param(key: str, value: Any, actor: str, rationale: str | None = None) -> dict[str, Any]:
     """Update a parameter's value and hash-chain the change at param:{key}."""
     with LOCK:
