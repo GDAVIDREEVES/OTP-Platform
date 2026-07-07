@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Tabs, Tab, Typography } from '@mui/material';
+import { Box, Stack, Tabs, Tab, Typography } from '@mui/material';
 import AppShell from '@/shared/components/layout/AppShell';
+import PovChip from '@/shared/components/PovChip';
 import CockpitPage from './cockpit/CockpitPage';
 import CalculationsTab from './tabs/CalculationsTab';
 import DriversTab from './tabs/DriversTab';
@@ -45,8 +46,14 @@ export default function CalcStudioWorkspace() {
     <AppShell pageTitle="Calc Studio" disableContentPadding={isCockpit}>
       {!isCockpit && (
         <Box sx={{ mb: 2 }}>
-          <Typography variant="overline" sx={{ color: 'text.secondary' }}>Governed calculation management</Typography>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>Calc Studio</Typography>
+          <Stack direction="row" alignItems="flex-start" spacing={1}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="overline" sx={{ color: 'text.secondary' }}>Governed calculation management</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700 }}>Calc Studio</Typography>
+            </Box>
+            {/* The active FY context every tab is scoped to (GP6). */}
+            <PovChip />
+          </Stack>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             Every calculation the platform runs — definitions, governed drivers, run history and data
             provenance in one place.

@@ -12,6 +12,12 @@ objects as their Python defaults, so calling them with a parameter omitted
 would pass the Query sentinel through to the SQL layer. Supplying EVERY
 parameter explicitly defends against that gotcha for all 14 handlers.
 
+The year-bearing handlers default to ``DEFAULT_YEAR`` — the demo close year.
+This is only a fallback for a headless registry run; the Calc Studio UI now
+threads the global point-of-view and passes an explicit ``args={"year": ...}``
+per run (GP6), so a run honours whichever fiscal year the period selector is
+on rather than this baked-in default.
+
 Each run is wrapped in ``calc.trace.collect()`` (the instrumented primitives
 record "param"/"aggregate"/"allocate"/"band" steps), persisted to the
 ``calc_runs`` table (digest + summary + trace — never the output body) and
@@ -57,20 +63,24 @@ from routers.wht import wht
 
 _DIR = Path(__file__).parent.parent / "seeds" / "calculations"
 
+# The demo close year — the fallback POV for a headless registry run. The UI
+# now passes an explicit args={"year": ...} from the global period selector.
+DEFAULT_YEAR = 2026
+
 # The common PeriodFilter trio shared by the warehouse list endpoints.
 _PERIOD: dict[str, Any] = {"year": None, "periodFrom": None, "periodTo": None}
 
 # calc_id -> (handler, full default kwargs). EVERY parameter of each handler is
 # supplied explicitly — see the module docstring for why.
 _RUNNERS: dict[str, tuple[Callable[..., Any], dict[str, Any]]] = {
-    "csa": (csa, {"year": 2026}),
-    "profit_split": (profit_split, {"year": 2026, "key": "opex_rd"}),
-    "beat": (beat, {"year": 2026}),
+    "csa": (csa, {"year": DEFAULT_YEAR}),
+    "profit_split": (profit_split, {"year": DEFAULT_YEAR, "key": "opex_rd"}),
+    "beat": (beat, {"year": DEFAULT_YEAR}),
     "treasury": (treasury, {}),
     "wht": (wht, {**_PERIOD}),
     "reconciliation": (reconciliation, {**_PERIOD}),
-    "forecast": (forecast, {"year": 2026}),
-    "stewardship": (stewardship, {"year": 2026}),
+    "forecast": (forecast, {"year": DEFAULT_YEAR}),
+    "stewardship": (stewardship, {"year": DEFAULT_YEAR}),
     "flows": (list_flows, {**_PERIOD}),
     "royalties": (list_royalties, {**_PERIOD}),
     "pricing": (list_pricing, {**_PERIOD}),

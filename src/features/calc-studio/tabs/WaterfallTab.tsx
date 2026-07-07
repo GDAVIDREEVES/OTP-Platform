@@ -32,6 +32,8 @@ import { useToast } from '@/shared/providers/DataProvider';
 import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
 import LifecycleChip from '@/shared/components/LifecycleChip';
+import PovChip from '@/shared/components/PovChip';
+import { usePov } from '@/shared/hooks/usePov';
 import type {
   Parameter, PlAdjusted, PlAdjustedRow, WaterfallRequest, WaterfallRun,
 } from '@/shared/api/types';
@@ -54,7 +56,6 @@ import { fmtAmount, isNonZero, sumCents } from '../allocationLib';
  *  post-charge basis server-side. Overlay amounts are exact decimal strings
  *  rendered lexically (../allocationLib.ts) — no float math. */
 
-const YEAR = 2026;
 const PARAM_KEY = 'pl.use_post_charge';
 const WATERFALL_PROCESS = 'OTP-21';
 
@@ -249,6 +250,9 @@ export default function WaterfallTab() {
   const navigate = useNavigate();
   const refreshSignals = useRefreshSignals();
   const { notifySubmitted } = useReviewHandoff();
+  // The global point of view — the waterfall runs and reads the FY the period
+  // selector is on, not a baked-in FY2026 (GP6).
+  const { year } = usePov();
   const [runs, setRuns] = useState<WaterfallRun[] | null>(null);
   const [pending, setPending] = useState<WaterfallRequest[]>([]);
   const [adjusted, setAdjusted] = useState<PlAdjusted | null>(null);
@@ -257,8 +261,8 @@ export default function WaterfallTab() {
   const refresh = useCallback(() => {
     api.waterfallRuns().then((rs) => setRuns([...rs].reverse())).catch(() => setRuns([]));
     api.waterfallRequests('pending').then(setPending).catch(() => setPending([]));
-    api.plAdjusted({ year: YEAR }).then(setAdjusted).catch(() => setAdjusted(null));
-  }, []);
+    api.plAdjusted({ year }).then(setAdjusted).catch(() => setAdjusted(null));
+  }, [year]);
   useEffect(() => { refresh(); }, [refresh]);
 
   const actor = user.id;
@@ -292,8 +296,8 @@ export default function WaterfallTab() {
 
   const requestRun = () =>
     submitRequest(
-      { actor, action: 'run', year: YEAR, rationale: `Run and apply the FY${YEAR} charge waterfall to the group P&L` },
-      `Waterfall run — FY${YEAR}`,
+      { actor, action: 'run', year, rationale: `Run and apply the FY${year} charge waterfall to the group P&L` },
+      `Waterfall run — FY${year}`,
     );
 
   const requestRollback = (runId: string) =>
@@ -312,6 +316,12 @@ export default function WaterfallTab() {
 
   return (
     <Stack spacing={2}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+        <Typography variant="overline" sx={{ color: 'text.secondary', flex: 1 }}>
+          TP calculation waterfall
+        </Typography>
+        <PovChip />
+      </Stack>
       <Alert severity="info" variant="outlined">
         The TP calculation waterfall — charges are computed and <b>applied</b> to each entity P&L
         before TP decisions: <b>service allocation → royalties → CSA true-up → profit split</b>.
@@ -360,7 +370,7 @@ export default function WaterfallTab() {
           <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Run console</Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              FY {YEAR} · at most one run is applied at a time — a new run supersedes the prior one.
+              FY {year} · at most one run is applied at a time — a new run supersedes the prior one.
               Runs are applied only after a reviewer approves the request.
             </Typography>
           </Box>

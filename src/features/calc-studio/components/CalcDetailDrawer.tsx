@@ -24,6 +24,8 @@ import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
+import { usePov } from '@/shared/hooks/usePov';
+import PovChip from '@/shared/components/PovChip';
 import type { CalcDefResolved, CalcRun, CalcRunResult, ShapedStep } from '@/shared/api/types';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
 import { provKind, shapeTermSteps, valueText, PROV_META } from '../lib';
@@ -68,6 +70,8 @@ export default function CalcDetailDrawer({
   const navigate = useNavigate();
   // Runs audit as the signed-in persona (GP3 — real actor, not a ghost).
   const ACTOR = useSessionUser().id;
+  // The global point of view — passed to the run when the calc declares a year.
+  const { year } = usePov();
   const [detail, setDetail] = useState<CalcDefResolved | null>(null);
   const [runs, setRuns] = useState<CalcRun[] | null>(null);
   const [running, setRunning] = useState(false);
@@ -99,13 +103,22 @@ export default function CalcDetailDrawer({
     ? `${detail.kind === 'user-defined' ? 'ucalc' : 'calc'}:${detail.id}`
     : null;
 
+  // Only the seed defs whose arg schema declares `year` accept a POV year (13
+  // of 14). User-defined calcs are fully declarative and REJECT any args
+  // (services/calc_registry.py `_run_user`), so never pass them one — the
+  // arg-schema check naturally excludes them (their args are {}).
+  const declaresYear = !!detail && detail.args != null && 'year' in detail.args;
+
   const runNow = async () => {
     if (!calcId) return;
     setRunning(true);
     setResult(null);
     setRunError(null);
     try {
-      const res = await api.runCalc(calcId, { actor: ACTOR });
+      const res = await api.runCalc(
+        calcId,
+        declaresYear ? { actor: ACTOR, args: { year } } : { actor: ACTOR },
+      );
       setResult(res);
       setTrace({
         label: `Run #${res.id} — just now`,
@@ -268,18 +281,20 @@ export default function CalcDetailDrawer({
 
             {/* Run now */}
             <Stack spacing={1}>
-              <Button
-                variant="contained"
-                startIcon={running ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
-                onClick={() => void runNow()}
-                disabled={running}
-                sx={{ alignSelf: 'flex-start' }}
-              >
-                {running ? 'Running…' : 'Run now'}
-              </Button>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                <Button
+                  variant="contained"
+                  startIcon={running ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
+                  onClick={() => void runNow()}
+                  disabled={running}
+                >
+                  {running ? 'Running…' : 'Run now'}
+                </Button>
+                {declaresYear && <PovChip />}
+              </Stack>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                Runs the live handler, persists digest + summary + trace, and hash-chains a run event
-                at {recordRef}.
+                Runs the live handler{declaresYear ? ` for FY${year}` : ''}, persists digest + summary
+                + trace, and hash-chains a run event at {recordRef}.
               </Typography>
               {result && (
                 <Alert severity="success" variant="outlined" onClose={() => setResult(null)}>

@@ -33,6 +33,9 @@ import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
+import { usePov } from '@/shared/hooks/usePov';
+import PovChip from '@/shared/components/PovChip';
+import { useBillingPeriods } from '../useBillingPeriods';
 import type {
   AllocationDimensionOption,
   AllocationDimensions,
@@ -465,6 +468,7 @@ export default function PoolBuilder({
   const toast = useToast();
   const navigate = useNavigate();
   const user = useSessionUser();
+  const { year } = usePov();
   const refreshSignals = useRefreshSignals();
   const { notifySubmitted } = useReviewHandoff();
   // Every authoring mutation acts as the current persona (maker-checker: the
@@ -706,11 +710,15 @@ export default function PoolBuilder({
   };
 
   const activePools = (pools ?? []).filter((p) => p.status === 'active');
-  // Periods the active pools' capture rules touch — derived from the data via a
-  // dry-run is heavy; instead offer the engine's billing periods (the same set
-  // the run console uses). Kept minimal: the four demo billing periods.
-  const RUN_PERIODS = ['2026-04', '2026-05', '2026-10', '2026-11'];
-  const [runPeriod, setRunPeriod] = useState(RUN_PERIODS[1]);
+  // Periods the active pools' capture rules touch — deriving them via a dry-run
+  // is heavy; instead offer the engine's billing periods (the same set the run
+  // console uses), scoped to the global POV year (GP6, shared hook). When the
+  // year has no data the hook falls back to all months and the PovChip flags it.
+  const bp = useBillingPeriods(year);
+  const [runPeriod, setRunPeriod] = useState('');
+  useEffect(() => {
+    setRunPeriod((cur) => (cur && bp.periods.includes(cur) ? cur : bp.defaultPeriod));
+  }, [bp.periods, bp.defaultPeriod]);
 
   const canSubmit = !!editingId && (pools ?? []).find((p) => p.id === editingId)?.status === 'tested';
 
@@ -1145,8 +1153,9 @@ export default function PoolBuilder({
             select size="small" label="Period" value={runPeriod}
             onChange={(e) => setRunPeriod(e.target.value)} sx={{ minWidth: 140 }}
           >
-            {RUN_PERIODS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+            {bp.periods.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
           </TextField>
+          <PovChip pinnedYear={Number(runPeriod.slice(0, 4)) || undefined} />
           <Button
             variant="contained"
             size="small"

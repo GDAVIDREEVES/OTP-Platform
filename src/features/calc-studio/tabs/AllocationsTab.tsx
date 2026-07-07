@@ -26,6 +26,9 @@ import DownloadIcon from '@mui/icons-material/Download';
 import { api } from '@/shared/api/client';
 import { useToast } from '@/shared/providers/DataProvider';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
+import { usePov } from '@/shared/hooks/usePov';
+import PovChip from '@/shared/components/PovChip';
+import { useBillingPeriods } from '../useBillingPeriods';
 import type {
   AllocationArtifact,
   AllocationCharge,
@@ -188,6 +191,8 @@ export default function AllocationsTab() {
   const toast = useToast();
   // Runs are audited as the signed-in persona (GP3 — real actor, not a ghost).
   const ACTOR = useSessionUser().id;
+  // The global point of view — every derived period follows the FY selector.
+  const { year } = usePov();
   const [searchParams, setSearchParams] = useSearchParams();
   const view: ViewKey = (VIEWS.find((v) => v.key === searchParams.get('view'))?.key ?? 'console') as ViewKey;
   // Deep-link into the Build view with a pool preloaded (?view=build&pool=AP-1)
@@ -250,19 +255,16 @@ export default function AllocationsTab() {
 
   // Launch console state. Billing periods come from the data (the Stage-3
   // exclusion register's effective months ∪ recorded run periods) — never a
-  // hardcoded list.
-  const billingPeriods = useMemo(() => {
-    const months = new Set<string>();
-    exclusions.forEach((e) => months.add(e.effective_from.slice(0, 7)));
-    (runs ?? []).forEach((r) => {
-      if (r.period.length === 7) months.add(r.period);
-    });
-    return [...months].sort();
-  }, [exclusions, runs]);
+  // hardcoded list — filtered/defaulted to the global POV year (GP6, shared
+  // useBillingPeriods hook). When the selected year has no data the hook falls
+  // back to all months and the PovChip flags the divergence.
+  const bp = useBillingPeriods(year);
   const [period, setPeriod] = useState('');
+  // Re-default whenever the shown period list changes (initial load, or the FY
+  // selector moving to a year whose months differ) — keep a still-valid choice.
   useEffect(() => {
-    if (!period && billingPeriods.length) setPeriod(billingPeriods[billingPeriods.length - 1]);
-  }, [billingPeriods, period]);
+    setPeriod((cur) => (cur && bp.periods.includes(cur) ? cur : bp.defaultPeriod));
+  }, [bp.periods, bp.defaultPeriod]);
 
   const [launching, setLaunching] = useState<AllocationRunType | null>(null);
   const [lastLaunch, setLastLaunch] = useState<AllocationRunLaunch | null>(null);
@@ -346,10 +348,11 @@ export default function AllocationsTab() {
             sx={{ minWidth: 140 }}
             helperText="Billing periods from the dataset"
           >
-            {billingPeriods.map((p) => (
+            {bp.periods.map((p) => (
               <MenuItem key={p} value={p}>{p}</MenuItem>
             ))}
           </TextField>
+          <PovChip pinnedYear={Number(period.slice(0, 4)) || undefined} />
           {(['actual', 'budget', 'trueup'] as AllocationRunType[]).map((t) => (
             <Button
               key={t}
