@@ -6,12 +6,9 @@ import {
 } from '@mui/material';
 import { api } from '@/shared/api/client';
 import AgenticHandoffMarker from '@/kernel/workflow/AgenticHandoffMarker';
+import LifecycleChip from '@/shared/components/LifecycleChip';
 import type { MdStagingItem } from '@/shared/api/types';
 import { useMappingWorkflow } from './useMappingWorkflow';
-
-const STATUS_COLOR: Record<string, string> = {
-  unmapped: '#D97706', proposed: '#7C3AED', in_review: '#2563EB', applied: '#16A34A', rejected: '#DC2626',
-};
 
 export default function InboundMapping({ onChange }: { onChange?: () => void }) {
   const [items, setItems] = useState<MdStagingItem[] | null>(null);
@@ -24,9 +21,11 @@ export default function InboundMapping({ onChange }: { onChange?: () => void }) 
     api.reviewQueue('rejected')
       .then((rows) => {
         const byId: Record<string, string> = {};
-        for (const r of rows) {
+        // Sort ascending by id so the highest-id (latest) comment wins per staging
+        // item — don't rely on the server returning rows already id-ordered.
+        for (const r of [...rows].sort((a, b) => a.id - b.id)) {
           if (!r.record_ref.startsWith('mdmap:') || !r.comments) continue;
-          byId[r.record_ref.slice('mdmap:'.length)] = r.comments; // rows are id-ordered → latest wins
+          byId[r.record_ref.slice('mdmap:'.length)] = r.comments;
         }
         setRejectComment(byId);
       })
@@ -72,7 +71,7 @@ export default function InboundMapping({ onChange }: { onChange?: () => void }) 
             <Stack direction="row" alignItems="center" spacing={1}>
               <Chip size="small" label={it.kind} />
               <Typography variant="body2" sx={{ fontWeight: 600, flex: 1 }}>{JSON.stringify(it.raw)}</Typography>
-              <Chip size="small" label={it.status} sx={{ bgcolor: STATUS_COLOR[it.status], color: 'white', height: 20 }} />
+              <LifecycleChip status={it.status} />
             </Stack>
 
             {proposed && (

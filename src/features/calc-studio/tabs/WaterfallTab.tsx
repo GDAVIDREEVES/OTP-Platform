@@ -11,7 +11,9 @@ import {
   DialogContent,
   DialogTitle,
   FormControlLabel,
+  IconButton,
   Paper,
+  Popover,
   Stack,
   Switch,
   Table,
@@ -26,16 +28,18 @@ import {
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ReplayIcon from '@mui/icons-material/Replay';
+import HistoryIcon from '@mui/icons-material/History';
 import { api } from '@/shared/api/client';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
 import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
 import LifecycleChip from '@/shared/components/LifecycleChip';
+import { HistoryButton } from '@/kernel/audit/HistoryDrawer';
 import PovChip from '@/shared/components/PovChip';
 import { usePov } from '@/shared/hooks/usePov';
 import type {
-  Parameter, PlAdjusted, PlAdjustedRow, WaterfallRequest, WaterfallRun,
+  Parameter, PlAdjusted, PlAdjustedRow, PlOverlayLine, WaterfallRequest, WaterfallRun,
 } from '@/shared/api/types';
 import { fmtAmount, isNonZero, sumCents } from '../allocationLib';
 
@@ -59,26 +63,58 @@ import { fmtAmount, isNonZero, sumCents } from '../allocationLib';
 const PARAM_KEY = 'pl.use_post_charge';
 const WATERFALL_PROCESS = 'OTP-21';
 
-const STATUS_COLOR: Record<string, 'success' | 'error' | 'warning' | 'default'> = {
-  applied: 'success',
-  failed: 'error',
-  running: 'warning',
-  rolled_back: 'default',
-  superseded: 'default',
-};
+const fmtMargin = (m: number | null) => (m == null ? '—' : `${(m * 100).toFixed(2)}%`);
 
-function RunStatusChip({ status }: { status: string }) {
+/** Per-line audit history for one entity's applied overlay lines — the impact
+ *  table aggregates several ledger lines per entity, so a single HistoryButton
+ *  can't key on one. A popover lists each line (step · period · side · amount)
+ *  with its own HistoryButton keyed on overlay:{line_id} — the record_ref each
+ *  posted/reversed line hash-chains at (backend/state/pl_overlays.py). */
+function OverlayLinesHistory({ lines }: { lines: PlOverlayLine[] }) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  if (lines.length === 0) return null;
   return (
-    <Chip
-      size="small"
-      color={STATUS_COLOR[status] ?? 'default'}
-      label={status}
-      sx={{ height: 20, fontSize: 11 }}
-    />
+    <>
+      <Tooltip title={`Overlay line history (${lines.length})`} arrow>
+        <IconButton
+          size="small"
+          onClick={(e) => setAnchor(e.currentTarget)}
+          aria-label="Overlay line history"
+        >
+          <HistoryIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Popover
+        open={Boolean(anchor)}
+        anchorEl={anchor}
+        onClose={() => setAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Box sx={{ p: 1.5, maxWidth: 380 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, display: 'block', mb: 0.5 }}>
+            {lines.length} overlay line{lines.length === 1 ? '' : 's'} — each hash-chained at overlay:&#123;id&#125;
+          </Typography>
+          <Stack spacing={0.25}>
+            {lines.map((ln) => (
+              <Stack key={ln.id} direction="row" spacing={1} alignItems="center">
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
+                    {ln.step} · {ln.period}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+                    {ln.side} {fmtAmount(ln.amount)}{ln.reverses_id != null ? ' · reversing' : ''}
+                  </Typography>
+                </Box>
+                <HistoryButton recordRef={`overlay:${ln.id}`} />
+              </Stack>
+            ))}
+          </Stack>
+        </Box>
+      </Popover>
+    </>
   );
 }
-
-const fmtMargin = (m: number | null) => (m == null ? '—' : `${(m * 100).toFixed(2)}%`);
 
 /** Per-kind overlay breakdown for the provenance tooltip on an impact row. */
 function byKindText(row: PlAdjustedRow): string {
@@ -413,7 +449,7 @@ export default function WaterfallTab() {
                         {new Date(r.started_at).toLocaleString()}
                       </TableCell>
                       <TableCell>{r.actor}</TableCell>
-                      <TableCell><RunStatusChip status={r.status} /></TableCell>
+                      <TableCell><LifecycleChip status={r.status} /></TableCell>
                       <TableCell align="right">{lines || '—'}</TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                         {/* Σ step revenue side == Σ cost side (double entry) —
@@ -423,7 +459,7 @@ export default function WaterfallTab() {
                           : '—'}
                       </TableCell>
                       <TableCell align="right">
-                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
                           {r.status === 'applied' && (
                             <Tooltip title={rollbackPendingFor(r.id) ? 'A rollback request is already awaiting approval' : ''}>
                               <span>
@@ -445,6 +481,7 @@ export default function WaterfallTab() {
                           >
                             Evidence
                           </Button>
+                          <HistoryButton recordRef={`waterfall:${r.id}`} />
                         </Stack>
                       </TableCell>
                     </TableRow>
@@ -459,8 +496,8 @@ export default function WaterfallTab() {
       {/* ---- sequence console: the latest run's steps ---- */}
       {latest && (
         <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-            Sequence — {latest.id} <RunStatusChip status={latest.status} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }} component="div">
+            Sequence — {latest.id} <LifecycleChip status={latest.status} />
           </Typography>
           <TableContainer>
             <Table size="small">
@@ -485,7 +522,7 @@ export default function WaterfallTab() {
                         {s.id}
                       </Typography>
                     </TableCell>
-                    <TableCell><RunStatusChip status={s.status} /></TableCell>
+                    <TableCell><LifecycleChip status={s.status} /></TableCell>
                     <TableCell align="right">{s.lines ?? '—'}</TableCell>
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                       {fmtAmount(s.revenue_total)}
@@ -542,6 +579,7 @@ export default function WaterfallTab() {
                   <TableCell align="right">Net charge</TableCell>
                   <TableCell align="right">Post-charge OP</TableCell>
                   <TableCell align="right">Post-charge OM</TableCell>
+                  <TableCell align="right">History</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -570,6 +608,9 @@ export default function WaterfallTab() {
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: changed ? 700 : 400 }}>
                         {fmtMargin(row.post_charge.operating_margin)}
+                      </TableCell>
+                      <TableCell align="right" sx={{ py: 0 }}>
+                        <OverlayLinesHistory lines={row.lines} />
                       </TableCell>
                     </TableRow>
                   );

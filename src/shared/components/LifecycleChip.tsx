@@ -67,6 +67,9 @@ export const STATUS_META: Record<string, StatusMeta> = {
   tested: { label: 'Tested', color: 'info' },
   running: { label: 'Running', color: 'info' },
   in_progress: { label: 'In progress', color: 'info' },
+  // a waterfall step that built its lines while the run itself failed/aborted —
+  // machine-produced intermediate, never a live effect (WaterfallStep.status).
+  built: { label: 'Built', color: 'info' },
   // a human must act
   in_review: { label: 'In review', color: 'warning' },
   pending: { label: 'Pending', color: 'warning' },

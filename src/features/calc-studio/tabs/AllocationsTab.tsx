@@ -27,6 +27,7 @@ import { api } from '@/shared/api/client';
 import { useToast } from '@/shared/providers/DataProvider';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { usePov } from '@/shared/hooks/usePov';
+import LifecycleChip from '@/shared/components/LifecycleChip';
 import PovChip from '@/shared/components/PovChip';
 import { useBillingPeriods } from '../useBillingPeriods';
 import type {
@@ -111,11 +112,6 @@ function useAllocationSeeds() {
 
 // ------------------------------------------------------------ small elements --
 
-function StatusChip({ status }: { status: string }) {
-  const color = status === 'succeeded' ? 'success' : status === 'failed' ? 'error' : 'default';
-  return <Chip size="small" color={color} label={status} sx={{ height: 20, fontSize: 11 }} />;
-}
-
 function SeverityChip({ severity }: { severity: 'BLOCK' | 'WARN' }) {
   return (
     <Chip
@@ -176,7 +172,7 @@ function RunPicker({
         <MenuItem key={r.run_id} value={r.run_id}>
           <Stack direction="row" spacing={1} alignItems="center">
             <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.run_id}</Typography>
-            <StatusChip status={r.status} />
+            <LifecycleChip status={r.status} />
           </Stack>
         </MenuItem>
       ))}
@@ -437,7 +433,7 @@ export default function AllocationsTab() {
                     <Chip size="small" variant="outlined" label={r.run_type} sx={{ height: 20, fontSize: 11 }} />
                   </TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{r.period}</TableCell>
-                  <TableCell><StatusChip status={r.status} /></TableCell>
+                  <TableCell><LifecycleChip status={r.status} /></TableCell>
                   <TableCell><HashChip hash={r.input_snapshot_hash} prefix="input snapshot sha256" /></TableCell>
                   <TableCell align="right">{r.summary ? r.summary.charges : '—'}</TableCell>
                   <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>

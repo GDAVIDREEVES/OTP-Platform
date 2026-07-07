@@ -14,9 +14,10 @@ import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
 import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
+import LifecycleChip from '@/shared/components/LifecycleChip';
+import { HistoryButton } from '@/kernel/audit/HistoryDrawer';
 import type {
-  AuthoredDataset, AuthoredDatasetStatus, AuthoredPool, AuthoredPoolStatus,
-  Scenario, UserCalc,
+  AuthoredDataset, AuthoredPool, Scenario, UserCalc,
 } from '@/shared/api/types';
 import { useGraphModel } from './useGraphModel';
 import Canvas from './Canvas';
@@ -37,18 +38,6 @@ import ResultsDock from './ResultsDock';
 
 const DEFAULT_PROCESS = 'OTP-49';
 const GRAINS = ['group', 'entity', 'entity_function'];
-
-const STATUS_COLOR: Record<UserCalc['status'], 'default' | 'info' | 'warning' | 'success'> = {
-  draft: 'default', tested: 'info', in_review: 'warning', active: 'success',
-};
-
-const POOL_STATUS_COLOR: Record<AuthoredPoolStatus, 'default' | 'info' | 'warning' | 'success'> = {
-  draft: 'default', tested: 'info', in_review: 'warning', active: 'success',
-};
-
-const DATASET_STATUS_COLOR: Record<AuthoredDatasetStatus, 'default' | 'info' | 'warning' | 'success'> = {
-  draft: 'default', tested: 'info', in_review: 'warning', active: 'success',
-};
 
 export default function CockpitPage() {
   const user = useSessionUser();
@@ -427,21 +416,24 @@ export default function CockpitPage() {
           <Stack direction="row" spacing={0.5} alignItems="center">
             <Chip size="small" variant="outlined" label={savedDataset.id} sx={{ height: 22, fontFamily: 'monospace' }} />
             <Chip size="small" variant="outlined" label={`v${savedDataset.version}`} sx={{ height: 22 }} />
-            <Chip size="small" color={DATASET_STATUS_COLOR[savedDataset.status]} label={savedDataset.status} sx={{ height: 22, fontWeight: 700 }} />
+            <LifecycleChip status={savedDataset.status} />
+            <HistoryButton recordRef={`dataset:${savedDataset.id}`} />
           </Stack>
         )}
-        {!isAlloc && saved && (
+        {!isAlloc && !isDataset && saved && (
           <Stack direction="row" spacing={0.5} alignItems="center">
             <Chip size="small" variant="outlined" label={saved.id} sx={{ height: 22, fontFamily: 'monospace' }} />
             <Chip size="small" variant="outlined" label={`v${saved.version}`} sx={{ height: 22 }} />
-            <Chip size="small" color={STATUS_COLOR[saved.status]} label={saved.status} sx={{ height: 22, fontWeight: 700 }} />
+            <LifecycleChip status={saved.status} />
+            <HistoryButton recordRef={`ucalc:${saved.id}`} />
           </Stack>
         )}
         {isAlloc && savedPool && (
           <Stack direction="row" spacing={0.5} alignItems="center">
             <Chip size="small" variant="outlined" label={savedPool.id} sx={{ height: 22, fontFamily: 'monospace' }} />
             <Chip size="small" variant="outlined" label={`v${savedPool.version}`} sx={{ height: 22 }} />
-            <Chip size="small" color={POOL_STATUS_COLOR[savedPool.status]} label={savedPool.status} sx={{ height: 22, fontWeight: 700 }} />
+            <LifecycleChip status={savedPool.status} />
+            <HistoryButton recordRef={`allocpool:${savedPool.id}`} />
           </Stack>
         )}
 
@@ -595,7 +587,7 @@ export default function CockpitPage() {
                         }}
                       >
                         <Stack direction="row" spacing={1} alignItems="center">
-                          <Chip size="small" color={STATUS_COLOR[c.status]} label={c.status} sx={{ height: 18, fontSize: 10 }} />
+                          <LifecycleChip status={c.status} />
                           <span>{c.id} — {c.name}</span>
                         </Stack>
                       </MenuItem>

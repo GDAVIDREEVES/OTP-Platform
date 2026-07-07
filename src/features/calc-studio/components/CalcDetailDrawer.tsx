@@ -28,6 +28,7 @@ import { usePov } from '@/shared/hooks/usePov';
 import PovChip from '@/shared/components/PovChip';
 import type { CalcDefResolved, CalcRun, CalcRunResult, ShapedStep } from '@/shared/api/types';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
+import { HistoryButton } from '@/kernel/audit/HistoryDrawer';
 import { provKind, shapeTermSteps, valueText, PROV_META } from '../lib';
 import TraceTree from './TraceTree';
 import RuleCard from './RuleCard';
@@ -186,6 +187,7 @@ export default function CalcDetailDrawer({
               )}
             </Stack>
           </Box>
+          {recordRef && <HistoryButton recordRef={recordRef} size="medium" />}
           <IconButton onClick={onClose} aria-label="Close">
             <CloseIcon />
           </IconButton>

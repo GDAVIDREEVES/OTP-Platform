@@ -924,10 +924,12 @@ export const api = {
   mdPropose: (id: string) => sendJSON<MdProposal>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/propose`),
   mdSubmitMapping: (id: string, maker: string) =>
     sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/submit`, { maker }),
+  // Both return the full refreshed staging row (get_staging → dict | None),
+  // not a {id,status} stub. Call sites ignore the body; this keeps the type honest.
   mdApproveMapping: (id: string, checker: string, comments?: string) =>
-    sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/approve`, { checker, comments }),
+    sendJSON<MdStagingItem | null>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/approve`, { checker, comments }),
   mdRejectMapping: (id: string, checker: string, comments: string) =>
-    sendJSON<{ id: string; status: string }>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/reject`, { checker, comments }),
+    sendJSON<MdStagingItem | null>('POST', `/api/master-data/staging/${encodeURIComponent(id)}/reject`, { checker, comments }),
 
   // ---- Cases (Case Workspace — OTP-30/31/40/50) ----
   /** Governance cases for a process (optionally filtered by status). */

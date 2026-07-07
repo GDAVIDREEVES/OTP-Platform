@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
+  Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent,
   DialogTitle, IconButton, MenuItem, Paper, Stack, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, TextField, Typography,
 } from '@mui/material';
@@ -12,8 +12,10 @@ import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useToast } from '@/shared/providers/DataProvider';
 import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
+import LifecycleChip from '@/shared/components/LifecycleChip';
+import { HistoryButton } from '@/kernel/audit/HistoryDrawer';
 import type {
-  CalcDef, Parameter, Scenario, ScenarioCompare, ScenarioStatus,
+  CalcDef, Parameter, Scenario, ScenarioCompare,
 } from '@/shared/api/types';
 import CompareTable from '../components/CompareTable';
 import { valueText, useParameters } from '../lib';
@@ -23,13 +25,6 @@ import { valueText, useParameters } from '../lib';
  *  contextvar; the store itself is NEVER written until a DIFFERENT reviewer
  *  approves the promotion in the /review queue. Every mutation hash-chains at
  *  record_ref="scenario:{id}". */
-
-const STATUS_CHIP: Record<ScenarioStatus, { label: string; color: 'default' | 'warning' | 'success' }> = {
-  draft: { label: 'draft', color: 'default' },
-  in_review: { label: 'in review', color: 'warning' },
-  promoted: { label: 'promoted', color: 'success' },
-  discarded: { label: 'discarded', color: 'default' },
-};
 
 /** Parse an edited override back to the parameter's JSON shape — the same
  *  type-driven logic as the shared ParamEditDialog. */
@@ -418,7 +413,6 @@ export default function ScenariosTab() {
             </TableHead>
             <TableBody>
               {list.map((s) => {
-                const chip = STATUS_CHIP[s.status];
                 const keys = Object.keys(s.overrides);
                 return (
                   <TableRow
@@ -435,13 +429,7 @@ export default function ScenariosTab() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        size="small"
-                        color={chip.color}
-                        variant={s.status === 'discarded' ? 'outlined' : 'filled'}
-                        label={chip.label}
-                        sx={{ height: 20, fontSize: 11 }}
-                      />
+                      <LifecycleChip status={s.status} />
                     </TableCell>
                     <TableCell sx={{ maxWidth: 260 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -458,7 +446,7 @@ export default function ScenariosTab() {
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
-                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
                         {s.status === 'draft' && (
                           <Button size="small" variant="outlined" onClick={() => setDialog({ mode: 'edit', scenario: s })}>
                             Edit
@@ -471,6 +459,7 @@ export default function ScenariosTab() {
                             <Button size="small" color="error" onClick={() => void discard(s)}>Discard</Button>
                           </>
                         )}
+                        <HistoryButton recordRef={`scenario:${s.id}`} />
                       </Stack>
                     </TableCell>
                   </TableRow>

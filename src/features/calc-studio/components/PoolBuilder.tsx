@@ -33,6 +33,8 @@ import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
+import { HistoryButton } from '@/kernel/audit/HistoryDrawer';
+import LifecycleChip from '@/shared/components/LifecycleChip';
 import PovChip from '@/shared/components/PovChip';
 import type {
   AllocationDimensionOption,
@@ -44,7 +46,6 @@ import type {
   AuthoredMarkupPolicy,
   AuthoredPool,
   AuthoredPoolDefinition,
-  AuthoredPoolStatus,
   AuthoredRunResult,
   CapturePreview,
 } from '@/shared/api/types';
@@ -146,24 +147,6 @@ const BLANK: BuilderState = {
 };
 
 // ----------------------------------------------------------- small elements --
-
-const STATUS_COLOR: Record<AuthoredPoolStatus, 'default' | 'info' | 'warning' | 'success'> = {
-  draft: 'default',
-  tested: 'info',
-  in_review: 'warning',
-  active: 'success',
-};
-
-function StatusChip({ status }: { status: AuthoredPoolStatus }) {
-  return (
-    <Chip
-      size="small"
-      color={STATUS_COLOR[status]}
-      label={status}
-      sx={{ height: 20, fontSize: 11, fontWeight: 700 }}
-    />
-  );
-}
 
 /** The provenance-honest "authored" marker — an authored pool is a governed
  *  experiment, NOT claimed to tie to the warehouse SERVICE pairs. Dashed violet
@@ -1110,19 +1093,14 @@ export default function PoolBuilder({
                       {p.definition.provider_entity_id}
                       {entityName[p.definition.provider_entity_id] ? ` · ${entityName[p.definition.provider_entity_id]}` : ''}
                     </TableCell>
-                    <TableCell><StatusChip status={p.status} /></TableCell>
+                    <TableCell><LifecycleChip status={p.status} /></TableCell>
                     <TableCell align="right">{p.version}</TableCell>
                     <TableCell align="right">
-                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                      <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
                         <Button size="small" onClick={() => loadIntoForm(p)}>
                           {p.status === 'active' ? 'View' : 'Edit'}
                         </Button>
-                        <Button
-                          size="small"
-                          onClick={() => navigate(`/evidence/${encodeURIComponent(`allocpool:${p.id}`)}`)}
-                        >
-                          Audit
-                        </Button>
+                        <HistoryButton recordRef={`allocpool:${p.id}`} />
                         {(p.status === 'draft' || p.status === 'tested') && (
                           <IconButton size="small" onClick={() => void deletePool(p)} aria-label="Delete pool">
                             <DeleteOutlineIcon fontSize="small" />
