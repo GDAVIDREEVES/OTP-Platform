@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Alert, Box, Button, Chip, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import AppShell from '@/shared/components/layout/AppShell';
-import { useEntities, useFlows, useKpis, useToast } from '@/shared/providers/DataProvider';
+import { useEntities, useFlows, useKpis } from '@/shared/providers/DataProvider';
 import { useProcesses } from '@/kernel/registry/useProcesses';
 import { useReference } from '@/kernel/data/useReference';
 import { formatCurrency } from '@/shared/utils/format';
@@ -15,7 +15,6 @@ const STATUS_RANK: Record<string, number> = { 'out-of-range': 0, watch: 1, 'no-d
 
 export default function ExposureDashboard() {
   const navigate = useNavigate();
-  const toast = useToast();
   const k = useKpis();
   const entities = useEntities();
   const flows = useFlows();
@@ -129,7 +128,7 @@ export default function ExposureDashboard() {
         </Paper>
 
         <Box>
-          <Button variant="contained" size="large" onClick={() => toast.show('Audit-Committee pack assembled from live data', 'success')}>
+          <Button variant="contained" size="large" onClick={() => navigate('/reports')}>
             Generate Audit-Committee pack
           </Button>
         </Box>
