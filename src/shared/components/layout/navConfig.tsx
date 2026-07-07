@@ -51,7 +51,7 @@ export const NAV_SECTIONS: NavSection[] = [
     header: 'Close',
     items: [
       { label: 'Processes', icon: <GridViewIcon />, path: '/process', matchPrefixes: ['/process', '/evidence'] },
-      { label: 'Monitoring', icon: <DashboardIcon />, path: '/dashboard', matchPrefixes: ['/dashboard', '/entities', '/adjustment'] },
+      { label: 'Monitoring', icon: <DashboardIcon />, path: '/dashboard', matchPrefixes: ['/dashboard', '/entities'] },
       { label: 'Invoices', icon: <ReceiptLongIcon />, path: '/invoicing' },
       { label: 'Segmented P&L', icon: <PieChartIcon />, path: '/segmented-pnl' },
     ],

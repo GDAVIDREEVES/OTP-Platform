@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppShell from '@/shared/components/layout/AppShell';
 import {
+  Alert,
   Paper,
   Typography,
   Box,
@@ -12,59 +14,69 @@ import {
   TableCell,
   Chip,
   Stack,
-  Button,
   Tabs,
   Tab } from
 '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { statusColor } from '@/shared/utils/status';
-import { useEntities } from '@/shared/providers/DataProvider';
+import { useEntities, useLastFetchedAt } from '@/shared/providers/DataProvider';
 import { formatCurrency } from '@/shared/utils/format';
 import ProductPricing from '@/features/pricing/ProductPricing';
 export default function PriceSetting() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState(0);
   const entities = useEntities();
+  const lastFetchedAt = useLastFetchedAt();
   const tested = entities.filter((e) => e.actualMargin !== null);
   const passed = tested.filter((e) => e.status === 'in-range').length;
   const failed = tested.filter((e) => e.status === 'out-of-range').length;
   return (
     <AppShell pageTitle="Price Setting & Arm's Length Testing">
-      <Stack
-        direction="row"
-        justifyContent="space-between"
-        alignItems="center"
-        sx={{
-          mb: 2
-        }}>
-        
-        <Box>
-          <Typography
-            variant="h5"
-            sx={{
-              fontWeight: 700
-            }}>
-            
-            {tab === 0 ? 'Automated ALS testing' : 'Product-level pricing'}
+      <Alert
+        severity="info"
+        variant="outlined"
+        sx={{ mb: 2.5, alignItems: 'center' }}>
+
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            Price setting runs as guided processes — this is a read-only reference view.
           </Typography>
-          <Typography
-            variant="body2"
-            sx={{
-              color: '#64748B'
-            }}>
-            
-            {tab === 0 ?
-            'Every intercompany transaction tested against policy. Last run: Dec 10, 2025 — 09:10 AM.' :
-            'Berry ratio analysis and markup simulation across entities and products.'}
-          </Typography>
-        </Box>
-        {tab === 0 &&
-        <Button variant="contained" startIcon={<PlayArrowIcon />}>
-            Run testing now
-          </Button>
-        }
-      </Stack>
+          {[
+          { id: 'OTP-1', label: 'OTP-1 · goods' },
+          { id: 'OTP-3', label: 'OTP-3 · royalty' },
+          { id: 'OTP-4', label: 'OTP-4 · services' }].
+          map((p) =>
+          <Chip
+            key={p.id}
+            size="small"
+            label={p.label}
+            onClick={() => navigate(`/process/${p.id}/overview`)}
+            sx={{ cursor: 'pointer', fontWeight: 600 }} />
+
+          )}
+        </Stack>
+      </Alert>
+      <Box sx={{ mb: 2 }}>
+        <Typography
+          variant="h5"
+          sx={{
+            fontWeight: 700
+          }}>
+
+          {tab === 0 ? 'Automated ALS testing' : 'Product-level pricing'}
+        </Typography>
+        <Typography
+          variant="body2"
+          sx={{
+            color: '#64748B'
+          }}>
+
+          {tab === 0 ?
+          `Every intercompany transaction tested against policy. Data last refreshed ${lastFetchedAt.toLocaleString()}.` :
+          'Berry ratio analysis and markup simulation across entities and products.'}
+        </Typography>
+      </Box>
 
       <Paper
         sx={{

@@ -243,7 +243,7 @@ export default function EntityDetail() {
                 color="inherit"
                 size="small"
                 variant="contained"
-                onClick={() => navigate(`/adjustment/${e.id}`)}
+                onClick={() => navigate(`/process/OTP-16/overview?entity=${e.id}`)}
                 startIcon={<PlayArrowIcon />}>
                 
                     Run Adjustment
@@ -483,7 +483,7 @@ export default function EntityDetail() {
                 variant="contained"
                 startIcon={<PlayArrowIcon />}
                 fullWidth
-                onClick={() => navigate(`/adjustment/${e.id}`)}
+                onClick={() => navigate(`/process/OTP-16/overview?entity=${e.id}`)}
                 disabled={e.status === 'in-range'}>
                 
                 Run adjustment

@@ -169,7 +169,7 @@ export default function AlertsRail({ alerts, entities }: AlertsRailProps) {
                   size="small"
                   variant="contained"
                   color={isHigh ? 'error' : 'warning'}
-                  onClick={() => navigate(`/adjustment/${a.entityId}`)}
+                  onClick={() => navigate(`/process/OTP-16/overview?entity=${a.entityId}`)}
                   sx={{ color: 'white' }}
                 >
                   {a.primaryAction}

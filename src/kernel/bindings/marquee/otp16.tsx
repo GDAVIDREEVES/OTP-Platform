@@ -8,6 +8,10 @@ import {
   Chip,
   CircularProgress,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
@@ -15,6 +19,7 @@ import {
 } from '@mui/material';
 import SubmitSuccess from '@/kernel/shell/SubmitSuccess';
 import { useEntities, useEntity, useToast } from '@/shared/providers/DataProvider';
+import { useJournalEntries } from '@/shared/hooks/useJournalEntries';
 import { useSessionUser } from '@/shared/providers/SessionProvider';
 import { useRefreshSignals } from '@/shared/providers/WorkSignalsProvider';
 import { useReviewHandoff } from '@/kernel/review/ReviewHandoff';
@@ -114,6 +119,9 @@ function Adjustment({ entityId }: { entityId: string }) {
   const refreshSignals = useRefreshSignals();
   const { notifySubmitted } = useReviewHandoff();
   const entity = useEntity(entityId);
+  // Ported from the retired /adjustment page: the supporting ACDOCA postings the
+  // adjustment will sit alongside — read-only audit context shown at the gate.
+  const journal = useJournalEntries({ entity: entityId, limit: 25 });
   const recordRef = `OTP16-${entityId}`;
   const wf = useWorkflowState('OTP-16', recordRef, user.id, STEPS);
   const [preparing, setPreparing] = useState(false);
@@ -288,6 +296,36 @@ function Adjustment({ entityId }: { entityId: string }) {
           Submitting routes this to the maker-checker queue. The rationale is captured at the point of
           action and travels with the record.
         </Typography>
+        <Box>
+          <Typography variant="overline" sx={{ color: 'text.secondary' }}>
+            Supporting postings
+          </Typography>
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mb: 1 }}>
+            Recent ACDOCA lines for {entity.id} — the entries this adjustment sits alongside.
+          </Typography>
+          {journal.loading ? (
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>Loading postings…</Typography>
+          ) : journal.data && journal.data.length > 0 ? (
+            <Box sx={{ overflowX: 'auto', maxWidth: 620 }}>
+              <Table size="small">
+                <TableBody>
+                  {journal.data.slice(0, 8).map((j, i) => (
+                    <TableRow key={`${j.BELNR}-${j.DOCLN}-${i}`} hover>
+                      <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>{j.BUDAT}</TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{j.BELNR}/{j.DOCLN}</TableCell>
+                      <TableCell sx={{ fontSize: 12, fontWeight: 600 }}>{j.RACCT}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+                        {formatCurrency(j.HSL, j.RHCUR || 'USD', false)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          ) : (
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>No postings found for this entity.</Typography>
+          )}
+        </Box>
       </Stack>
     );
   };

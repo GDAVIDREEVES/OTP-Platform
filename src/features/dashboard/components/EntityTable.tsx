@@ -145,7 +145,7 @@ export default function EntityTable({
                       <Button
                         size="small"
                         variant="contained"
-                        onClick={() => navigate(`/adjustment/${e.id}`)}
+                        onClick={() => navigate(`/process/OTP-16/overview?entity=${e.id}`)}
                       >
                         Adjust
                       </Button>

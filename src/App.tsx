@@ -1,5 +1,11 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useParams,
+} from 'react-router-dom';
 import {
   ThemeProvider,
   CssBaseline,
@@ -31,7 +37,6 @@ const Invoicing = lazy(() => import('@/features/invoicing/InvoicingPage'));
 const Reports = lazy(() => import('@/features/reports/ReportsPage'));
 const Settings = lazy(() => import('@/features/settings/SettingsPage'));
 const EntityDetail = lazy(() => import('@/features/entities/EntityDetailPage'));
-const Adjustment = lazy(() => import('@/features/adjustment/AdjustmentPage'));
 const ResearchBrain = lazy(() => import('@/features/research-brain/ResearchBrainPage'));
 const ProcessLibrary = lazy(() => import('@/kernel/navigation/ProcessLibraryPage'));
 const ProcessShellRoute = lazy(() => import('@/kernel/shell/ProcessShell'));
@@ -60,6 +65,19 @@ function RouteFallback() {
     </Box>);
 }
 
+/** Legacy `/adjustment/:id` is retired — the canonical in-period adjustment is
+ *  the OTP-16 guided process (draft persistence, Research-Brain prepare,
+ *  maker-checker handoff). Keep the path alive for bookmarks; bounce to OTP-16
+ *  carrying the entity so the gap-to-range is pre-loaded. */
+function AdjustmentRedirect() {
+  const { id } = useParams();
+  return (
+    <Navigate
+      to={`/process/OTP-16/overview?entity=${id ?? ''}`}
+      replace
+    />);
+}
+
 export function App() {
   return (
     <ThemeProvider theme={theme}>
@@ -85,7 +103,8 @@ export function App() {
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/entities/:id" element={<EntityDetail />} />
-                <Route path="/adjustment/:id" element={<Adjustment />} />
+                {/* Retired legacy page — redirects into the OTP-16 process. */}
+                <Route path="/adjustment/:id" element={<AdjustmentRedirect />} />
                 <Route path="/research-brain" element={<ResearchBrain />} />
                 <Route path="/process" element={<ProcessLibrary />} />
                 <Route path="/process/:otpId" element={<ProcessShellRoute />} />
