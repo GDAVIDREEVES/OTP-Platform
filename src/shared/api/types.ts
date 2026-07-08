@@ -1775,12 +1775,6 @@ export interface CapturePreview {
   by_entity: Record<string, string>;
 }
 
-/** POST /api/allocation/pools/validate — structural validation report. */
-export interface AuthoredPoolValidation {
-  ok: boolean;
-  errors: string[];
-}
-
 /** One fired V-rule from a dry-run / authored run. The engine-internal dry-run
  *  exceptions carry no `remediation` (only the persisted run report does). */
 export interface AuthoredException {

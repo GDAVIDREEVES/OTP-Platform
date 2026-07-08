@@ -147,17 +147,29 @@ export default function Settings() {
               Security
             </Typography>
             <Stack spacing={1.5}>
-              <FormControlLabel
-                control={<Switch defaultChecked />}
-                label="Enforce SSO (SAML 2.0)" />
-              
-              <FormControlLabel
-                control={<Switch defaultChecked />}
-                label="Require MFA for Tax Director role" />
-              
-              <FormControlLabel
-                control={<Switch defaultChecked />}
-                label="IP allowlist enabled" />
+              {[
+                'Enforce SSO (SAML 2.0)',
+                'Require MFA for Tax Director role',
+                'IP allowlist enabled'].
+              map((label) =>
+              <Stack
+                key={label}
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center">
+
+                  <Typography variant="body2">{label}</Typography>
+                  <Chip
+                  label="Enforced"
+                  size="small"
+                  sx={{
+                    bgcolor: '#DCFCE7',
+                    color: '#15803D',
+                    fontWeight: 700
+                  }} />
+
+                </Stack>
+              )}
             </Stack>
           </Paper>
         </Grid>

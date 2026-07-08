@@ -69,10 +69,18 @@ export default function Policy() {
     };
   }, []);
 
-  // Hydrate every drawer field whenever the user opens a row — from a saved
-  // override for that flow if one exists, else sensible defaults.
+  // Hydrate every drawer field ONCE per open — keyed on the row id — from a
+  // saved override for that flow if one exists, else sensible defaults. Gating
+  // on the id transition (not on `overrides`/`settings`) means a late
+  // policyOverrides() resolve can't clobber edits the user has started.
+  const hydratedForId = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (!editing) return;
+    if (!editing) {
+      hydratedForId.current = null;
+      return;
+    }
+    if (hydratedForId.current === editing.id) return;
+    hydratedForId.current = editing.id;
     const ov = overrides[editing.id];
     setDraftMethod(ov?.tpMethod ?? editing.tpMethod);
     setDraftPli(ov?.pli ?? editing.pli ?? '');
@@ -82,7 +90,8 @@ export default function Policy() {
     setDraftReviewer(ov?.reviewer ?? settings.defaultReviewer);
     setDraftApprover(ov?.approver ?? 'Sam Rodriguez — Tax Director');
     setDraftNotes(ov?.notes ?? '');
-  }, [editing, overrides, settings.defaultReviewer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
   return (
     <AppShell pageTitle="Policy Configuration">
       <Stack

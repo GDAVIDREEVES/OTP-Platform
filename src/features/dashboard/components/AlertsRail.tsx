@@ -98,7 +98,7 @@ export default function AlertsRail({ alerts, entities }: AlertsRailProps) {
     next.add(id);
     persistDismissed(next);
   };
-  const markAllRead = () => {
+  const dismissAll = () => {
     const next = new Set(dismissed);
     visible.forEach((a) => next.add(a.id));
     persistDismissed(next);
@@ -134,10 +134,10 @@ export default function AlertsRail({ alerts, entities }: AlertsRailProps) {
           <MuiLink
             component="button"
             underline="hover"
-            onClick={markAllRead}
+            onClick={dismissAll}
             sx={{ fontSize: 12, fontWeight: 600 }}
           >
-            Mark all read
+            Dismiss all
           </MuiLink>
         )}
       </Stack>
