@@ -12,6 +12,8 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Box } from '@mui/material';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import EmptyState from '@/shared/components/EmptyState';
 import CockpitNode from './CockpitNode';
 import { CanvasContext } from './canvasContext';
 import {
@@ -46,7 +48,7 @@ const NODE_COMPONENTS = { cockpit: CockpitNode };
 /** The center pane — React Flow with the typed custom node, a typed
  *  ``isValidConnection`` guard (kind compatibility + acyclic + single-input),
  *  pan/zoom/minimap, and palette drag-and-drop (one gesture, no dialog). */
-function CanvasInner({ model }: { model: GraphModel }) {
+function CanvasInner({ model, onOpenExisting }: { model: GraphModel; onOpenExisting?: () => void }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const { screenToFlowPosition } = useReactFlow();
 
@@ -254,15 +256,40 @@ function CanvasInner({ model }: { model: GraphModel }) {
             style={{ background: '#fff', border: '1px solid #E2E8F0' }}
           />
         </ReactFlow>
+
+        {/* Zero-node overlay (POL-09) — teaches the two ways to start a build.
+            pointer-events pass through so a drag still lands on the canvas below;
+            only the CTA button is clickable. */}
+        {nodes.length === 0 && (
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'none',
+              '& button': { pointerEvents: 'auto' },
+            }}
+          >
+            <EmptyState
+              icon={<AccountTreeOutlinedIcon />}
+              title="Start a build on the canvas"
+              body="Drag a parameter, measure, source or stage from the palette on the left — one gesture, no
+                dialog — or open an existing calculation, pool or dataset to edit."
+              cta={onOpenExisting ? { label: 'Open an existing build', onClick: onOpenExisting } : undefined}
+            />
+          </Box>
+        )}
       </Box>
     </CanvasContext.Provider>
   );
 }
 
-export default function Canvas({ model }: { model: GraphModel }) {
+export default function Canvas({ model, onOpenExisting }: { model: GraphModel; onOpenExisting?: () => void }) {
   return (
     <ReactFlowProvider>
-      <CanvasInner model={model} />
+      <CanvasInner model={model} onOpenExisting={onOpenExisting} />
     </ReactFlowProvider>
   );
 }

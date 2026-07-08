@@ -16,6 +16,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import { api } from '@/shared/api/client';
 import type { JournalEntryRow } from '@/shared/api/types';
 import { formatCurrency } from '@/shared/utils/format';
+import Term from '@/shared/components/Term';
 
 /** Drill-to-source: opens beside any figure and shows the underlying ACDOCA
  *  postings — every number is verifiable, not just trusted. */
@@ -53,7 +54,7 @@ export default function DrillDrawer({
         <Stack direction="row" alignItems="flex-start" sx={{ mb: 1.5 }}>
           <Box sx={{ flex: 1 }}>
             <Typography variant="overline" sx={{ color: 'text.secondary' }}>
-              Drill to source · ACDOCA postings
+              Drill to source · <Term k="ACDOCA">ACDOCA</Term> postings
             </Typography>
             <Typography variant="h6" sx={{ fontWeight: 800 }}>
               {entityName ?? entityId}
@@ -73,8 +74,8 @@ export default function DrillDrawer({
             <TableHead>
               <TableRow>
                 <TableCell>Date</TableCell>
-                <TableCell>Doc</TableCell>
-                <TableCell>Account</TableCell>
+                <TableCell><Term k="BELNR">Doc</Term></TableCell>
+                <TableCell><Term k="RACCT">Account</Term></TableCell>
                 <TableCell>Material</TableCell>
                 <TableCell>Description</TableCell>
                 <TableCell align="right">Amount</TableCell>

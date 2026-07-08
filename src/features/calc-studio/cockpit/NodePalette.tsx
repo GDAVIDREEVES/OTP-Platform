@@ -9,6 +9,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { api } from '@/shared/api/client';
 import { useToast } from '@/shared/providers/DataProvider';
+import { VALUE_DIM_LABELS } from '@/shared/glossary/terms';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
 import type {
   DatasetSource, DatasetSourceField, DatasetSourcesCatalog, Parameter,
@@ -167,19 +168,6 @@ function ValueChip({
     />
   );
 }
-
-/** Human labels for the value-enumerable dimensions the user knows by name. */
-const VALUE_DIM_LABELS: Record<string, string> = {
-  RACCT: 'G/L account', RCNTR: 'Cost center', PRCTR: 'Profit center',
-  PPRCTR: 'Partner profit center', RBUKRS: 'Entity (company code)',
-  PBUKRS: 'Partner entity', RASSC: 'Trading partner', KOKRS: 'Controlling area',
-  LAND1: 'Country', TAX_COUNTRY: 'Tax country', SEGMENT: 'Segment',
-  RFAREA: 'Functional area', BLART: 'Document type', DRCRK: 'Debit/Credit',
-  BSCHL: 'Posting key', USNAM: 'User', POPER: 'Posting period',
-  cost_center: 'Cost center', profit_center: 'Profit center',
-  cost_element: 'Cost element', function: 'Function', ledger: 'Ledger',
-  ROLE_CODE: 'Role', TP_METHOD: 'TP method', MATERIAL_TYPE: 'Material type',
-};
 
 /** The expandable FIELD + VALUE browser for one dataset source (DS5). Fields are
  *  grouped by ``group`` (each a draggable chip); below, the value-enumerable

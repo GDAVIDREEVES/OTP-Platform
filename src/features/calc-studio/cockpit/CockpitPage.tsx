@@ -714,7 +714,7 @@ export default function CockpitPage() {
         </Box>
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <Box sx={{ flex: 1, minHeight: 0 }}>
-            <Canvas model={model} />
+            <Canvas model={model} onOpenExisting={() => setOpenMenu(true)} />
           </Box>
           <Divider />
           <Box sx={{ height: 220, minHeight: 220 }}>

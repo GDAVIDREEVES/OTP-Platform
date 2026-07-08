@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '@/shared/components/layout/AppShell';
+import Term from '@/shared/components/Term';
 import {
   Paper,
   Typography,
@@ -148,7 +149,7 @@ export default function Policy() {
                 <TableCell>Transaction type</TableCell>
                 <TableCell>Description</TableCell>
                 <TableCell>Method</TableCell>
-                <TableCell>PLI</TableCell>
+                <TableCell><Term k="PLI">PLI</Term></TableCell>
                 <TableCell align="right">YTD Volume</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>

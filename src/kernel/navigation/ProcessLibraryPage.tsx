@@ -5,16 +5,22 @@ import {
   Box,
   Chip,
   CircularProgress,
+  InputAdornment,
   Paper,
   Stack,
+  TextField,
   Typography,
 } from '@mui/material';
 import StarIcon from '@mui/icons-material/Star';
+import SearchIcon from '@mui/icons-material/Search';
+import SearchOffIcon from '@mui/icons-material/SearchOff';
 import AppShell from '@/shared/components/layout/AppShell';
+import EmptyState from '@/shared/components/EmptyState';
 import { useProcesses } from '../registry/useProcesses';
 import { CATEGORY_ORDER, type Category, type ProcessDef } from '../registry/types';
 import CategoryRail, { type CategoryFilter } from './CategoryRail';
 import { isMarquee } from '../bindings';
+import { SYNONYMS } from './CommandPalette';
 
 function ProcessCard({ def, onOpen }: { def: ProcessDef; onOpen: () => void }) {
   return (
@@ -66,6 +72,36 @@ function ProcessCard({ def, onOpen }: { def: ProcessDef; onOpen: () => void }) {
   );
 }
 
+/** Rank a process against a search needle (POL-16). Exact OTP-id match ranks
+ *  first, then an id/name substring, then category/pattern, then a synonym hit.
+ *  Returns null when nothing matches so the card drops out. */
+function searchRank(def: ProcessDef, needle: string): number | null {
+  const id = def.id.toLowerCase();
+  const name = def.name.toLowerCase();
+  if (id === needle) return 0;
+  if (id.includes(needle) || name.includes(needle)) return 1;
+  if (`${def.category} ${def.pattern}`.toLowerCase().includes(needle)) return 2;
+  if ((SYNONYMS[def.id] ?? '').toLowerCase().includes(needle)) return 3;
+  return null;
+}
+
+function CardGrid({ items, onOpen }: { items: ProcessDef[]; onOpen: (id: string) => void }) {
+  return (
+    <Box
+      sx={{
+        mt: 1.5,
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1fr 1fr 1fr' },
+        gap: 2,
+      }}
+    >
+      {items.map((p) => (
+        <ProcessCard key={p.id} def={p} onOpen={() => onOpen(p.id)} />
+      ))}
+    </Box>
+  );
+}
+
 export default function ProcessLibraryPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -78,6 +114,8 @@ export default function ProcessLibraryPage() {
   const [selected, setSelected] = useState<CategoryFilter>(
     catParam && (CATEGORY_ORDER as string[]).includes(catParam) ? (catParam as Category) : 'all',
   );
+  // A `?q=` deep link pre-fills the search (same seed-once-on-mount pattern).
+  const [query, setQuery] = useState(searchParams.get('q') ?? '');
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -86,6 +124,20 @@ export default function ProcessLibraryPage() {
     });
     return c;
   }, [catalog]);
+
+  const procs = catalog?.processes ?? [];
+  const needle = query.trim().toLowerCase();
+
+  // Search results — ranked (id-first), across the selected category filter.
+  const ranked = useMemo(() => {
+    if (!needle) return [];
+    return procs
+      .filter((p) => selected === 'all' || p.category === selected)
+      .map((p) => ({ p, rank: searchRank(p, needle) }))
+      .filter((x): x is { p: ProcessDef; rank: number } => x.rank !== null)
+      .sort((a, b) => a.rank - b.rank || a.p.id.localeCompare(b.p.id, undefined, { numeric: true }))
+      .map((x) => x.p);
+  }, [procs, needle, selected]);
 
   if (loading) {
     return (
@@ -98,8 +150,26 @@ export default function ProcessLibraryPage() {
   }
 
   const cats = catalog?.categories ?? {};
-  const procs = catalog?.processes ?? [];
   const visibleCats = selected === 'all' ? CATEGORY_ORDER : [selected];
+  const open = (id: string) => navigate(`/process/${id}/overview`);
+
+  const searchField = (
+    <TextField
+      size="small"
+      fullWidth
+      placeholder="Search processes — id, name, pattern, or keyword (e.g. true-up, benchmark, OTP-9)"
+      value={query}
+      onChange={(e) => setQuery(e.target.value)}
+      sx={{ mb: 3 }}
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start">
+            <SearchIcon sx={{ fontSize: 20 }} />
+          </InputAdornment>
+        ),
+      }}
+    />
+  );
 
   return (
     <AppShell pageTitle="Process library">
@@ -117,32 +187,44 @@ export default function ProcessLibraryPage() {
           total={procs.length}
         />
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          {visibleCats.map((cat) => {
-            const items = procs.filter((p) => p.category === cat);
-            if (!items.length) return null;
-            return (
-              <Box key={cat} sx={{ mb: 4 }}>
+          {searchField}
+
+          {needle ? (
+            ranked.length ? (
+              <Box>
                 <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                  {cat} · {cats[cat] ?? ''}
+                  Results
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  {items.length} processes
+                  {ranked.length} {ranked.length === 1 ? 'process' : 'processes'} match “{query.trim()}”
                 </Typography>
-                <Box
-                  sx={{
-                    mt: 1.5,
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1fr 1fr 1fr' },
-                    gap: 2,
-                  }}
-                >
-                  {items.map((p) => (
-                    <ProcessCard key={p.id} def={p} onOpen={() => navigate(`/process/${p.id}/overview`)} />
-                  ))}
-                </Box>
+                <CardGrid items={ranked} onOpen={open} />
               </Box>
-            );
-          })}
+            ) : (
+              <EmptyState
+                icon={<SearchOffIcon />}
+                title={`No processes match “${query.trim()}”`}
+                body="Try an OTP id, a process name, or a keyword like “true-up”, “benchmark” or “invoice”."
+                cta={{ label: 'Clear search', onClick: () => setQuery('') }}
+              />
+            )
+          ) : (
+            visibleCats.map((cat) => {
+              const items = procs.filter((p) => p.category === cat);
+              if (!items.length) return null;
+              return (
+                <Box key={cat} sx={{ mb: 4 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                    {cat} · {cats[cat] ?? ''}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    {items.length} processes
+                  </Typography>
+                  <CardGrid items={items} onOpen={open} />
+                </Box>
+              );
+            })
+          )}
         </Box>
       </Stack>
     </AppShell>
