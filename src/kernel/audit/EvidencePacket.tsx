@@ -24,6 +24,7 @@ import { formatCurrency } from '@/shared/utils/format';
 import { tokens } from '@/shared/theme';
 import AppShell from '@/shared/components/layout/AppShell';
 import { activeNavItem } from '@/shared/components/layout/navConfig';
+import Term from '@/shared/components/Term';
 import { originRoute } from '@/kernel/workflow/originRoute';
 import type { AuditEvent, EvidencePacket as Packet } from '@/shared/api/types';
 
@@ -302,11 +303,13 @@ export default function EvidencePacket() {
 
             {packet.postings.length > 0 && (
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>Linked ACDOCA postings</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
+                  Linked <Term k="ACDOCA">ACDOCA</Term> postings
+                </Typography>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Date</TableCell><TableCell>Doc</TableCell><TableCell>Account</TableCell>
+                      <TableCell>Date</TableCell><TableCell>Doc</TableCell><TableCell><Term k="RACCT">Account</Term></TableCell>
                       <TableCell>Description</TableCell><TableCell align="right">Amount</TableCell>
                     </TableRow>
                   </TableHead>

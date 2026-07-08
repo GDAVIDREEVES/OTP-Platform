@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert, Box, Button, ButtonGroup, Chip, CircularProgress, ClickAwayListener,
-  Divider, Grow, MenuItem, MenuList, Paper, Popper, Stack, TextField, ToggleButton,
+  Divider, Grow, ListSubheader, MenuItem, MenuList, Paper, Popper, Stack, TextField, ToggleButton,
   ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -43,6 +43,7 @@ export default function CockpitPage() {
   const user = useSessionUser();
   const toast = useToast();
   const model = useGraphModel();
+  const navigate = useNavigate();
   const refreshSignals = useRefreshSignals();
   const { notifySubmitted } = useReviewHandoff();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -71,15 +72,84 @@ export default function CockpitPage() {
   const [mode, setMode] = useState<'base' | 'scenario'>('base');
   const [scenarioId, setScenarioId] = useState<string>('');
 
-  // Open-existing-calc menu.
+  // Open-existing menu — grouped across all three authoring families
+  // (calcs / pools / datasets), each reachable onto the canvas.
   const [openMenu, setOpenMenu] = useState(false);
   const openAnchor = useRef<HTMLButtonElement | null>(null);
   const [calcs, setCalcs] = useState<UserCalc[]>([]);
+  const [pools, setPools] = useState<AuthoredPool[]>([]);
+  const [datasets, setDatasets] = useState<AuthoredDataset[]>([]);
 
   useEffect(() => {
     api.scenarios('draft').then(setScenarios).catch(() => setScenarios([]));
     api.userCalcs().then(setCalcs).catch(() => setCalcs([]));
   }, []);
+
+  const toggleOpenMenu = () => setOpenMenu((o) => !o);
+
+  // Refresh all three families whenever the Open menu opens so the list is live.
+  // Driven from an effect (not the setOpenMenu updater) so the fetches never run
+  // inside a state updater, which must stay pure.
+  useEffect(() => {
+    if (!openMenu) return;
+    api.userCalcs().then(setCalcs).catch(() => setCalcs([]));
+    api.authoredPools().then(setPools).catch(() => setPools([]));
+    api.authoredDatasets().then(setDatasets).catch(() => setDatasets([]));
+  }, [openMenu]);
+
+  // Load a calc/dataset onto the canvas via its URL loader (?calc= / ?dataset=),
+  // resetting the guard ref so re-selecting the same id reloads and dropping the
+  // sibling param so only one loader fires.
+  const openCalc = (id: string) => {
+    setOpenMenu(false);
+    loadedRef.current = null;
+    const next = new URLSearchParams(searchParams);
+    next.delete('dataset');
+    next.set('calc', id);
+    setSearchParams(next, { replace: true });
+  };
+  const openDataset = (id: string) => {
+    setOpenMenu(false);
+    loadedDatasetRef.current = null;
+    const next = new URLSearchParams(searchParams);
+    next.delete('calc');
+    next.set('dataset', id);
+    setSearchParams(next, { replace: true });
+  };
+
+  // Open an authored pool. A pool built on the canvas has a stored stage graph —
+  // round-trip it onto the canvas (like a calc/dataset). A hand-authored pool
+  // (built via the PoolBuilder form) has NO canonical stage graph — its
+  // definition is the source of truth, so route to the PoolBuilder deep-link
+  // instead of dropping the user on a blank canvas. The rule is per-pool:
+  // graph present → canvas; graph null → PoolBuilder.
+  const openPool = async (pool: AuthoredPool) => {
+    setOpenMenu(false);
+    try {
+      const graph = await api.authoredPoolGraph(pool.id);
+      if (graph) {
+        setSaved(null);
+        setSavedDataset(null);
+        setSavedPool(pool);
+        setName(pool.name);
+        setProcessId(pool.process_id ?? DEFAULT_PROCESS);
+        model.loadGraph(graph);
+        loadedRef.current = null;
+        loadedDatasetRef.current = null;
+        if (searchParams.get('calc') || searchParams.get('dataset')) {
+          const next = new URLSearchParams(searchParams);
+          next.delete('calc');
+          next.delete('dataset');
+          setSearchParams(next, { replace: true });
+        }
+        toast.show(`Loaded ${pool.id} onto the canvas`, 'info');
+      } else {
+        navigate(`/calc-studio/allocations?view=build&pool=${encodeURIComponent(pool.id)}`);
+      }
+    } catch (e) {
+      toast.show(`Could not load pool: ${String(e)}`, 'error');
+    }
+  };
 
   // Load an existing calc's graph for round-trip (?calc=ID), once the param is
   // present. The graph comes from the backend (stored graph_json or
@@ -564,31 +634,46 @@ export default function CockpitPage() {
         </Popper>
 
         {/* Open existing / New */}
-        <Tooltip title="Open an existing calculation onto the canvas (graph round-trip)">
-          <Button ref={openAnchor} size="small" startIcon={<FolderOpenIcon />} onClick={() => setOpenMenu((o) => !o)}>
+        <Tooltip title="Open an existing calculation, pool or dataset onto the canvas (graph round-trip)">
+          <Button ref={openAnchor} size="small" startIcon={<FolderOpenIcon />} onClick={toggleOpenMenu}>
             Open
           </Button>
         </Tooltip>
         <Popper open={openMenu} anchorEl={openAnchor.current} transition placement="bottom-end" sx={{ zIndex: 1300 }}>
           {({ TransitionProps }) => (
             <Grow {...TransitionProps}>
-              <Paper elevation={3} sx={{ maxHeight: 360, overflow: 'auto', minWidth: 240 }}>
+              <Paper elevation={3} sx={{ maxHeight: 420, overflow: 'auto', minWidth: 260 }}>
                 <ClickAwayListener onClickAway={() => setOpenMenu(false)}>
                   <MenuList dense>
-                    {calcs.length === 0 && <MenuItem disabled>No user calculations yet</MenuItem>}
+                    <ListSubheader disableSticky sx={{ lineHeight: '30px', fontWeight: 700 }}>Calculations</ListSubheader>
+                    {calcs.length === 0 && <MenuItem disabled sx={{ opacity: 0.6 }}>None yet</MenuItem>}
                     {calcs.map((c) => (
-                      <MenuItem
-                        key={c.id}
-                        onClick={() => {
-                          setOpenMenu(false);
-                          loadedRef.current = null;
-                          searchParams.set('calc', c.id);
-                          setSearchParams(searchParams, { replace: true });
-                        }}
-                      >
+                      <MenuItem key={c.id} onClick={() => openCalc(c.id)}>
                         <Stack direction="row" spacing={1} alignItems="center">
                           <LifecycleChip status={c.status} />
                           <span>{c.id} — {c.name}</span>
+                        </Stack>
+                      </MenuItem>
+                    ))}
+                    <Divider />
+                    <ListSubheader disableSticky sx={{ lineHeight: '30px', fontWeight: 700 }}>Pools</ListSubheader>
+                    {pools.length === 0 && <MenuItem disabled sx={{ opacity: 0.6 }}>None yet</MenuItem>}
+                    {pools.map((p) => (
+                      <MenuItem key={p.id} onClick={() => void openPool(p)}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <LifecycleChip status={p.status} />
+                          <span>{p.id} — {p.name}</span>
+                        </Stack>
+                      </MenuItem>
+                    ))}
+                    <Divider />
+                    <ListSubheader disableSticky sx={{ lineHeight: '30px', fontWeight: 700 }}>Datasets</ListSubheader>
+                    {datasets.length === 0 && <MenuItem disabled sx={{ opacity: 0.6 }}>None yet</MenuItem>}
+                    {datasets.map((d) => (
+                      <MenuItem key={d.id} onClick={() => openDataset(d.id)}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <LifecycleChip status={d.status} />
+                          <span>{d.id} — {d.name}</span>
                         </Stack>
                       </MenuItem>
                     ))}
@@ -629,7 +714,7 @@ export default function CockpitPage() {
         </Box>
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <Box sx={{ flex: 1, minHeight: 0 }}>
-            <Canvas model={model} />
+            <Canvas model={model} onOpenExisting={() => setOpenMenu(true)} />
           </Box>
           <Divider />
           <Box sx={{ height: 220, minHeight: 220 }}>

@@ -7,7 +7,6 @@ import {
   Stack,
   TextField,
   Button,
-  Divider,
   Chip,
   Box,
   Switch,
@@ -21,38 +20,7 @@ import {
 '@mui/material';
 import { useSettings } from '@/shared/providers/DataProvider';
 import { useSaveSettings } from '@/shared/hooks/useSaveSettings';
-const users = [
-{
-  name: 'Maria Chen',
-  email: 'maria.chen@company.com',
-  role: 'Group TP Manager',
-  status: 'Active'
-},
-{
-  name: 'Sam Rodriguez',
-  email: 'sam.rodriguez@company.com',
-  role: 'Tax Director',
-  status: 'Active'
-},
-{
-  name: 'Aisha Patel',
-  email: 'aisha.patel@company.com',
-  role: 'Local Finance Controller',
-  status: 'Active'
-},
-{
-  name: 'Jonas Keller',
-  email: 'jonas.keller@company.com',
-  role: 'IT / ERP Owner',
-  status: 'Active'
-},
-{
-  name: 'Elena Rossi',
-  email: 'elena.rossi@firm.com',
-  role: 'Internal TP Consultant',
-  status: 'Invited'
-}];
-
+import { useSession } from '@/shared/providers/SessionProvider';
 const connectors = [
 {
   name: 'SAP S/4HANA — PROD',
@@ -78,6 +46,7 @@ const connectors = [
 export default function Settings() {
   const initial = useSettings();
   const { save, pending } = useSaveSettings();
+  const { users, role } = useSession();
   const [companyName, setCompanyName] = useState(initial.companyName);
   const [defaultCurrency, setDefaultCurrency] = useState(initial.defaultCurrency);
   const [defaultReviewer, setDefaultReviewer] = useState(initial.defaultReviewer);
@@ -178,28 +147,29 @@ export default function Settings() {
               Security
             </Typography>
             <Stack spacing={1.5}>
-              <FormControlLabel
-                control={<Switch defaultChecked />}
-                label="Enforce SSO (SAML 2.0)" />
-              
-              <FormControlLabel
-                control={<Switch defaultChecked />}
-                label="Require MFA for Tax Director role" />
-              
-              <FormControlLabel
-                control={<Switch defaultChecked />}
-                label="IP allowlist enabled" />
-              
-              <FormControlLabel
-                control={<Switch />}
-                label="Customer-managed encryption keys (CMEK)" />
-              
-              <Divider
-                sx={{
-                  my: 1
-                }} />
-              
-              <Button variant="outlined">Download SOC 2 report</Button>
+              {[
+                'Enforce SSO (SAML 2.0)',
+                'Require MFA for Tax Director role',
+                'IP allowlist enabled'].
+              map((label) =>
+              <Stack
+                key={label}
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center">
+
+                  <Typography variant="body2">{label}</Typography>
+                  <Chip
+                  label="Enforced"
+                  size="small"
+                  sx={{
+                    bgcolor: '#DCFCE7',
+                    color: '#15803D',
+                    fontWeight: 700
+                  }} />
+
+                </Stack>
+              )}
             </Stack>
           </Paper>
         </Grid>
@@ -217,29 +187,27 @@ export default function Settings() {
               sx={{
                 mb: 2
               }}>
-              
+
               <Typography
                 variant="subtitle1"
                 sx={{
                   fontWeight: 700
                 }}>
-                
+
                 Users & roles
               </Typography>
-              <Button variant="contained">Invite user</Button>
             </Stack>
             <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>User</TableCell>
-                  <TableCell>Email</TableCell>
+                  <TableCell>Title</TableCell>
                   <TableCell>Role</TableCell>
-                  <TableCell>Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {users.map((u) =>
-                <TableRow key={u.email} hover>
+                <TableRow key={u.id} hover>
                     <TableCell>
                       <Stack direction="row" spacing={1.5} alignItems="center">
                         <Avatar
@@ -249,41 +217,49 @@ export default function Settings() {
                           bgcolor: '#2563EB',
                           fontSize: 12
                         }}>
-                        
-                          {u.name.
-                        split(' ').
-                        map((n) => n[0]).
-                        join('')}
+
+                          {u.initials}
                         </Avatar>
                         <Typography
                         variant="body2"
                         sx={{
                           fontWeight: 600
                         }}>
-                        
+
                           {u.name}
                         </Typography>
+                        {u.role === role &&
+                        <Chip
+                          label="You"
+                          size="small"
+                          sx={{
+                            height: 18,
+                            fontSize: 10,
+                            bgcolor: '#EFF6FF',
+                            color: '#1D4ED8',
+                            fontWeight: 700
+                          }} />
+                        }
                       </Stack>
                     </TableCell>
                     <TableCell
                     sx={{
                       color: '#64748B'
                     }}>
-                    
-                      {u.email}
+
+                      {u.title}
                     </TableCell>
-                    <TableCell>{u.role}</TableCell>
                     <TableCell>
                       <Chip
-                      label={u.status}
+                      label={u.role}
                       size="small"
                       sx={{
-                        bgcolor:
-                        u.status === 'Active' ? '#DCFCE7' : '#FEF3C7',
-                        color: u.status === 'Active' ? '#15803D' : '#B45309',
-                        fontWeight: 700
+                        bgcolor: '#DCFCE7',
+                        color: '#15803D',
+                        fontWeight: 700,
+                        textTransform: 'capitalize'
                       }} />
-                    
+
                     </TableCell>
                   </TableRow>
                 )}

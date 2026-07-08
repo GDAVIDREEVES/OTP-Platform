@@ -4,6 +4,7 @@ import { formatCurrency, formatNumber } from '@/shared/utils/format';
 import { tokens } from '@/shared/theme';
 import KpiStrip from '@/kernel/shell/KpiStrip';
 import { useReference } from '@/kernel/data/useReference';
+import Term from '@/shared/components/Term';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 
 interface CbcrRow {
@@ -78,10 +79,10 @@ const Rows: FC<BindingCtx> = () => {
   return (
     <Stack spacing={2}>
       <Alert severity="info" variant="outlined">
-        Country-by-Country Report (BEPS Action 13) Table 1, per tax jurisdiction. Validation chips surface the
-        red-flag patterns a reviewer checks before filing: material profit booked without substance (people /
-        tangible assets), income tax paid that materially diverges from the amount accrued, and an effective
-        rate below 10%. Figures are reported from the CbCR seed.
+        <Term k="CbCR">Country-by-Country Report</Term> (BEPS Action 13) Table 1, per tax jurisdiction. Validation
+        chips surface the red-flag patterns a reviewer checks before filing: material profit booked without
+        substance (people / tangible assets), income tax paid that materially diverges from the amount accrued,
+        and an effective rate below 10%. Figures are reported from the CbCR seed.
       </Alert>
       <Table size="small">
         <TableHead>

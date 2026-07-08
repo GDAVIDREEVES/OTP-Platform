@@ -3,6 +3,7 @@ import {
   Alert, Box, Chip, Stack, Tab, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Tabs, Typography,
 } from '@mui/material';
+import Term from '@/shared/components/Term';
 import { presentationFor, configSummary, isStageKind } from './nodeMeta';
 import { resultText, nodeDelta, deltaText, stageResultText } from './resultText';
 import { fmtAmount } from '../allocationLib';
@@ -129,7 +130,7 @@ export default function ResultsDock({ model }: { model: GraphModel }) {
         {/* ---- Values (dataset graph) — the tabular preview ---- */}
         {view === 'values' && isDataset && (
           !datasetPreview ? (
-            <Empty text="Select a dataset node and press Run — its columns + sample rows + row count land here (Alteryx-style)." />
+            <Empty text="Select a dataset node and press Run — its columns + sample rows + row count land here in a spreadsheet-style grid." />
           ) : (
             <Box>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 0.75 }}>
@@ -148,7 +149,9 @@ export default function ResultsDock({ model }: { model: GraphModel }) {
                   <TableHead>
                     <TableRow>
                       {datasetPreview.columns.map((c) => (
-                        <TableCell key={c} sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{c}</TableCell>
+                        <TableCell key={c} sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>
+                          <Term k={c}>{c}</Term>
+                        </TableCell>
                       ))}
                     </TableRow>
                   </TableHead>
@@ -174,7 +177,7 @@ export default function ResultsDock({ model }: { model: GraphModel }) {
           rows.length === 0 ? (
             <Empty text="Add nodes and press Run to paint per-node values here." />
           ) : !preview ? (
-            <Empty text="Press Run to evaluate — each node's value lands in this table (Alteryx-style)." />
+            <Empty text="Press Run to evaluate — each node's value lands in this table, a spreadsheet-style grid." />
           ) : (
             <TableContainer>
               <Table size="small" stickyHeader>

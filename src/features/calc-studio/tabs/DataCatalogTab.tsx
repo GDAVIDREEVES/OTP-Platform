@@ -3,7 +3,9 @@ import {
   Alert, Box, Chip, CircularProgress, Paper, Stack, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Typography,
 } from '@mui/material';
+import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
+import EmptyState from '@/shared/components/EmptyState';
 import { provKind, PROV_META, CATALOG_KINDS, useCatalog } from '../lib';
 
 /** Data Catalog — every source the platform reads, grouped by tier. Moved out
@@ -14,6 +16,17 @@ export default function DataCatalogTab() {
   const entries = useCatalog();
   const navigate = useNavigate();
   if (entries === null) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
+
+  if (entries.length === 0) {
+    return (
+      <EmptyState
+        icon={<StorageOutlinedIcon />}
+        title="No catalog sources to show"
+        body="The governed data catalog lists every warehouse view, SQLite state table, reference seed and
+          calc parameter the platform reads. Nothing was returned for this workspace."
+      />
+    );
+  }
 
   return (
     <Stack spacing={3}>

@@ -211,9 +211,11 @@ def test_reject_returns_to_draft(state_db):
 def test_active_dataset_resolves_as_source(state_db):
     base = _activated(name="GL by cost center")
     assert base["status"] == "active"
-    # Another dataset SOURCES the active one and previews via the HTTP route.
+    # Another dataset SOURCES the active one and previews via the HTTP route
+    # (the stateless preview lives under /api/dataset/*; P4-2 removed the
+    # duplicate under the /api/datasets CRUD namespace).
     resp = client.post(
-        "/api/datasets/preview",
+        "/api/dataset/preview",
         json={"graph": _dataset_source_graph(base["id"])})
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -242,7 +244,7 @@ def test_draft_dataset_rejected_as_source(state_db):
     assert any("only an ACTIVE" in e["message"] for e in report["errors"])
     # And the preview route returns a precise 400 (no SQL emitted).
     resp = client.post(
-        "/api/datasets/preview",
+        "/api/dataset/preview",
         json={"graph": _dataset_source_graph(draft["id"])})
     assert resp.status_code == 400
 
@@ -320,9 +322,10 @@ def test_draft_dataset_deletable_and_audited(state_db):
 
 
 def test_validate_and_preview_persist_nothing(state_db):
+    # Stateless validate/preview live once, under /api/dataset/* (P4-2 dedup).
     before = len(authored_datasets.list_authored_datasets())
-    r1 = client.post("/api/datasets/validate", json={"graph": _journal_agg_graph()})
+    r1 = client.post("/api/dataset/validate", json={"graph": _journal_agg_graph()})
     assert r1.status_code == 200 and r1.json()["ok"] is True
-    r2 = client.post("/api/datasets/preview", json={"graph": _journal_agg_graph()})
+    r2 = client.post("/api/dataset/preview", json={"graph": _journal_agg_graph()})
     assert r2.status_code == 200
     assert len(authored_datasets.list_authored_datasets()) == before

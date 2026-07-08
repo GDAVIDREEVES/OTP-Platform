@@ -93,7 +93,6 @@ import type {
   AuthoredPoolStatus,
   AuthoredPoolDefinition,
   AuthoredCaptureRule,
-  AuthoredPoolValidation,
   CapturePreview,
   AuthoredTestResult,
   AuthoredRunResult,
@@ -659,13 +658,6 @@ export const api = {
   /** One authored pool (404 if unknown). */
   authoredPool: (poolId: string) =>
     getJSON<AuthoredPool>(`/api/allocation/pools/${encodeURIComponent(poolId)}`),
-
-  /** Structural validation report {ok, errors} — nothing persists. */
-  validateAuthoredPool: (definition: AuthoredPoolDefinition, actor: string) =>
-    sendJSON<AuthoredPoolValidation>('POST', '/api/allocation/pools/validate', {
-      definition,
-      actor,
-    }),
 
   /** Live capture-rule preview — captured $ / line count / by-entity (no persist). */
   previewCaptureRule: (rule: AuthoredCaptureRule & { source?: string }) =>

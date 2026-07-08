@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Alert, Box, CircularProgress, Paper, Stack, Typography } from '@mui/material';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import { api } from '@/shared/api/client';
 import type { CalcGraph } from '@/shared/api/types';
 import ProvenanceChip from '@/kernel/audit/ProvenanceChip';
+import EmptyState from '@/shared/components/EmptyState';
 import { PROV_META, PROV_ORDER } from '../lib';
 import LineageGraph from '../components/LineageGraph';
 
@@ -20,6 +22,18 @@ export default function LineageTab() {
 
   if (graph === null) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
+  }
+
+  if (graph.nodes.length === 0) {
+    return (
+      <EmptyState
+        icon={<AccountTreeOutlinedIcon />}
+        title="No lineage to show yet"
+        body="The dependency graph is assembled from the calculation registry. Run a calculation and its
+          sources, drivers and downstream processes will thread together here."
+        cta={{ label: 'Go to Runs', to: '/calc-studio/runs' }}
+      />
+    );
   }
 
   return (

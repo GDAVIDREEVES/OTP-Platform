@@ -9,6 +9,7 @@ import { formatCurrency } from '@/shared/utils/format';
 import type { CsaModel } from '@/shared/api/types';
 import type { StepDef } from '@/kernel/registry/types';
 import KpiStrip from '@/kernel/shell/KpiStrip';
+import Term from '@/shared/components/Term';
 import WorkflowPath from '@/kernel/workflow/WorkflowPath';
 import AgenticHandoffMarker from '@/kernel/workflow/AgenticHandoffMarker';
 import { useGuidedWorkflow } from '@/kernel/workflow/useGuidedWorkflow';
@@ -61,9 +62,9 @@ const ShareTable: FC<{ model: CsaModel }> = ({ model }) => (
       <TableRow>
         <TableCell>Participant</TableCell>
         <TableCell align="right">Projected sales</TableCell>
-        <TableCell align="right">RAB share</TableCell>
+        <TableCell align="right"><Term k="RAB">RAB</Term> share</TableCell>
         <TableCell align="right">Target contribution</TableCell>
-        <TableCell align="right">PCT buy-in</TableCell>
+        <TableCell align="right"><Term k="PCT">PCT</Term> buy-in</TableCell>
       </TableRow>
     </TableHead>
     <TableBody>

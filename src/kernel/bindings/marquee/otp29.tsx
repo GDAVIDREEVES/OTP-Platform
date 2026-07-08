@@ -4,6 +4,7 @@ import { useEntities } from '@/shared/providers/DataProvider';
 import type { Entity } from '@/shared/types/entity';
 import KpiStrip from '@/kernel/shell/KpiStrip';
 import { useReference } from '@/kernel/data/useReference';
+import Term from '@/shared/components/Term';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 
 interface Intangible { intangible_id: string; name: string; type: string; legal_owner_rbukrs: string; chain_ids: string[] }
@@ -41,8 +42,9 @@ const Dempe: FC<BindingCtx> = () => {
   return (
     <Stack spacing={3}>
       <Alert severity="info" variant="outlined">
-        Functions, assets, and risks behind each intangible — Develop, Enhance, Maintain, Protect, Exploit
-        — allocated across the group. Substance, not legal ownership, drives the return.
+        Functions, assets, and risks behind each intangible — the <Term k="DEMPE">DEMPE</Term> functions
+        Develop, Enhance, Maintain, Protect, Exploit — allocated across the group. Substance, not legal
+        ownership, drives the return.
       </Alert>
       {intangibles.map((ip) => (
         <Box key={ip.intangible_id}>

@@ -7,6 +7,7 @@ import { api } from '@/shared/api/client';
 import { formatCurrency } from '@/shared/utils/format';
 import { tokens } from '@/shared/theme';
 import KpiStrip from '@/kernel/shell/KpiStrip';
+import Term from '@/shared/components/Term';
 import type { BeatModel } from '@/shared/api/types';
 import type { BindingCtx, KpiItem, ProcessBinding } from '../types';
 
@@ -80,7 +81,7 @@ const Computation: FC<BindingCtx> = () => {
   return (
     <Stack spacing={2}>
       <Alert severity={met ? 'warning' : 'info'} variant="outlined">
-        BEAT (IRC §59A) tests the US payer ({model.us_payer_name}). Base-eroding payments are the deductible
+        <Term k="BEAT">BEAT</Term> (IRC §59A) tests the US payer ({model.us_payer_name}). Base-eroding payments are the deductible
         related-party amounts — royalties, services and interest — with the cost-of-goods-sold exception removed.
         The base-erosion percentage is base-eroding payments over total deductions, against the {model.threshold_pct}% threshold.
         The related-party base is live from the journal (RASSC postings); the account→payment-type classification is an
@@ -144,7 +145,7 @@ const Computation: FC<BindingCtx> = () => {
 
       <Box>
         <Typography variant="caption" sx={{ display: 'block', mb: 0.5, color: 'text.secondary', fontWeight: 700 }}>
-          Modified taxable income (MTI) build-up
+          Modified taxable income (<Term k="MTI">MTI</Term>) build-up
         </Typography>
         <Table size="small">
           <TableBody>
