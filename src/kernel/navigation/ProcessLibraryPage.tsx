@@ -20,7 +20,7 @@ import { useProcesses } from '../registry/useProcesses';
 import { CATEGORY_ORDER, type Category, type ProcessDef } from '../registry/types';
 import CategoryRail, { type CategoryFilter } from './CategoryRail';
 import { isMarquee } from '../bindings';
-import { SYNONYMS } from './CommandPalette';
+import { searchRank } from './searchTerms';
 
 function ProcessCard({ def, onOpen }: { def: ProcessDef; onOpen: () => void }) {
   return (
@@ -70,19 +70,6 @@ function ProcessCard({ def, onOpen }: { def: ProcessDef; onOpen: () => void }) {
       </Typography>
     </Paper>
   );
-}
-
-/** Rank a process against a search needle (POL-16). Exact OTP-id match ranks
- *  first, then an id/name substring, then category/pattern, then a synonym hit.
- *  Returns null when nothing matches so the card drops out. */
-function searchRank(def: ProcessDef, needle: string): number | null {
-  const id = def.id.toLowerCase();
-  const name = def.name.toLowerCase();
-  if (id === needle) return 0;
-  if (id.includes(needle) || name.includes(needle)) return 1;
-  if (`${def.category} ${def.pattern}`.toLowerCase().includes(needle)) return 2;
-  if ((SYNONYMS[def.id] ?? '').toLowerCase().includes(needle)) return 3;
-  return null;
 }
 
 function CardGrid({ items, onOpen }: { items: ProcessDef[]; onOpen: (id: string) => void }) {

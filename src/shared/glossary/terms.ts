@@ -180,15 +180,16 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
 };
 
 /** Human labels for the value-enumerable dimensions the user knows by name —
- *  the single source for SAP-field column labels (POL-16 absorb). Fields that
- *  also carry a GLOSSARY entry derive their label from its `expansion`, so the
- *  label lives in exactly one place; dimensions without a glossary term (SAP
- *  fields we don't gloss, plus the fabricated-seed dimensions) keep an inline
- *  label here. Consumed by the cockpit NodePalette's ACDOCA value browser. */
+ *  the single source for SAP-field column labels (POL-16 absorb). These are the
+ *  ACDOCA column labels shown in the cockpit's value browser; kept as explicit
+ *  strings (NOT derived from the GLOSSARY tooltip expansions) so editing a
+ *  tooltip title can never silently rename a column. The two maps overlap in
+ *  spirit but serve different surfaces — a hover explanation vs. a column
+ *  header. Consumed by the cockpit NodePalette's ACDOCA value browser. */
 export const VALUE_DIM_LABELS: Record<string, string> = {
-  RACCT: GLOSSARY.RACCT.expansion,
-  RCNTR: GLOSSARY.RCNTR.expansion,
-  PRCTR: GLOSSARY.PRCTR.expansion,
+  RACCT: 'G/L account',
+  RCNTR: 'Cost center',
+  PRCTR: 'Profit center',
   RBUKRS: 'Entity (company code)',
   PPRCTR: 'Partner profit center',
   PBUKRS: 'Partner entity',
