@@ -11,6 +11,7 @@ import AllocationsTab from './tabs/AllocationsTab';
 import WaterfallTab from './tabs/WaterfallTab';
 import LineageTab from './tabs/LineageTab';
 import DataCatalogTab from './tabs/DataCatalogTab';
+import DatasetsTab from './tabs/DatasetsTab';
 import ProvenanceTab from './tabs/ProvenanceTab';
 
 /** Calc Studio — the first-class calculation-management module (Phase 3+).
@@ -32,6 +33,7 @@ const TABS = [
   { key: 'waterfall', label: 'Waterfall' },
   { key: 'lineage', label: 'Lineage' },
   { key: 'catalog', label: 'Data Catalog' },
+  { key: 'datasets', label: 'Datasets' },
   { key: 'provenance', label: 'Provenance' },
 ] as const;
 
@@ -65,7 +67,7 @@ export default function CalcStudioWorkspace() {
           </Typography>
         </Box>
       )}
-      {/* 10 tabs — scrollable so the row never overflows on narrow viewports. */}
+      {/* 11 tabs — scrollable so the row never overflows on narrow viewports. */}
       <Tabs
         value={active}
         onChange={(_, v) => navigate(`/calc-studio/${v}`)}
@@ -87,6 +89,7 @@ export default function CalcStudioWorkspace() {
       {active === 'waterfall' && <WaterfallTab />}
       {active === 'lineage' && <LineageTab />}
       {active === 'catalog' && <DataCatalogTab />}
+      {active === 'datasets' && <DatasetsTab />}
       {active === 'provenance' && <ProvenanceTab />}
     </AppShell>
   );
