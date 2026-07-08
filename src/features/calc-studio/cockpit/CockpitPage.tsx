@@ -85,18 +85,17 @@ export default function CockpitPage() {
     api.userCalcs().then(setCalcs).catch(() => setCalcs([]));
   }, []);
 
-  // Refresh all three families when the Open menu is opened so the list is live.
-  const toggleOpenMenu = () => {
-    setOpenMenu((o) => {
-      const next = !o;
-      if (next) {
-        api.userCalcs().then(setCalcs).catch(() => setCalcs([]));
-        api.authoredPools().then(setPools).catch(() => setPools([]));
-        api.authoredDatasets().then(setDatasets).catch(() => setDatasets([]));
-      }
-      return next;
-    });
-  };
+  const toggleOpenMenu = () => setOpenMenu((o) => !o);
+
+  // Refresh all three families whenever the Open menu opens so the list is live.
+  // Driven from an effect (not the setOpenMenu updater) so the fetches never run
+  // inside a state updater, which must stay pure.
+  useEffect(() => {
+    if (!openMenu) return;
+    api.userCalcs().then(setCalcs).catch(() => setCalcs([]));
+    api.authoredPools().then(setPools).catch(() => setPools([]));
+    api.authoredDatasets().then(setDatasets).catch(() => setDatasets([]));
+  }, [openMenu]);
 
   // Load a calc/dataset onto the canvas via its URL loader (?calc= / ?dataset=),
   // resetting the guard ref so re-selecting the same id reloads and dropping the
