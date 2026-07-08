@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppShell from '@/shared/components/layout/AppShell';
 import {
   Paper,
@@ -24,7 +25,6 @@ import {
   Alert } from
 '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
-import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import { TransactionFlow } from '@/shared/types/transaction';
@@ -33,24 +33,56 @@ import { useFlows, useSettings } from '@/shared/providers/DataProvider';
 import { useSavePolicyOverride } from '@/shared/hooks/useSavePolicyOverride';
 import { formatCurrency } from '@/shared/utils/format';
 import { useResearchBrain } from '@/features/research-brain/ResearchBrainContext';
+import { api } from '@/shared/api/client';
+import type { PolicyOverride } from '@/shared/api/types';
 export default function Policy() {
+  const navigate = useNavigate();
   const [editing, setEditing] = useState<TransactionFlow | null>(null);
   const [draftMethod, setDraftMethod] = useState<string>('');
+  const [draftPli, setDraftPli] = useState<string>('');
+  const [draftRangeLow, setDraftRangeLow] = useState<string>('');
+  const [draftRangeHigh, setDraftRangeHigh] = useState<string>('');
+  const [draftDeviation, setDraftDeviation] = useState<string>('');
   const [draftReviewer, setDraftReviewer] = useState<string>('');
+  const [draftApprover, setDraftApprover] = useState<string>('');
   const [draftNotes, setDraftNotes] = useState<string>('');
+  const [overrides, setOverrides] = useState<Record<string, PolicyOverride>>({});
   const { openPanel } = useResearchBrain();
   const transactionFlows = useFlows();
   const settings = useSettings();
   const { save: savePolicy, pending: savingPolicy } = useSavePolicyOverride();
 
-  // Reset drawer fields whenever the user opens a different row
+  // Load any previously-saved overrides once, so the drawer can hydrate from
+  // them (rather than silently showing illustrative defaults on every open).
   React.useEffect(() => {
-    if (editing) {
-      setDraftMethod(editing.tpMethod);
-      setDraftReviewer(settings.defaultReviewer);
-      setDraftNotes('');
-    }
-  }, [editing, settings.defaultReviewer]);
+    let alive = true;
+    api
+      .policyOverrides()
+      .then((o) => {
+        if (alive) setOverrides(o);
+      })
+      .catch(() => {
+        /* non-blocking — the drawer falls back to defaults */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Hydrate every drawer field whenever the user opens a row — from a saved
+  // override for that flow if one exists, else sensible defaults.
+  React.useEffect(() => {
+    if (!editing) return;
+    const ov = overrides[editing.id];
+    setDraftMethod(ov?.tpMethod ?? editing.tpMethod);
+    setDraftPli(ov?.pli ?? editing.pli ?? '');
+    setDraftRangeLow(ov?.rangeLow ?? '4');
+    setDraftRangeHigh(ov?.rangeHigh ?? '7');
+    setDraftDeviation(ov?.deviationThreshold ?? '2');
+    setDraftReviewer(ov?.reviewer ?? settings.defaultReviewer);
+    setDraftApprover(ov?.approver ?? 'Sam Rodriguez — Tax Director');
+    setDraftNotes(ov?.notes ?? '');
+  }, [editing, overrides, settings.defaultReviewer]);
   return (
     <AppShell pageTitle="Policy Configuration">
       <Stack
@@ -80,8 +112,8 @@ export default function Policy() {
             Unassigned flows are flagged on the dashboard.
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />}>
-          New flow
+        <Button variant="outlined" onClick={() => navigate('/master-data')}>
+          Define flows in Master Data
         </Button>
       </Stack>
 
@@ -285,39 +317,43 @@ export default function Policy() {
               <TextField
               label="PLI / Metric"
               size="small"
-              defaultValue={editing.pli}
+              value={draftPli}
+              onChange={(ev) => setDraftPli(ev.target.value)}
               fullWidth />
-            
+
               <Grid container spacing={1.5}>
                 <Grid item xs={6}>
                   <TextField
                   label="Range lower bound"
                   size="small"
-                  defaultValue="4"
+                  value={draftRangeLow}
+                  onChange={(ev) => setDraftRangeLow(ev.target.value)}
                   InputProps={{
                     endAdornment: '%'
                   }}
                   fullWidth />
-                
+
                 </Grid>
                 <Grid item xs={6}>
                   <TextField
                   label="Range upper bound"
                   size="small"
-                  defaultValue="7"
+                  value={draftRangeHigh}
+                  onChange={(ev) => setDraftRangeHigh(ev.target.value)}
                   InputProps={{
                     endAdornment: '%'
                   }}
                   fullWidth />
-                
+
                 </Grid>
               </Grid>
               <TextField
               label="Deviation threshold (pp)"
               size="small"
-              defaultValue="2"
+              value={draftDeviation}
+              onChange={(ev) => setDraftDeviation(ev.target.value)}
               fullWidth />
-            
+
               <TextField
               label="Primary reviewer"
               size="small"
@@ -328,7 +364,8 @@ export default function Policy() {
               <TextField
               label="Approver"
               size="small"
-              defaultValue="Sam Rodriguez — Tax Director"
+              value={draftApprover}
+              onChange={(ev) => setDraftApprover(ev.target.value)}
               fullWidth />
 
               <TextField
@@ -356,11 +393,21 @@ export default function Policy() {
                   if (!editing) return;
                   const result = await savePolicy(editing.id, {
                     tpMethod: draftMethod,
+                    pli: draftPli,
+                    rangeLow: draftRangeLow,
+                    rangeHigh: draftRangeHigh,
+                    deviationThreshold: draftDeviation,
                     reviewer: draftReviewer,
+                    approver: draftApprover,
                     notes: draftNotes,
                     updatedBy: settings.defaultReviewer,
                   });
-                  if (result) setEditing(null);
+                  if (result) {
+                    // Keep the local cache in sync so re-opening the row shows
+                    // what was just saved without a full refetch.
+                    setOverrides((prev) => ({ ...prev, [result.flowId]: result }));
+                    setEditing(null);
+                  }
                 }}>
                 {savingPolicy ? 'Saving…' : 'Save policy'}
               </Button>

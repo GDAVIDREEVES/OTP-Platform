@@ -1,31 +1,27 @@
 """First-class authored datasets API (Phase 8 DS2).
 
 Thin router over ``state/authored_datasets.py`` (draft -> tested -> in_review ->
-active lifecycle) and ``calc/dataset.py`` (the graph -> safe parameterized
-DuckDB SQL compiler). A dataset is a VISUAL data-prep layer: its graph compiles
-to ONE CTE-chain query run through ``db.q`` — there is no new data engine.
+active lifecycle). This is the CRUD namespace for governed authored datasets.
+The stateless-graph reads — ``validate`` and ``preview`` — live once under the
+sibling ``routers/dataset.py`` (``/api/dataset/{validate,preview}``); this router
+used to carry byte-identical duplicates of them, now removed (P4-2 dedup).
 
-Route order: the literal ``/api/datasets/validate`` and ``.../preview`` routes
-register before the parameterised ``/api/datasets/{dataset_id}`` routes so they
-never collide. ``validate`` and ``preview`` are pure reads — nothing persists,
-nothing is audited — so the Builder can syntax-check / live-preview on every
-keystroke. Activation happens in the /review queue (a DIFFERENT checker approves
-the ``dataset:{id}`` item; see state/review.py:decide()).
+A dataset is a VISUAL data-prep layer: its graph compiles to ONE CTE-chain query
+run through ``db.q`` — there is no new data engine. Activation happens in the
+/review queue (a DIFFERENT checker approves the ``dataset:{id}`` item; see
+state/review.py:decide()).
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-import calc.dataset as dataset
 import state.authored_datasets as authored_datasets
 from schemas.dataset import (
     AuthoredDatasetIn,
     AuthoredDatasetPatch,
     DatasetActorIn,
-    DatasetIn,
     DatasetMakerIn,
-    DatasetPreviewIn,
 )
 
 router = APIRouter()
@@ -42,35 +38,13 @@ def _http_error(e: ValueError) -> HTTPException:
 
 
 # --------------------------------------------------------------- pure reads --
+# Stateless-graph validate/preview live under routers/dataset.py
+# (/api/dataset/{validate,preview}); this namespace is CRUD-only.
 
 
 @router.get("/api/datasets")
 def list_datasets(status: str | None = None):
     return authored_datasets.list_authored_datasets(status=status)
-
-
-@router.post("/api/datasets/validate")
-def validate_dataset(payload: DatasetIn):
-    """Structural + allowlist validation report ``{ok, errors, output_columns}``
-    — nothing persists, no SQL runs."""
-    return dataset.validate_dataset(payload.graph)
-
-
-@router.post("/api/datasets/preview")
-def preview_dataset(payload: DatasetPreviewIn):
-    """Compile the dataset graph to one parameterized DuckDB query and run it ->
-    ``{columns, rows, row_count}`` (rows sample-capped). A graph problem returns
-    a precise 400 ``{message, node_id}`` rather than emitting any SQL. Nothing
-    persists — the Builder's live preview."""
-    report = dataset.validate_dataset(payload.graph)
-    if not report["ok"]:
-        err = report["errors"][0] if report["errors"] else {"message": "invalid dataset"}
-        raise HTTPException(status_code=400, detail=err)
-    try:
-        return dataset.run_dataset(payload.graph, sample_limit=payload.sample_limit)
-    except dataset.DatasetError as e:
-        raise HTTPException(
-            status_code=400, detail={"message": e.message, "node_id": e.node_id})
 
 
 # ------------------------------------------------------------------ writes --

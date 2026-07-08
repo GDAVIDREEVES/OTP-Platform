@@ -31,6 +31,9 @@ import UploadFileIcon from '@mui/icons-material/UploadFile';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import { useSession, USERS, type Role } from '@/shared/providers/SessionProvider';
+
+const ONBOARDING_ROLES: Role[] = ['operator', 'reviewer', 'director'];
 const connectors = [
 {
   id: 'sap-s4',
@@ -109,7 +112,9 @@ const steps = [
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const { role, setRole } = useSession();
   const [step, setStep] = useState(0);
+  const [selectedRole, setSelectedRole] = useState<Role>(role);
   const [connector, setConnector] = useState('sap-s4');
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -515,12 +520,15 @@ export default function Onboarding() {
                 <Grid item xs={12} md={6}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Primary role</InputLabel>
-                    <Select defaultValue="gtm" label="Primary role">
-                      <MenuItem value="gtm">Group TP Manager</MenuItem>
-                      <MenuItem value="td">Tax Director</MenuItem>
-                      <MenuItem value="lfc">Local Finance Controller</MenuItem>
-                      <MenuItem value="con">Internal TP Consultant</MenuItem>
-                      <MenuItem value="it">IT / ERP Owner</MenuItem>
+                    <Select
+                      value={selectedRole}
+                      onChange={(e) => setSelectedRole(e.target.value as Role)}
+                      label="Primary role">
+                      {ONBOARDING_ROLES.map((r) =>
+                      <MenuItem key={r} value={r}>
+                          {USERS[r].name} — {USERS[r].title}
+                        </MenuItem>
+                      )}
                     </Select>
                   </FormControl>
                 </Grid>
@@ -617,9 +625,16 @@ export default function Onboarding() {
             <Button
               variant="contained"
               endIcon={<ArrowForwardIcon />}
-              onClick={() =>
-              step === 2 ? navigate('/home') : setStep((s) => s + 1)
-              }
+              onClick={() => {
+                if (step === 2) {
+                  // Apply the chosen persona to the session BEFORE landing on
+                  // /home, so the whole shell tailors to their role immediately.
+                  setRole(selectedRole);
+                  navigate('/home');
+                } else {
+                  setStep((s) => s + 1);
+                }
+              }}
               disabled={step === 0 && !connected}>
 
               {step === 2 ? 'Finish & Go to Home' : 'Continue'}

@@ -117,11 +117,17 @@ export interface SubmittedAdjustment {
   reversedBy?: string;
 }
 
-/** Per-flow editable override (TP method, reviewer, notes). */
+/** Per-flow editable override (TP method, PLI, arm's-length range bounds,
+ *  deviation threshold, reviewer, approver, notes). */
 export interface PolicyOverride {
   flowId: string;
   tpMethod?: string;
+  pli?: string;
+  rangeLow?: string;
+  rangeHigh?: string;
+  deviationThreshold?: string;
   reviewer?: string;
+  approver?: string;
   notes?: string;
   updatedAt: string;
   updatedBy?: string;
@@ -1146,7 +1152,7 @@ export interface DatasetSourcesCatalog {
   journal_distinct: Record<string, (string | number)[]>;
 }
 
-/** POST /api/dataset/preview & /api/datasets/preview — the tabular preview. */
+/** POST /api/dataset/preview — the tabular preview. */
 export interface DatasetPreview {
   columns: string[];
   rows: Record<string, unknown>[];

@@ -8,7 +8,6 @@ import {
   Stack,
   TextField,
   Divider,
-  Link as MuiLink,
   Chip } from
 '@mui/material';
 import LoginIcon from '@mui/icons-material/Login';
@@ -269,7 +268,7 @@ export default function Login() {
               mt: 2
             }}>
             
-            Need help? <MuiLink href="#">Contact your administrator</MuiLink>
+            Need help? Contact your administrator.
           </Typography>
         </Paper>
       </Box>

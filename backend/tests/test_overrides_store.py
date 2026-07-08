@@ -90,6 +90,45 @@ def test_policy_override_upsert_and_list(state_db):
     assert store.list_policy_overrides()["CHAIN-014"]["tpMethod"] == "TNMM"
 
 
+def test_policy_override_new_fields_roundtrip(state_db):
+    """P4-2: range bounds, deviation threshold and approver survive the full
+    schema -> store -> response -> re-fetch round-trip (the drawer no longer
+    silently drops them)."""
+    from fastapi.testclient import TestClient
+
+    from main import app
+
+    client = TestClient(app)
+    body = {
+        "tpMethod": "CUP",
+        "reviewer": "u_sam",
+        "rangeLow": "4",
+        "rangeHigh": "7",
+        "deviationThreshold": "2",
+        "approver": "Sam Rodriguez — Tax Director",
+        "updatedBy": "u_maria",
+    }
+    resp = client.put("/api/overrides/policy/CHAIN-014", json=body)
+    assert resp.status_code == 200, resp.text
+    saved = resp.json()
+    assert saved["flowId"] == "CHAIN-014"
+    for k, v in body.items():
+        assert saved[k] == v, f"{k} did not round-trip"
+
+    # And they survive a re-fetch of the whole overrides map (hydrates the drawer).
+    listed = client.get("/api/overrides/policy").json()
+    assert listed["CHAIN-014"]["rangeLow"] == "4"
+    assert listed["CHAIN-014"]["rangeHigh"] == "7"
+    assert listed["CHAIN-014"]["deviationThreshold"] == "2"
+    assert listed["CHAIN-014"]["approver"] == "Sam Rodriguez — Tax Director"
+
+    # Backward-compatible: an older payload that omits the new fields still saves.
+    resp2 = client.put(
+        "/api/overrides/policy/CHAIN-015", json={"tpMethod": "TNMM"})
+    assert resp2.status_code == 200, resp2.text
+    assert "rangeLow" not in resp2.json()  # exclude_none drops omitted fields
+
+
 def test_settings_defaults_and_update(state_db):
     s = store.get_settings()
     assert s["companyName"] == "Aperture Tax"

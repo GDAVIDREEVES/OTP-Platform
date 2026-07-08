@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Box,
   Button,
@@ -65,9 +66,43 @@ interface AlertsRailProps {
   entities: Entity[];
 }
 
+const DISMISSED_KEY = 'otp.dismissedAlerts';
+
+function loadDismissed(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(DISMISSED_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
 export default function AlertsRail({ alerts, entities }: AlertsRailProps) {
   const navigate = useNavigate();
   const { openPanel } = useResearchBrain();
+  // Dismissed alert ids, persisted for the session so a dismissed alert doesn't
+  // reappear on every re-render/remount of the dashboard.
+  const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed);
+  const visible = alerts.filter((a) => !dismissed.has(a.id));
+
+  const persistDismissed = (next: Set<string>) => {
+    setDismissed(next);
+    try {
+      sessionStorage.setItem(DISMISSED_KEY, JSON.stringify([...next]));
+    } catch {
+      /* ignore — dismissal is best-effort */
+    }
+  };
+  const dismissOne = (id: string) => {
+    const next = new Set(dismissed);
+    next.add(id);
+    persistDismissed(next);
+  };
+  const markAllRead = () => {
+    const next = new Set(dismissed);
+    visible.forEach((a) => next.add(a.id));
+    persistDismissed(next);
+  };
   const askBrainForAlert = (a: DashboardAlert) => {
     const entity = entities.find((e) => e.id === a.entityId);
     openPanel({
@@ -89,22 +124,30 @@ export default function AlertsRail({ alerts, entities }: AlertsRailProps) {
       >
         <Box>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            Active Alerts ({alerts.length})
+            Active Alerts ({visible.length})
           </Typography>
           <Typography variant="caption" sx={{ color: '#64748B' }}>
             Real-time deviation feed
           </Typography>
         </Box>
-        <MuiLink
-          component="button"
-          underline="hover"
-          sx={{ fontSize: 12, fontWeight: 600 }}
-        >
-          Mark all read
-        </MuiLink>
+        {visible.length > 0 && (
+          <MuiLink
+            component="button"
+            underline="hover"
+            onClick={markAllRead}
+            sx={{ fontSize: 12, fontWeight: 600 }}
+          >
+            Mark all read
+          </MuiLink>
+        )}
       </Stack>
+      {visible.length === 0 && (
+        <Typography variant="body2" sx={{ color: '#94A3B8' }}>
+          No active alerts.
+        </Typography>
+      )}
       <Stack spacing={1.5}>
-        {alerts.map((a) => {
+        {visible.map((a) => {
           const isHigh = a.severity === 'HIGH';
           const accent = isHigh ? '#DC2626' : '#D97706';
           const accentBg = isHigh ? '#FEE2E2' : '#FEF3C7';
@@ -138,7 +181,11 @@ export default function AlertsRail({ alerts, entities }: AlertsRailProps) {
                     }}
                   />
                 </Stack>
-                <IconButton size="small" aria-label="Dismiss">
+                <IconButton
+                  size="small"
+                  aria-label="Dismiss"
+                  onClick={() => dismissOne(a.id)}
+                >
                   <CloseIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Stack>

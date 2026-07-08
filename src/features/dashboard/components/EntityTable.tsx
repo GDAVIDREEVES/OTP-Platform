@@ -164,15 +164,17 @@ export default function EntityTable({
         <Typography variant="caption" sx={{ color: '#64748B' }}>
           Showing {visible.length} of {entities.length} entities
         </Typography>
-        <MuiLink
-          component="button"
-          underline="hover"
-          sx={{ fontSize: 13, fontWeight: 600 }}
-          onClick={() => setFilterOutOfRange(false)}
-        >
-          View All{' '}
-          <ArrowForwardIcon sx={{ fontSize: 14, verticalAlign: 'middle' }} />
-        </MuiLink>
+        {filterOutOfRange && (
+          <MuiLink
+            component="button"
+            underline="hover"
+            sx={{ fontSize: 13, fontWeight: 600 }}
+            onClick={() => setFilterOutOfRange(false)}
+          >
+            Show all entities{' '}
+            <ArrowForwardIcon sx={{ fontSize: 14, verticalAlign: 'middle' }} />
+          </MuiLink>
+        )}
       </Stack>
     </Paper>
   );
