@@ -43,6 +43,7 @@ npm run typecheck && npm run build                  # frontend gate
 | **Review queue** (`/review`) | Maker-checker approvals for everything: adjustments, wizard submissions, scenario promotions. Rejected work routes back to its origin. |
 | **Director** (`/director`) | Group exposure: IC flows, Pillar Two, TP reserve, jurisdiction risk. |
 | **Audit & evidence** | Append-only, hash-chained audit trail on every record (`backend/state/audit.py`). Any record's `/evidence/:ref` packet shows event history, before/after diffs, linked postings, a **process-lineage timeline**, and one-click chain verification. |
+| **Research Brain** (AI assistant) | An in-app side-panel assistant reachable from every screen, scoped to the current entity / flow / method. It **prepares** — computes gap-to-range, pulls the underlying ACDOCA postings, proposes inbound-mapping characterizations — and logs an *assisted* event to the audit trail, but **never approves** (the human is always the checker). Citation-backed TP Q&A calls the separate `researchbrain` service and **degrades gracefully** — without it you get a shaped offline answer with a clear live/offline indicator. |
 
 ## Architecture
 

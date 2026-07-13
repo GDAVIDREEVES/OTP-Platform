@@ -69,8 +69,9 @@ key is missing.
 1. **Home** (`/home`) — role-aware operating-cadence home. Switch persona from
    the top-right avatar (Operator / Reviewer / Director).
 2. **Process library** (`/process`) — all 50 processes by lifecycle category A–G;
-   ⌘K / Ctrl-K opens the command palette. ~12 marquee processes are wired with
-   live data; the rest are informative.
+   ⌘K / Ctrl-K opens the command palette. **All 50 are wired to live data** —
+   rich, process-specific bindings (pricing wizards, charge/invoice batches,
+   monitoring worklists, workpaper grids, case workspaces, compliance calcs).
 3. **OTP-20 Operating-margin monitoring** — answer-first KPIs, exceptions-first
    worklist, drill any margin to its ACDOCA postings. Click **Adjust** on a flag.
 4. **OTP-16 Adjustment** (guided) — Research Brain prepares (pulls postings,
@@ -91,9 +92,46 @@ key is missing.
    OTP-25 (benchmarking refresh) each run a prepare → … → gated-submit path that
    lands in the review queue.
 
+## Calculation management (Calc Studio, `/calc-studio`)
+
+Beyond the close cycle, Calc Studio is the governed engine room. Everything here
+is runnable, traceable, scenario-capable and maker-checker-governed on the same
+audit chain. See **[README-WORKFLOW.md](README-WORKFLOW.md)** for the step-by-step
+flows; the headline surfaces:
+
+- **Cockpit** (`/calc-studio/cockpit`, the default) — an Alteryx-style
+  drag-and-drop **canvas** that *is* the build loop: drag governed parameters /
+  warehouse measures / composable calcs / operation nodes, wire them, hit **Run**
+  and watch per-node values paint live; configure inline (no modals), flip
+  **Base ⟷ Scenario** to paint the Δ, and Save → Test → Submit from one
+  split-button. The canvas adds **no new evaluator** — a calc subgraph compiles to
+  the same `calc/expr.py` expression, an allocation subgraph to an `authored_pools`
+  definition, a dataset subgraph to one safe parameterized DuckDB query.
+- **Data-prep over the full ACDOCA journal** — the *Datasets / ACDOCA* palette
+  exposes the journal's **GL accounts, cost centers, profit centers and amounts**
+  down to the field and value (draggable), with **Filter / Aggregate / Join /
+  Union / Derive** nodes. Save a governed **dataset** that can feed a calc or
+  become an allocation pool's cost base — build cost pools by joining/filtering
+  ACDOCA.
+- **Allocation engine** (`/calc-studio/allocations`) — the OECD Ch. VII /
+  §1.482-9 cost-to-charge pipeline (capture → pool → benefit-test → allocate →
+  markup → charge-out → reconcile/true-up). Reconciles to the warehouse to the
+  cent (FY **$13,586,402.70** cost / **$14,344,773.26** gross). A **Pool Builder**
+  lets you author your own pools from cost centers / profit centers / GL accounts
+  (or a saved dataset) and run them through the real Stages 1-7 as governed,
+  `authored`-flagged experiments that never perturb the governed tie-out.
+- **TP waterfall** (`/calc-studio/waterfall`) — applies service / royalty / CSA /
+  profit-split charges to each entity's P&L as an append-only double-entry overlay
+  (`pl.use_post_charge`), so monitoring / adjustments / pricing read *post-charge*
+  margins — charges before decisions.
+- **Registry · Drivers · Scenarios · Runs · Lineage · Provenance** — every managed
+  calc with its trace; the governed parameter store; Base|Scenario|Δ what-if with
+  maker-checker promotion; the run job console; the sources→params→calcs→processes
+  dependency DAG; and the real/assumed/fabricated provenance rollup.
+
 ## Tests
 
 ```bash
-cd backend && ../.venv/bin/python -m pytest tests   # backend
+cd backend && ../.venv/bin/python -m pytest tests   # backend  (774 passing)
 npm run typecheck && npm run build                  # frontend
 ```
