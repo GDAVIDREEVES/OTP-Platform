@@ -6,7 +6,8 @@
   },
   "hostRequirements": { "cpus": 2, "memory": "4gb" },
   "postCreateCommand": "python -m venv .venv && .venv/bin/pip install -r backend/requirements.txt && npm ci --no-audit --no-fund && npm run build",
-  "postStartCommand": "nohup bash -c 'HOST=0.0.0.0 PORT=8000 ./scripts/serve.sh --no-build' > /tmp/otp-platform.log 2>&1 &",
+  "postStartCommand": "nohup bash -c '[ -d node_modules ] || npm ci --no-audit --no-fund; [ -x .venv/bin/python ] || (python -m venv .venv && .venv/bin/pip install -r backend/requirements.txt); [ -f dist/index.html ] || npm run build; HOST=0.0.0.0 PORT=8000 ./scripts/serve.sh --no-build' > /tmp/otp-platform.log 2>&1 &",
+  "postAttachCommand": "echo; echo '  OTP Platform is starting on port 8000 — open it from the PORTS tab (globe icon) or wait for the browser tab.'; echo '  Server log: tail -f /tmp/otp-platform.log'; echo",
   "forwardPorts": [8000],
   "portsAttributes": {
     "8000": { "label": "OTP Platform", "onAutoForward": "openBrowser" }

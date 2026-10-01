@@ -29,7 +29,14 @@ fi
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-8000}"
 echo ""
-echo "  OTP Platform: http://${HOST}:${PORT}   (API docs at /docs)"
+if [[ -n "${CODESPACE_NAME:-}" ]]; then
+  # Inside GitHub Codespaces the browser reaches the app through the forwarded
+  # port, not localhost. Print the real URL (also under the PORTS tab).
+  echo "  OTP Platform (Codespaces): https://${CODESPACE_NAME}-${PORT}.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}"
+  echo "  (or: PORTS tab at the bottom of VS Code → port ${PORT} → globe icon)"
+else
+  echo "  OTP Platform: http://localhost:${PORT}   (API docs at /docs)"
+fi
 echo ""
 cd backend
 exec "$PY" -m uvicorn main:app --host "$HOST" --port "$PORT"
