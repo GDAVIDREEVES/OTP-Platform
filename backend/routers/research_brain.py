@@ -20,6 +20,7 @@ warehouse — so the demo never breaks.
 from __future__ import annotations
 
 import os
+import time
 
 from fastapi import APIRouter
 
@@ -71,6 +72,39 @@ def _claude_configured() -> bool:
     return bool(os.getenv("ANTHROPIC_API_KEY"))
 
 
+_KEY_CHECK: dict = {"at": 0.0, "ok": None, "detail": ""}
+
+
+def _claude_key_check() -> tuple[bool | None, str]:
+    """Validate the Claude key with a free metadata call (models.retrieve — no
+    tokens billed). Cached for 60s so the status badge can poll. None = untested
+    (no key / SDK missing)."""
+    key = os.getenv("ANTHROPIC_API_KEY")
+    if not key:
+        return None, "ANTHROPIC_API_KEY not set"
+    now = time.monotonic()
+    if _KEY_CHECK["ok"] is not None and now - _KEY_CHECK["at"] < 60:
+        return _KEY_CHECK["ok"], _KEY_CHECK["detail"]
+    try:
+        import anthropic
+    except ImportError:
+        return None, "anthropic SDK not installed (pip install -r backend/requirements.txt)"
+    ok, detail = False, ""
+    try:
+        anthropic.Anthropic(api_key=key, timeout=10.0, max_retries=0).models.retrieve(CLAUDE_MODEL)
+        ok, detail = True, f"key accepted · {CLAUDE_MODEL}"
+    except anthropic.AuthenticationError:
+        detail = f"Claude API rejected the key (401) — it is {len(key)} characters; a full key is ~108. Re-paste it into backend/.env and restart."
+    except anthropic.NotFoundError:
+        detail = f"key accepted, but model {CLAUDE_MODEL!r} was not found — check OTP_CLAUDE_MODEL"
+    except anthropic.APIStatusError as exc:
+        detail = f"Claude API error {exc.status_code}"
+    except anthropic.APIConnectionError:
+        detail = "cannot reach api.anthropic.com (network / proxy)"
+    _KEY_CHECK.update(at=now, ok=ok, detail=detail)
+    return ok, detail
+
+
 # ----------------- /status -----------------
 
 @router.get("/api/research-brain/status")
@@ -79,11 +113,13 @@ def status():
     presenter can see at a glance whether the knowledge base is connected."""
     rb_ok, rb_detail = _probe_researchbrain()
     claude = _claude_configured()
-    mode = "researchbrain" if rb_ok else ("claude" if claude else "offline")
+    key_ok, key_detail = _claude_key_check()
+    claude_usable = claude and key_ok is True
+    mode = "researchbrain" if (rb_ok and claude_usable) else ("claude" if claude_usable else "offline")
     return {
         "mode": mode,
         "researchbrain": {"url": RESEARCH_BRAIN_BASE_URL, "reachable": rb_ok, "auth_configured": bool(RESEARCH_BRAIN_API_KEY), "detail": rb_detail},
-        "claude": {"configured": claude, "model": CLAUDE_MODEL if claude else None},
+        "claude": {"configured": claude, "key_valid": key_ok, "model": CLAUDE_MODEL if claude else None, "detail": key_detail},
     }
 
 
@@ -123,7 +159,7 @@ def ask(payload: AskIn):
     if live:
         return {"answer": _synthesize(payload, results), "citations": citations, "live": True, "mode": "researchbrain", "note": None}
     if _claude_configured():
-        text = _direct_answer(payload)
+        text, err = _direct_answer(payload)
         if text:
             return {
                 "answer": text,
@@ -132,7 +168,8 @@ def ask(payload: AskIn):
                 "mode": "claude",
                 "note": f"Knowledge-base retrieval unavailable ({reason}); answered by {CLAUDE_MODEL} without citations.",
             }
-    return {"answer": _fallback_answer(), "citations": _fallback_citations(), "live": False, "mode": "offline", "note": reason}
+        reason = f"{reason}; Claude: {err}"
+    return {"answer": _fallback_answer(reason), "citations": _fallback_citations(), "live": False, "mode": "offline", "note": reason}
 
 
 def _retrieve(payload: AskIn):
@@ -199,16 +236,17 @@ def _context_lines(payload: AskIn) -> str:
     return "\n".join(bits)
 
 
-def _claude(prompt: str, system: str, max_tokens: int = 1500) -> str | None:
-    """One Claude call; None on any failure so callers fall through to the next
-    answer path. Uses the SDK's typed errors — never string-matches messages."""
+def _claude(prompt: str, system: str, max_tokens: int = 1500) -> tuple[str | None, str]:
+    """One Claude call → (text, error). text is None on any failure so callers
+    fall through to the next answer path; error says why (shown in the UI note).
+    Uses the SDK's typed errors — never string-matches messages."""
     key = os.getenv("ANTHROPIC_API_KEY")
     if not key:
-        return None
+        return None, "ANTHROPIC_API_KEY not set"
     try:
         import anthropic
     except ImportError:
-        return None
+        return None, "anthropic SDK not installed"
     client = anthropic.Anthropic(api_key=key, timeout=45.0, max_retries=1)
     common = dict(
         model=CLAUDE_MODEL,
@@ -224,24 +262,24 @@ def _claude(prompt: str, system: str, max_tokens: int = 1500) -> str | None:
         except TypeError:  # older SDK without `fallbacks`
             msg = client.messages.create(**common)
         if getattr(msg, "stop_reason", None) == "refusal":
-            return None
+            return None, "the model declined to answer this question"
         text = "".join(getattr(b, "text", "") for b in msg.content if getattr(b, "type", "") == "text").strip()
-        return text or None
+        return (text, "") if text else (None, "empty response")
     except anthropic.AuthenticationError:
-        return None
+        return None, f"API key rejected (401) — the key in backend/.env is {len(key)} characters; a full key is ~108"
     except anthropic.RateLimitError:
-        return None
-    except anthropic.APIStatusError:
-        return None
+        return None, "rate limited (429) — retry in a moment"
+    except anthropic.APIStatusError as exc:
+        return None, f"API error {exc.status_code}"
     except anthropic.APIConnectionError:
-        return None
+        return None, "cannot reach api.anthropic.com"
 
 
 def _synthesize(payload: AskIn, results: list) -> str:
     snippets = [x.get("content", "") for x in results[:5] if x.get("content")]
     grounding = "\n\n---\n\n".join(snippets)[:12000]
     if grounding:
-        text = _claude(
+        text, _err = _claude(
             f"{_context_lines(payload)}\n\nQuestion: {payload.question}\n\nRetrieved sources (answer only from these; say so if they do not cover the question):\n{grounding}",
             SYSTEM_PROMPT + " Ground every statement in the retrieved sources provided.",
         )
@@ -250,7 +288,7 @@ def _synthesize(payload: AskIn, results: list) -> str:
     return _templated(snippets)
 
 
-def _direct_answer(payload: AskIn) -> str | None:
+def _direct_answer(payload: AskIn) -> tuple[str | None, str]:
     return _claude(
         f"{_context_lines(payload)}\n\nQuestion: {payload.question}",
         SYSTEM_PROMPT + " The firm knowledge base is offline for this question, so answer from general transfer-pricing knowledge and say which authorities the user should verify.",
@@ -264,9 +302,10 @@ def _templated(snippets: list[str]) -> str:
     return "Based on the firm’s TP knowledge base: " + head[:280] + ("…" if len(head) > 280 else "")
 
 
-def _fallback_answer() -> str:
+def _fallback_answer(reason: str = "") -> str:
+    why = f" ({reason})" if reason else ""
     return (
-        "Neither the Research Brain knowledge service nor the Claude API is configured, so this is general guidance "
+        f"No AI answer path is available right now{why}, so this is general guidance "
         "rather than a cited answer. For arm’s-length questions, compare the tested party’s PLI against "
         "the benchmarking interquartile range; where it falls outside, a compensating adjustment to the "
         "median is the usual defensible position, documented contemporaneously. Set ANTHROPIC_API_KEY "

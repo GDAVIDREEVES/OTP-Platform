@@ -67,7 +67,23 @@ def test_status_reports_mode_and_components(monkeypatch):
     body = client.get("/api/research-brain/status").json()
     assert body["mode"] == "offline"
     assert body["researchbrain"]["reachable"] is False
-    assert body["claude"]["configured"] is False
+    assert body["claude"]["configured"] is False and body["claude"]["key_valid"] is None
+
+
+def test_status_is_offline_when_claude_key_rejected(monkeypatch):
+    monkeypatch.setattr(rb, "_probe_researchbrain", lambda: (False, "unreachable"))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-truncated")
+    monkeypatch.setattr(rb, "_claude_key_check", lambda: (False, "Claude API rejected the key (401)"))
+    body = client.get("/api/research-brain/status").json()
+    assert body["mode"] == "offline" and body["claude"]["configured"] is True and body["claude"]["key_valid"] is False
+    assert "401" in body["claude"]["detail"]
+
+
+def test_status_is_claude_when_key_valid(monkeypatch):
+    monkeypatch.setattr(rb, "_probe_researchbrain", lambda: (False, "unreachable"))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-ok")
+    monkeypatch.setattr(rb, "_claude_key_check", lambda: (True, "key accepted"))
+    assert client.get("/api/research-brain/status").json()["mode"] == "claude"
 
 
 def test_auth_header_sent_when_key_configured(monkeypatch):
@@ -80,7 +96,7 @@ def test_auth_header_sent_when_key_configured(monkeypatch):
 def test_ask_uses_researchbrain_when_retrieval_succeeds(monkeypatch):
     results = [{"source": "OECD TPG 2022", "concept_path": "TP/Benchmarking", "content": "Interquartile range …", "authority_tier": 1, "rerankScore": 0.91}]
     monkeypatch.setattr(rb, "_retrieve", lambda payload: (rb._citations(results), results, True, "ok"))
-    monkeypatch.setattr(rb, "_claude", lambda prompt, system, max_tokens=1500: "Grounded answer.")
+    monkeypatch.setattr(rb, "_claude", lambda prompt, system, max_tokens=1500: ("Grounded answer.", ""))
     body = client.post("/api/research-brain/ask", json={"question": "IQR?"}).json()
     assert body["mode"] == "researchbrain" and body["live"] is True
     assert body["answer"] == "Grounded answer."
@@ -90,7 +106,7 @@ def test_ask_uses_researchbrain_when_retrieval_succeeds(monkeypatch):
 def test_ask_falls_back_to_claude_direct_without_researchbrain(monkeypatch):
     monkeypatch.setattr(rb, "_retrieve", lambda payload: ([], [], False, "researchbrain unreachable at http://127.0.0.1:3000 (ConnectError)"))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    monkeypatch.setattr(rb, "_claude", lambda prompt, system, max_tokens=1500: "Direct answer.")
+    monkeypatch.setattr(rb, "_claude", lambda prompt, system, max_tokens=1500: ("Direct answer.", ""))
     body = client.post("/api/research-brain/ask", json={"question": "Safe harbour?", "jurisdiction": "Ireland"}).json()
     assert body["mode"] == "claude" and body["live"] is True
     assert body["answer"] == "Direct answer." and body["citations"] == []
@@ -102,3 +118,12 @@ def test_ask_offline_when_nothing_configured(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     body = client.post("/api/research-brain/ask", json={"question": "x"}).json()
     assert body["mode"] == "offline" and body["live"] is False and body["citations"]
+
+
+def test_ask_reports_rejected_claude_key(monkeypatch):
+    monkeypatch.setattr(rb, "_retrieve", lambda payload: ([], [], False, "researchbrain unreachable"))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-truncated")
+    monkeypatch.setattr(rb, "_claude", lambda prompt, system, max_tokens=1500: (None, "API key rejected (401) — the key in backend/.env is 16 characters; a full key is ~108"))
+    body = client.post("/api/research-brain/ask", json={"question": "x"}).json()
+    assert body["mode"] == "offline"
+    assert "401" in body["note"] and "401" in body["answer"]

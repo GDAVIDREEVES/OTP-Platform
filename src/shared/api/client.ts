@@ -128,7 +128,7 @@ export interface ResearchBrainAnswer {
 export interface ResearchBrainStatus {
   mode: ResearchBrainMode;
   researchbrain: { url: string; reachable: boolean; auth_configured: boolean; detail: string };
-  claude: { configured: boolean; model: string | null };
+  claude: { configured: boolean; key_valid: boolean | null; model: string | null; detail: string };
 }
 
 export const API_BASE_URL: string =

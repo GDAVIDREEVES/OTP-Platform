@@ -294,8 +294,10 @@ export default function ResearchBrain() {
                       }
                       title={
                         status.mode === 'researchbrain'
-                          ? `researchbrain at ${status.researchbrain.url}`
-                          : `${status.researchbrain.detail} — set RESEARCH_BRAIN_BASE_URL / RESEARCH_BRAIN_API_KEY${status.claude.configured ? '' : ' and ANTHROPIC_API_KEY'} in backend/.env`
+                          ? `researchbrain at ${status.researchbrain.url} · ${status.claude.detail}`
+                          : status.mode === 'claude'
+                            ? `${status.claude.detail}. Knowledge base: ${status.researchbrain.detail}`
+                            : `Claude: ${status.claude.detail}. Knowledge base: ${status.researchbrain.detail}. Set ANTHROPIC_API_KEY (and RESEARCH_BRAIN_BASE_URL / RESEARCH_BRAIN_API_KEY) in backend/.env and restart.`
                       }
                       sx={{
                         height: 24,
