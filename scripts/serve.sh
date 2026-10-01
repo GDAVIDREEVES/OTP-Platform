@@ -28,6 +28,25 @@ fi
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-8000}"
+
+# If an earlier copy of THIS server is still holding the port (a previous
+# serve.sh left running in another Terminal tab), replace it rather than
+# failing with "address already in use". Anything else on the port is left
+# alone and named so you can decide.
+if command -v lsof >/dev/null 2>&1; then
+  for pid in $(lsof -ti tcp:"$PORT" -sTCP:LISTEN 2>/dev/null); do
+    if ps -o args= -p "$pid" 2>/dev/null | grep -q "uvicorn main:app"; then
+      echo "  Stopping previous OTP Platform server (pid $pid) on port $PORT…"
+      kill "$pid" 2>/dev/null || true
+      for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
+    else
+      echo "Error: port $PORT is in use by another program:" >&2
+      ps -o pid=,args= -p "$pid" >&2
+      echo "Stop it, or run with a different port:  PORT=8080 ./scripts/serve.sh" >&2
+      exit 1
+    fi
+  done
+fi
 echo ""
 if [[ -n "${CODESPACE_NAME:-}" ]]; then
   # Inside GitHub Codespaces the browser reaches the app through the forwarded
