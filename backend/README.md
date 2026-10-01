@@ -49,10 +49,11 @@ All via environment variables (or a `.env` file in this folder).
 
 | Var            | Default                         | Purpose                                  |
 | -------------- | ------------------------------- | ---------------------------------------- |
-| `DATA_DIR`     | `~/Documents/acdoca_exports/…`  | Folder containing the 4 parquet subdirs  |
-| `CORS_ORIGINS` | `http://localhost:5173,...:3000`| Allowed frontend origins (comma-sep)     |
-| `HOST`         | `127.0.0.1`                     | Bind address                             |
-| `PORT`         | `8000`                          | Bind port                                |
+| `DATA_DIR`      | `<repo>/data/parquet`           | Folder containing the 4 parquet subdirs  |
+| `CORS_ORIGINS`  | `localhost` + `127.0.0.1` :5173/:3000 | Extra frontend origins (comma-sep); not needed in single-port mode |
+| `FRONTEND_DIST` | `<repo>/dist`                   | Built SPA; when present it is served from `/` (single-port mode) |
+| `HOST`          | `127.0.0.1`                     | Bind address                             |
+| `PORT`          | `8000`                          | Bind port                                |
 
 ## Endpoints
 

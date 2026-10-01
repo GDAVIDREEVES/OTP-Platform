@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -114,6 +114,8 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const { role, setRole } = useSession();
   const [step, setStep] = useState(0);
+  const [policyFile, setPolicyFile] = useState<File | null>(null);
+  const policyInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedRole, setSelectedRole] = useState<Role>(role);
   const [connector, setConnector] = useState('sap-s4');
   const [connected, setConnected] = useState(false);
@@ -488,9 +490,32 @@ export default function Onboarding() {
               
                 Import existing policy document (optional)
               </Typography>
-              <Button variant="outlined" startIcon={<UploadFileIcon />}>
-                Upload policy .pdf or .docx
-              </Button>
+              <input
+                ref={policyInputRef}
+                type="file"
+                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                hidden
+                onChange={(ev) => setPolicyFile(ev.target.files?.[0] ?? null)} />
+              <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Button
+                  variant="outlined"
+                  startIcon={<UploadFileIcon />}
+                  onClick={() => policyInputRef.current?.click()}>
+                  {policyFile ? 'Replace policy document' : 'Upload policy .pdf or .docx'}
+                </Button>
+                {policyFile &&
+                <Chip
+                  label={`${policyFile.name} · ${(policyFile.size / 1024).toFixed(0)} KB`}
+                  onDelete={() => {
+                    setPolicyFile(null);
+                    if (policyInputRef.current) policyInputRef.current.value = '';
+                  }}
+                  sx={{ bgcolor: '#DCFCE7', color: '#15803D', fontWeight: 600 }} />
+                }
+              </Stack>
+              <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', mt: 1 }}>
+                Kept in this browser session only — the demo does not upload documents to a server.
+              </Typography>
             </Box>
           }
 

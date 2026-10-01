@@ -36,7 +36,7 @@ export default function RunsTab() {
     api.runs().then(setRuns).catch(() => setRuns([]));
     api.calcs()
       .then((ds) => setNames(Object.fromEntries(ds.map((d) => [d.id, d.name]))))
-      .catch(() => {});
+      .catch(() => { /* names are cosmetic; fall back to ids */ });
   }, []);
 
   const openTrace = async (r: CalcRun) => {

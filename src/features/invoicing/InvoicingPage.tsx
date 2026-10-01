@@ -21,11 +21,17 @@ import {
   Menu,
   MenuItem,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Divider,
 } from '@mui/material';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 // Use Settings as a stand-in for the row menu icon since both are in the bundle
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useInvoices, useSettings } from '@/shared/providers/DataProvider';
+import type { Invoice } from '@/shared/types/transaction';
 import { useAdjustmentLifecycle } from '@/shared/hooks/useAdjustmentLifecycle';
 
 const statusStyle: Record<string, { bg: string; color: string }> = {
@@ -42,6 +48,13 @@ export default function Invoicing() {
   const [tab, setTab] = useState(0);
   const [selected, setSelected] = useState<string[]>([]);
   const [menu, setMenu] = useState<{ anchor: HTMLElement; invId: string } | null>(null);
+  const [viewing, setViewing] = useState<Invoice | null>(null);
+  /** Submitted rows ARE adjustments (their id is the adj id) — their record of
+   *  truth is the evidence packet. Synthesized flow buckets open a detail view. */
+  const view = (inv: Invoice) => {
+    if (inv.submitted) navigate(`/evidence/${encodeURIComponent(`adj:${inv.id}`)}`);
+    else setViewing(inv);
+  };
   const invoices = useInvoices();
   const settings = useSettings();
   // No approve/reject here — the /review maker-checker queue is the ONLY approval
@@ -234,7 +247,7 @@ export default function Invoicing() {
                     </TableCell>
                     <TableCell align="right">
                       <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                        <Button size="small" variant="outlined">
+                        <Button size="small" variant="outlined" onClick={() => view(inv)}>
                           View
                         </Button>
                         {isSubmitted && inv.status === 'Pending Approval' && (
@@ -301,6 +314,62 @@ export default function Invoicing() {
           Delete (only while pending)
         </MenuItem>
       </Menu>
+      <Dialog open={!!viewing} onClose={() => setViewing(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          {viewing?.id}
+          <Typography variant="body2" sx={{ color: '#64748B' }}>
+            {viewing?.type} · {viewing?.date}
+          </Typography>
+        </DialogTitle>
+        <DialogContent dividers>
+          {viewing && (
+            <Stack spacing={1.25}>
+              {[
+                ['Payor', viewing.payor],
+                ['Payee', viewing.payee],
+                ['Period', viewing.period ? `${viewing.year ?? ''} · ${viewing.period}` : String(viewing.year ?? '—')],
+                ['Material type', viewing.materialType ?? '—'],
+                ['Status', viewing.status],
+              ].map(([k, v]) => (
+                <Stack key={k} direction="row" justifyContent="space-between">
+                  <Typography variant="body2" sx={{ color: '#64748B' }}>{k}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{v}</Typography>
+                </Stack>
+              ))}
+              <Divider />
+              <Stack direction="row" justifyContent="space-between">
+                <Typography variant="body2" sx={{ color: '#64748B' }}>Cost base</Typography>
+                <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {viewing.costBase != null ? `${new Intl.NumberFormat('en-US').format(Math.round(viewing.costBase))} ${viewing.currency}` : '—'}
+                </Typography>
+              </Stack>
+              <Stack direction="row" justifyContent="space-between">
+                <Typography variant="body2" sx={{ color: '#64748B' }}>Blended markup</Typography>
+                <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {viewing.markup != null ? `${(viewing.markup * 100).toFixed(1)}%` : '—'}
+                </Typography>
+              </Stack>
+              <Stack direction="row" justifyContent="space-between">
+                <Typography variant="body2" sx={{ color: '#64748B' }}>Source lines (supply_chain_flows)</Typography>
+                <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{viewing.lines ?? '—'}</Typography>
+              </Stack>
+              <Stack direction="row" justifyContent="space-between">
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>Invoice amount</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                  {new Intl.NumberFormat('en-US').format(Math.round(viewing.amount))} {viewing.currency}
+                </Typography>
+              </Stack>
+              <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                Synthesized from the warehouse supply-chain flows for the selected period (Σ standard cost × volume,
+                marked up). Adjustment-backed invoices open their evidence packet instead.
+              </Typography>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setViewing(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </AppShell>
   );
 }

@@ -8,7 +8,9 @@ import { useEntities } from '@/shared/providers/DataProvider';
 import { api } from '@/shared/api/client';
 import { formatCurrency } from '@/shared/utils/format';
 
-const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+// Bundled with the app (npm `world-atlas`) rather than fetched from a CDN, so
+// the map renders offline / behind a corporate proxy during a demo.
+import countries110m from 'world-atlas/countries-110m.json';
 
 interface HoverState { e: Entity; x: number; y: number; }
 interface FlowHover { label: string; x: number; y: number; }
@@ -118,7 +120,7 @@ export default function WorldMap({ onEntityClick }: { onEntityClick?: (e: Entity
       <Box ref={setContainerRef} sx={{ position: 'relative', width: '100%', bgcolor: '#F8FAFC', borderRadius: 1.5, overflow: 'hidden', border: '1px solid #EEF2F7' }}>
         <ComposableMap projection="geoEqualEarth" projectionConfig={{ scale: 165, center: [10, 20] }} width={980} height={460} style={{ width: '100%', height: 'auto', display: 'block' }}>
           <ZoomableGroup zoom={1} minZoom={1} maxZoom={4} center={[10, 20]}>
-            <Geographies geography={GEO_URL}>
+            <Geographies geography={countries110m}>
               {({ geographies }) => geographies.map((geo) => (
                 <Geography key={geo.rsmKey} geography={geo} style={{
                   default: { fill: '#E2E8F0', stroke: '#CBD5E1', strokeWidth: 0.5, outline: 'none' },

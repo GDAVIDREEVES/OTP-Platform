@@ -19,14 +19,39 @@ and [DEMO.md](DEMO.md) for the runbook.
 ## Quick start
 
 ```bash
-./scripts/dev.sh                                    # FastAPI :8000 + Vite :5173
+./scripts/dev.sh                                    # FastAPI :8000 + Vite :5173 (hot reload)
 # open http://localhost:5173 → "Enter Demo Workspace"
+
+./scripts/serve.sh                                  # ONE port: builds dist/ and serves app + API
+# open http://localhost:8000
 
 cd backend && ../.venv/bin/python -m state.migrate --reset   # pristine demo state
 
 cd backend && ../.venv/bin/python -m pytest -q      # backend tests
 npm run typecheck && npm run build                  # frontend gate
 ```
+
+First-time setup (any machine with Python 3.11+ and Node 20+):
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt
+npm install
+```
+
+## Run it from any computer
+
+The browser only ever talks to one origin — `/api/*` is proxied by Vite in dev,
+and in production FastAPI serves the built SPA itself — so there is no CORS or
+host configuration to get right. Three ways to get a running URL:
+
+| Where | How | URL |
+| --- | --- | --- |
+| **GitHub Codespaces** (nothing to install) | Open [codespaces.new/GDAVIDREEVES/OTP-Platform?quickstart=1](https://codespaces.new/GDAVIDREEVES/OTP-Platform?quickstart=1). The devcontainer installs deps, builds the app and starts `scripts/serve.sh` on port 8000; the forwarded port opens in your browser (~3-4 min first boot). | the forwarded port-8000 URL |
+| **Docker** | `docker build -t otp-platform . && docker run --rm -p 8000:8000 otp-platform` | http://localhost:8000 |
+| **Laptop** | `./scripts/serve.sh` (after first-time setup above) | http://localhost:8000 |
+
+Demo state (drafts, reviews, audit events) lives in a git-ignored SQLite file
+inside the running instance; reset it with the `migrate --reset` command above.
 
 ---
 

@@ -22,7 +22,8 @@ DATA_DIR = Path(os.getenv("DATA_DIR", str(REPO_ROOT / "data" / "parquet")))
 CORS_ORIGINS = [
     o.strip()
     for o in os.getenv(
-        "CORS_ORIGINS", "http://localhost:5173,http://localhost:3000"
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000",
     ).split(",")
     if o.strip()
 ]
@@ -32,6 +33,10 @@ ENTITY_ROLES = str(DATA_DIR / "entity_roles" / "*.parquet")
 SEGMENT_PL = str(DATA_DIR / "segment_pl" / "*.parquet")
 SUPPLY_CHAIN = str(DATA_DIR / "supply_chain_flows" / "*.parquet")
 JOURNAL = str(DATA_DIR / "journal_entries" / "*.parquet")
+
+# Built frontend (`npm run build` → dist/). When present, the API process also
+# serves the SPA so a single port runs the whole platform (see main.py).
+FRONTEND_DIST = Path(os.getenv("FRONTEND_DIST", str(REPO_ROOT / "dist")))
 
 HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "8000"))

@@ -8,10 +8,14 @@ import {
   LinearProgress,
   Paper } from
 '@mui/material';
-import SaveIcon from '@mui/icons-material/SaveAlt';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ReplyIcon from '@mui/icons-material/Reply';
+
+/** What a response's action button does. The host (full page or side panel)
+ *  decides how: `run-adjustment` opens OTP-16 for the entity, `export`
+ *  downloads the thread as an evidence note, `follow-up` focuses the ask box. */
+export type ConversationAction = 'run-adjustment' | 'export' | 'follow-up';
 function UserBubble({ text }: {text: string;}) {
   return (
     <Box
@@ -55,7 +59,9 @@ interface RBMessageProps {
   actions?: {
     label: string;
     icon?: React.ReactNode;
+    action: ConversationAction;
   }[];
+  onAction?: (action: ConversationAction) => void;
 }
 function BrainResponse({
   summary,
@@ -63,7 +69,8 @@ function BrainResponse({
   rangeNote,
   citations,
   confidence,
-  actions
+  actions,
+  onAction
 }: RBMessageProps) {
   return (
     <Box
@@ -235,6 +242,7 @@ function BrainResponse({
             size="small"
             variant={i === 0 ? 'contained' : 'outlined'}
             startIcon={a.icon}
+            onClick={() => onAction?.(a.action)}
             sx={{
               fontSize: 12
             }}>
@@ -248,7 +256,9 @@ function BrainResponse({
     </Box>);
 
 }
-export default function ResearchBrainConversation() {
+export default function ResearchBrainConversation({
+  onAction
+}: {onAction?: (action: ConversationAction) => void;}) {
   return (
     <Box>
       <UserBubble text="Does the IE-002 operating margin overshoot of 29% vs. our 4% TNMM target require a mandatory year-end compensating adjustment under Irish transfer pricing rules?" />
@@ -267,22 +277,22 @@ export default function ResearchBrainConversation() {
         'Firm EMEA TP Precedent — FY2023']
         }
         confidence={94}
+        onAction={onAction}
         actions={[
         {
           label: 'Run Adjustment',
-          icon: <PlayArrowIcon />
-        },
-        {
-          label: 'Save to IE-002 Record',
-          icon: <SaveIcon />
+          icon: <PlayArrowIcon />,
+          action: 'run-adjustment'
         },
         {
           label: 'Export to Audit File',
-          icon: <FileDownloadIcon />
+          icon: <FileDownloadIcon />,
+          action: 'export'
         },
         {
           label: 'Ask Follow-Up',
-          icon: <ReplyIcon />
+          icon: <ReplyIcon />,
+          action: 'follow-up'
         }]
         } />
       
@@ -298,14 +308,17 @@ export default function ResearchBrainConversation() {
         'Finance Act 2022 §27']
         }
         confidence={96}
+        onAction={onAction}
         actions={[
         {
-          label: 'Save to IE-002 Record',
-          icon: <SaveIcon />
+          label: 'Export to Audit File',
+          icon: <FileDownloadIcon />,
+          action: 'export'
         },
         {
-          label: 'Export to Audit File',
-          icon: <FileDownloadIcon />
+          label: 'Ask Follow-Up',
+          icon: <ReplyIcon />,
+          action: 'follow-up'
         }]
         } />
       

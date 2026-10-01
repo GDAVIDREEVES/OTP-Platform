@@ -1,0 +1,22 @@
+{
+  "name": "OTP Platform",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" }
+  },
+  "hostRequirements": { "cpus": 2, "memory": "4gb" },
+  "postCreateCommand": "python -m venv .venv && .venv/bin/pip install -r backend/requirements.txt && npm ci --no-audit --no-fund && npm run build",
+  "postStartCommand": "nohup bash -c 'HOST=0.0.0.0 PORT=8000 ./scripts/serve.sh --no-build' > /tmp/otp-platform.log 2>&1 &",
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": { "label": "OTP Platform", "onAutoForward": "openBrowser" }
+  },
+  "customizations": {
+    "codespaces": {
+      "openFiles": ["DEMO.md"]
+    },
+    "vscode": {
+      "extensions": ["ms-python.python", "dbaeumer.vscode-eslint"]
+    }
+  }
+}

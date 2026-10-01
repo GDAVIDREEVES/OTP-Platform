@@ -109,7 +109,7 @@ function Picker() {
       ))}
     </Stack>
   );
-};
+}
 
 // ---------------- the guided adjustment ----------------
 

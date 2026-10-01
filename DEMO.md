@@ -10,11 +10,17 @@ with SQLite for mutable state.
 
 ```bash
 ./scripts/dev.sh          # FastAPI :8000 + Vite :5173, one Ctrl-C stops both
+./scripts/serve.sh        # or: ONE port — builds the app and serves it from FastAPI on :8000
 ```
 
 - Boots out of the box on the committed sample dataset (`data/parquet/`).
 - For full-fidelity data, set `DATA_DIR` in `backend/.env` to a full ACDOCA export.
-- Open http://localhost:5173 → **Enter Demo Workspace**.
+- Open http://localhost:5173 (dev) or http://localhost:8000 (single-port) →
+  **Enter Demo Workspace**. Either `localhost` or `127.0.0.1` works.
+- **No laptop setup?** Open the repo in GitHub Codespaces
+  (https://codespaces.new/GDAVIDREEVES/OTP-Platform?quickstart=1) — it builds and
+  starts the platform and opens the forwarded port in your browser. A `Dockerfile`
+  is also provided (`docker run -p 8000:8000 otp-platform`).
 
 ## Reset to a pristine demo
 

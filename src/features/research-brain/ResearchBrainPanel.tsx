@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Paper,
@@ -18,11 +18,10 @@ import CloseIcon from '@mui/icons-material/Close';
 import RemoveIcon from '@mui/icons-material/Remove';
 import OpenInFullIcon from '@mui/icons-material/OpenInFull';
 import SendIcon from '@mui/icons-material/Send';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
-import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import { useResearchBrain } from './ResearchBrainContext';
-import ResearchBrainConversation from './ResearchBrainConversation';
+import ResearchBrainConversation, { type ConversationAction } from './ResearchBrainConversation';
+import { adjustmentRoute } from '@/kernel/workflow/originRoute';
 import { api } from '@/shared/api/client';
 
 interface LiveMsg {
@@ -39,6 +38,28 @@ export default function ResearchBrainPanel() {
   const [input, setInput] = useState('');
   const [msgs, setMsgs] = useState<LiveMsg[]>([]);
   const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const onConversationAction = (action: ConversationAction) => {
+    if (action === 'run-adjustment') {
+      closePanel();
+      navigate(adjustmentRoute(context?.entityId || '3400'));
+    } else if (action === 'export') {
+      const blob = new Blob(
+        [JSON.stringify({ context, exportedAt: new Date().toISOString(), messages: msgs }, null, 2)],
+        { type: 'application/json' },
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'research-brain-thread.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } else if (action === 'follow-up') {
+      inputRef.current?.focus();
+    }
+  };
   const send = async () => {
     const q = input.trim();
     if (!q || loading) return;
@@ -240,7 +261,7 @@ export default function ResearchBrainPanel() {
                 bgcolor: '#F8FAFC'
               }}>
               
-              <ResearchBrainConversation />
+              <ResearchBrainConversation onAction={onConversationAction} />
               {msgs.length > 0 && <Divider sx={{ my: 2, fontSize: 11, color: '#94A3B8' }}>Live</Divider>}
               {msgs.map((m, i) => (
                 <Box key={i} sx={{ mb: 2 }}>
@@ -284,6 +305,7 @@ export default function ResearchBrainPanel() {
               <TextField
                 fullWidth
                 size="small"
+                inputRef={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -294,18 +316,6 @@ export default function ResearchBrainPanel() {
                 }}
                 placeholder="Ask a transfer pricing or global trade question…"
                 InputProps={{
-                  startAdornment:
-                  <InputAdornment position="start">
-                      <Stack direction="row" spacing={0.5}>
-                        <IconButton size="small" aria-label="Attach document">
-                          <AttachFileIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton size="small" aria-label="Switch context">
-                          <SwapHorizIcon fontSize="small" />
-                        </IconButton>
-                      </Stack>
-                    </InputAdornment>,
-
                   endAdornment:
                   <InputAdornment position="end">
                       <IconButton

@@ -22,6 +22,8 @@ import {
   type Scope,
 } from './lib/accounts';
 import HierarchyControls from './components/HierarchyControls';
+import { downloadCsv } from '@/shared/utils/download';
+import { accounts } from './lib/accounts';
 import PnLGrid from './components/PnLGrid';
 
 export default function DetailedPnL() {
@@ -225,6 +227,28 @@ export default function DetailedPnL() {
     [entities],
   );
 
+
+  /** Export exactly what the grid shows — every account row (with edits) plus
+   *  the computed subtotal / margin rows — one column per P&L column. */
+  const exportCsv = () => {
+    const header = ['Line', ...columns.map((c) => (c.sublabel ? `${c.label} (${c.sublabel})` : c.label))];
+    const rows: (string | number)[][] = [header];
+    const section = (label: string) => rows.push([label, ...columns.map(() => '')]);
+    const acctRows = (sec: (typeof accounts)[number]['section']) =>
+      accounts
+        .filter((a) => a.section === sec)
+        .forEach((a) => rows.push([a.label, ...columns.map((c) => Math.round(matrix[c.id]?.[a.id] ?? 0))]));
+    const total = (label: string, pick: (id: string) => number, pct = false) =>
+      rows.push([label, ...columns.map((c) => (pct ? Number(pick(c.id).toFixed(2)) : Math.round(pick(c.id))))]);
+    section('Revenue'); acctRows('revenue'); total('Total revenue', (id) => calc[id].totalRev);
+    section('Cost of goods sold'); acctRows('cogs'); total('Total COGS', (id) => calc[id].totalCogs);
+    total('Gross profit', (id) => calc[id].grossProfit); total('Gross margin %', (id) => calc[id].grossMargin, true);
+    section('Operating expenses'); acctRows('opex'); total('Total opex', (id) => calc[id].totalOpex);
+    total('Operating profit', (id) => calc[id].operatingProfit); total('Operating margin %', (id) => calc[id].operatingMargin, true);
+    section('Tax'); acctRows('tax'); total('Net income', (id) => calc[id].netIncome);
+    downloadCsv(`segmented-pnl-${scope}.csv`, rows);
+  };
+
   return (
     <Paper sx={{ p: 2.5 }}>
       <Stack
@@ -263,7 +287,7 @@ export default function DetailedPnL() {
               deleteIcon={<RestartAltIcon />}
             />
           )}
-          <Button size="small" variant="outlined" startIcon={<DownloadIcon />}>
+          <Button size="small" variant="outlined" startIcon={<DownloadIcon />} onClick={exportCsv}>
             Export
           </Button>
         </Stack>

@@ -246,9 +246,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             {error?.message ?? 'Unknown error'}
           </Typography>
           <Typography variant="caption" sx={{ color: '#64748B' }}>
-            Make sure the FastAPI server is running on{' '}
-            <code>http://127.0.0.1:8000</code>. From{' '}
-            <code>OTP-Platform/backend</code> run <code>python main.py</code>.
+            Make sure the FastAPI server is running — from the repo root run{' '}
+            <code>./scripts/dev.sh</code> (dev) or <code>./scripts/serve.sh</code>{' '}
+            (single-port), then retry.
           </Typography>
         </Alert>
       </Box>

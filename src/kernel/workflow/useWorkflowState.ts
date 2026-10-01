@@ -61,7 +61,7 @@ export function useWorkflowState(
           draftId.current = d.id;
           setLastSavedAt(d.updated_at);
         })
-        .catch(() => {});
+        .catch(() => { /* autosave is best-effort; the next edit retries */ });
     }, 400);
     return () => {
       alive = false;

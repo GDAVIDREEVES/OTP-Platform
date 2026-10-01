@@ -4,7 +4,9 @@
  * Thin fetch wrapper over the FastAPI backend. Types live in `./types.ts`
  * and `@/shared/types/{entity,transaction,period}.ts`.
  *
- * The base URL is overridable via the Vite env var VITE_API_BASE_URL.
+ * Requests are same-origin by default (`/api/...`): the Vite dev server proxies
+ * them to FastAPI, and in production FastAPI serves the built SPA itself. Set
+ * VITE_API_BASE_URL at build time to target a backend on another origin.
  */
 
 import type { Entity } from '@/shared/types/entity';
@@ -112,7 +114,7 @@ import type {
 } from './types';
 
 export const API_BASE_URL: string =
-  (import.meta as any).env?.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000';
+  (import.meta as any).env?.VITE_API_BASE_URL ?? '';
 
 // ---------------- low-level fetch helpers ----------------
 
@@ -332,7 +334,7 @@ export const api = {
 
   deleteDraft: (id: number) => sendJSON<{ deleted: boolean }>('DELETE', `/api/drafts/${id}`),
 
-  reviewQueue: (status: string = 'pending') =>
+  reviewQueue: (status = 'pending') =>
     getJSON<ReviewItem[]>('/api/review-queue', { status }),
 
   enqueueReview: (body: { process_id: string; record_ref: string; maker: string }) =>

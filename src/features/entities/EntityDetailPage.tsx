@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { adjustmentRoute } from '@/kernel/workflow/originRoute';
 import AppShell from '@/shared/components/layout/AppShell';
@@ -24,6 +24,9 @@ import { statusColor, statusLabel } from '@/shared/utils/status';
 import { useEntity, useMarginTrend } from '@/shared/providers/DataProvider';
 import { useEntityFlows } from '@/shared/hooks/useEntityFlows';
 import { formatCurrency } from '@/shared/utils/format';
+import { downloadJson } from '@/shared/utils/download';
+import { api } from '@/shared/api/client';
+import type { AuditEvent } from '@/shared/api/types';
 import { useResearchBrain } from '@/features/research-brain/ResearchBrainContext';
 import {
   LineChart,
@@ -39,6 +42,32 @@ export default function EntityDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const e = useEntity(id);
+  const [exporting, setExporting] = useState(false);
+
+  /** Bundle the entity snapshot with every audit event that touches it (by
+   *  record_ref or by the entityId carried in the event payload) as a JSON
+   *  evidence package. Hash-chained events are included verbatim so the
+   *  package can be re-verified against /api/audit/verify. */
+  const exportAuditPackage = async () => {
+    if (!e || exporting) return;
+    setExporting(true);
+    try {
+      const events = await api.audit();
+      const touches = (ev: AuditEvent) => {
+        if (ev.record_ref.includes(e.id)) return true;
+        const payload = JSON.stringify([ev.before, ev.after]);
+        return payload.includes(`"entityId":"${e.id}"`) || payload.includes(`"entity_id":"${e.id}"`);
+      };
+      downloadJson(`audit-package-${e.id}.json`, {
+        generatedAt: new Date().toISOString(),
+        entity: e,
+        events: events.filter(touches),
+        totalEventsScanned: events.length,
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
   const monthlyMarginTrend = useMarginTrend();
   const flows = useEntityFlows(id);
   const { openPanel } = useResearchBrain();
@@ -506,8 +535,8 @@ export default function EntityDetail() {
                 
                 Ask Research Brain
               </Button>
-              <Button variant="outlined" fullWidth>
-                Export audit package
+              <Button variant="outlined" fullWidth onClick={() => void exportAuditPackage()} disabled={exporting}>
+                {exporting ? 'Preparing…' : 'Export audit package'}
               </Button>
             </Stack>
           </Paper>

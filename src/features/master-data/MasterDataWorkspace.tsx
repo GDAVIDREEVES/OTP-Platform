@@ -27,7 +27,7 @@ export default function MasterDataWorkspace() {
   const refreshCount = () =>
     api.mdStaging()
       .then((s) => setUnmapped(s.filter((i) => i.status !== 'applied' && i.status !== 'rejected').length))
-      .catch(() => {});
+      .catch(() => { /* badge is best-effort */ });
 
   useEffect(() => { refreshCount(); }, [active]);
 

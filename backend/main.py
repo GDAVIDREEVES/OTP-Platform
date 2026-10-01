@@ -11,10 +11,12 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-from config import CORS_ORIGINS, DATA_DIR, HOST, PORT
+from config import CORS_ORIGINS, DATA_DIR, FRONTEND_DIST, HOST, PORT
 from db import close_db, db
 from state import migrate
 from routers import (
@@ -135,6 +137,24 @@ for r in (
     worklist.router,
 ):
     app.include_router(r)
+
+
+# ---- Single-process mode: serve the built React app from the API port. ----
+# `npm run build` writes dist/; when it exists, any non-/api path falls through
+# to the SPA (index.html) so deep links like /process/OTP-16 work on a cold
+# load. Without dist/ the API runs alone and Vite (:5173) proxies to it.
+if (FRONTEND_DIST / "index.html").is_file():
+    if (FRONTEND_DIST / "assets").is_dir():
+        app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def spa(full_path: str):
+        if full_path.startswith("api/") or full_path == "api":
+            raise HTTPException(status_code=404, detail="Not Found")
+        candidate = (FRONTEND_DIST / full_path).resolve() if full_path else None
+        if candidate and candidate.is_file() and FRONTEND_DIST.resolve() in candidate.parents:
+            return FileResponse(candidate)
+        return FileResponse(FRONTEND_DIST / "index.html")
 
 
 if __name__ == "__main__":
