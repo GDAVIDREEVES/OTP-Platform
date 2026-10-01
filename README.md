@@ -50,6 +50,10 @@ host configuration to get right. Three ways to get a running URL:
 | **Docker** | `docker build -t otp-platform . && docker run --rm -p 8000:8000 otp-platform` | http://localhost:8000 |
 | **Laptop** | `./scripts/serve.sh` (after first-time setup above) | http://localhost:8000 |
 
+Research Brain chat: `./scripts/set-anthropic-key.sh` (Claude answers) and
+`./scripts/connect-researchbrain.sh` (cited answers from the researchbrain
+knowledge base) — see [DEMO.md](DEMO.md#ai-surfaces-graceful-degradation).
+
 Demo state (drafts, reviews, audit events) lives in a git-ignored SQLite file
 inside the running instance; reset it with the `migrate --reset` command above.
 

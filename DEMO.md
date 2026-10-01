@@ -52,20 +52,24 @@ key is missing.
   | **Claude · direct** | blue | `ANTHROPIC_API_KEY` only — real answers, no citations |
   | **Offline fallback** | amber | nothing — shaped placeholder text |
 
-  **Fastest way to a live chat for a demo:** add one line to `backend/.env` and
-  restart the server:
+  Two scripts do the wiring; the running server re-reads `backend/.env` on the
+  next request, so neither needs a restart:
 
   ```bash
-  ANTHROPIC_API_KEY=sk-ant-...
+  ./scripts/set-anthropic-key.sh          # paste the key at a hidden prompt → Claude direct (blue)
+  ./scripts/connect-researchbrain.sh      # find research-brain, copy its token, start the daemon → cited (purple)
   ```
 
-  **Full knowledge-base path:** the researchbrain daemon (`npm start` in the
-  research-brain repo, Qdrant on :6333, Voyage + Anthropic keys in *its* `.env`)
-  must be reachable from the OTP backend. Copy its `RESEARCHBRAIN_API_KEY` value
-  into `RESEARCH_BRAIN_API_KEY` here. If researchbrain runs on another machine
-  (e.g. the Mac mini), start it with `BIND_HOST=0.0.0.0` and set
-  `RESEARCH_BRAIN_BASE_URL=http://<that-machine>:3000`. Check the connection badge
-  at the top of the Research Brain page, or `GET /api/research-brain/status`.
+  `connect-researchbrain.sh` looks in `~/Documents/research-brain` (or takes a
+  path), reads `RESEARCHBRAIN_API_KEY` from that project's `.env`, writes
+  `RESEARCH_BRAIN_BASE_URL` / `RESEARCH_BRAIN_API_KEY` here, and runs `npm start`
+  in the background if nothing answers on :3000 (log: `/tmp/researchbrain.log`).
+  researchbrain itself needs Qdrant on :6333 and its own Voyage/Anthropic keys;
+  if Qdrant is down the badge says so and answers fall back to Claude direct.
+  Daemon on another machine (e.g. the Mac mini, started with `BIND_HOST=0.0.0.0`):
+  `RB_URL=http://<that-machine>:3000 ./scripts/connect-researchbrain.sh --no-start`.
+  Check the connection badge at the top of the Research Brain page, or
+  `GET /api/research-brain/status`.
 
 ## The walkthrough (operator → reviewer → director)
 

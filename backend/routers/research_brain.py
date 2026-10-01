@@ -22,9 +22,11 @@ from __future__ import annotations
 import os
 import time
 
+from dotenv import load_dotenv
 from fastapi import APIRouter
 
 import state.audit as audit
+from config import BASE_DIR
 from db import q
 from period_filter import PeriodFilter
 from schemas.state import AskIn, PrepareIn
@@ -37,9 +39,31 @@ except Exception:  # pragma: no cover
 
 router = APIRouter()
 
+# Connection settings are re-read from backend/.env on every /status and /ask so
+# `scripts/connect-researchbrain.sh` / `scripts/set-anthropic-key.sh` take effect
+# without restarting the server (python-dotenv only loads the file at import).
+_ENV_FILE = BASE_DIR / ".env"
+_ENV_MTIME = 0.0
+
+
+def _refresh_env() -> None:
+    global _ENV_MTIME, RESEARCH_BRAIN_BASE_URL, RESEARCH_BRAIN_API_KEY, CLAUDE_MODEL
+    try:
+        mtime = _ENV_FILE.stat().st_mtime
+    except OSError:
+        mtime = 0.0
+    if mtime and mtime != _ENV_MTIME:
+        load_dotenv(_ENV_FILE, override=True)
+        _ENV_MTIME = mtime
+        _KEY_CHECK.update(at=0.0, ok=None, detail="")  # a changed file invalidates the cached key check
+    RESEARCH_BRAIN_BASE_URL = os.getenv("RESEARCH_BRAIN_BASE_URL", "http://127.0.0.1:3000").rstrip("/")
+    # researchbrain protects /api/rag/* with a bearer token (its RESEARCHBRAIN_API_KEY).
+    # Accept either spelling so the same value can be pasted from its .env.
+    RESEARCH_BRAIN_API_KEY = os.getenv("RESEARCH_BRAIN_API_KEY") or os.getenv("RESEARCHBRAIN_API_KEY") or ""
+    CLAUDE_MODEL = os.getenv("OTP_CLAUDE_MODEL", "claude-opus-5-5")
+
+
 RESEARCH_BRAIN_BASE_URL = os.getenv("RESEARCH_BRAIN_BASE_URL", "http://127.0.0.1:3000").rstrip("/")
-# researchbrain protects /api/rag/* with a bearer token (its RESEARCHBRAIN_API_KEY).
-# Accept either spelling so the same value can be pasted from its .env.
 RESEARCH_BRAIN_API_KEY = os.getenv("RESEARCH_BRAIN_API_KEY") or os.getenv("RESEARCHBRAIN_API_KEY") or ""
 CLAUDE_MODEL = os.getenv("OTP_CLAUDE_MODEL", "claude-opus-5-5")
 
@@ -114,11 +138,14 @@ def _claude_key_check() -> tuple[bool | None, str]:
 def status():
     """Which answer path /ask will take right now — shown in the UI header so a
     presenter can see at a glance whether the knowledge base is connected."""
+    _refresh_env()
     rb_ok, rb_detail = _probe_researchbrain()
     claude = _claude_configured()
     key_ok, key_detail = _claude_key_check()
     claude_usable = claude and key_ok is True
-    mode = "researchbrain" if (rb_ok and claude_usable) else ("claude" if claude_usable else "offline")
+    # Mirrors /ask: retrieval wins whenever researchbrain answers (Claude only
+    # improves the synthesis), then Claude direct, then offline.
+    mode = "researchbrain" if rb_ok else ("claude" if claude_usable else "offline")
     return {
         "mode": mode,
         "researchbrain": {"url": RESEARCH_BRAIN_BASE_URL, "reachable": rb_ok, "auth_configured": bool(RESEARCH_BRAIN_API_KEY), "detail": rb_detail},
@@ -136,6 +163,12 @@ def _probe_researchbrain() -> tuple[bool, str]:
         with httpx.Client(timeout=2.5, headers=_auth_headers()) as client:
             r = client.get(f"{RESEARCH_BRAIN_BASE_URL}/api/rag/health")
             if r.status_code != 200:
+                try:
+                    body = r.json()
+                except ValueError:
+                    body = {}
+                if body.get("qdrant") == "error":
+                    return False, f"researchbrain is up but its Qdrant vector store is not connected ({str(body.get('error') or '')[:80]})"
                 return False, f"health returned HTTP {r.status_code}"
             if not RESEARCH_BRAIN_API_KEY:
                 return False, "reachable, but RESEARCH_BRAIN_API_KEY is not set (retrieval needs the bearer token)"
@@ -158,6 +191,7 @@ def ask(payload: AskIn):
     2. Claude directly, grounded only in the question + platform context → mode "claude"
     3. shaped offline text                                          → mode "offline"
     `live` stays True for any AI-backed answer so older clients keep working."""
+    _refresh_env()
     citations, results, live, reason = _retrieve(payload)
     if live:
         return {"answer": _synthesize(payload, results), "citations": citations, "live": True, "mode": "researchbrain", "note": None}
