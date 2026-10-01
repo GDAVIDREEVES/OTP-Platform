@@ -13,7 +13,7 @@ cd "$ROOT_DIR"
 if [[ ! -d .venv ]]; then
   echo "Error: .venv not found at $ROOT_DIR/.venv" >&2
   echo "First-time setup:" >&2
-  echo "  /opt/homebrew/bin/python3.13 -m venv .venv" >&2
+  echo "  python3 -m venv .venv            # Python 3.11+" >&2
   echo "  .venv/bin/pip install -r backend/requirements.txt" >&2
   echo "  npm install" >&2
   exit 1

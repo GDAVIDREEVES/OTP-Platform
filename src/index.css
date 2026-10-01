@@ -1,5 +1,7 @@
-/* @import url() FONT IMPORTS MUST ALWAYS BE AT THE VERY TOP OF THIS FILE, ABOVE THE TAILWIND IMPORTS — DO NOT DELETE THIS COMMENT */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* Inter is bundled via @fontsource/inter (imported in src/index.tsx) rather than
+   fetched from Google Fonts, so the UI renders identically offline / behind a
+   corporate proxy. Any remote @import url() font must sit above the Tailwind
+   imports below. */
 
 /* CRITICAL: THE FOLLOWING TAILWIND IMPORTS MUST NEVER BE DELETED OR REORDERED — DO NOT DELETE THIS COMMENT */
 @import 'tailwindcss/base';
