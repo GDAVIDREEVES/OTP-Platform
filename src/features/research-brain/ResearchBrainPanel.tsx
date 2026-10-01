@@ -22,14 +22,10 @@ import PsychologyIcon from '@mui/icons-material/Psychology';
 import { useResearchBrain } from './ResearchBrainContext';
 import ResearchBrainConversation, { type ConversationAction } from './ResearchBrainConversation';
 import { adjustmentRoute } from '@/kernel/workflow/originRoute';
-import { api } from '@/shared/api/client';
+import { api, type ResearchBrainAnswer } from '@/shared/api/client';
+import { ModeChip, modeOf } from './modeChip';
 
-interface LiveMsg {
-  q: string;
-  answer: string;
-  citations: { source: string; ref: string; snippet: string }[];
-  live: boolean;
-}
+type LiveMsg = ResearchBrainAnswer & { q: string };
 
 export default function ResearchBrainPanel() {
   const { open, closePanel, context } = useResearchBrain();
@@ -71,9 +67,9 @@ export default function ResearchBrainPanel() {
         jurisdiction: context?.jurisdiction,
         tp_method: context?.method,
       });
-      setMsgs((m) => [...m, { q, answer: res.answer, citations: res.citations, live: res.live }]);
+      setMsgs((m) => [...m, { q, ...res }]);
     } catch {
-      setMsgs((m) => [...m, { q, answer: 'Request failed — the assistant is unavailable.', citations: [], live: false }]);
+      setMsgs((m) => [...m, { q, answer: 'Request failed — the assistant is unavailable.', citations: [], live: false, mode: 'offline', note: null }]);
     } finally {
       setLoading(false);
     }
@@ -271,11 +267,7 @@ export default function ResearchBrainPanel() {
                     </Box>
                   </Box>
                   <Paper elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: '12px 12px 12px 2px', p: 2 }}>
-                    <Chip
-                      size="small"
-                      label={m.live ? 'researchbrain · live' : 'offline fallback'}
-                      sx={{ mb: 1, height: 20, fontSize: 10, fontWeight: 700, bgcolor: m.live ? '#EDE9FE' : '#FEF3C7', color: m.live ? '#7C3AED' : '#B45309' }}
-                    />
+                    <ModeChip mode={modeOf(m)} title={m.note ?? undefined} sx={{ mb: 1 }} />
                     <Typography variant="body2" sx={{ color: '#0F172A', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{m.answer}</Typography>
                     {m.citations.length > 0 && (
                       <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>

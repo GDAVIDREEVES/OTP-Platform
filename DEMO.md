@@ -43,22 +43,29 @@ key is missing.
   always real: it computes from the warehouse server-side (real posting counts,
   gap-to-range) and logs an assisted "prepared" event to the audit trail. No
   external service required.
-- **TP Q&A** (the Research Brain panel) calls the separate **researchbrain**
-  service for citation-backed retrieval. To run the live path:
+- **TP Q&A** (the Research Brain page and side panel) picks the best available
+  answer path and labels every answer with it:
+
+  | Mode | Chip | What you need in `backend/.env` |
+  | --- | --- | --- |
+  | **Knowledge base · cited** | purple | `ANTHROPIC_API_KEY` + `RESEARCH_BRAIN_BASE_URL` + `RESEARCH_BRAIN_API_KEY` (the researchbrain service's bearer token) |
+  | **Claude · direct** | blue | `ANTHROPIC_API_KEY` only — real answers, no citations |
+  | **Offline fallback** | amber | nothing — shaped placeholder text |
+
+  **Fastest way to a live chat for a demo:** add one line to `backend/.env` and
+  restart the server:
 
   ```bash
-  # 1. Qdrant vector DB on :6333  (researchbrain dependency)
-  # 2. in the researchbrain repo:
-  export ANTHROPIC_API_KEY=sk-ant-...   # Claude synthesis
-  export VOYAGE_API_KEY=pa-...          # embeddings + rerank
-  npm start                              # serves :3000
-  curl http://127.0.0.1:3000/api/health  # verify
+  ANTHROPIC_API_KEY=sk-ant-...
   ```
 
-  Point the OTP backend at it with `RESEARCH_BRAIN_BASE_URL` (default
-  `http://127.0.0.1:3000`), and set `ANTHROPIC_API_KEY` for the OTP backend too if
-  you want it to synthesise the retrieved chunks into prose. Without researchbrain
-  the panel shows a shaped "offline" answer with a clear live/offline indicator.
+  **Full knowledge-base path:** the researchbrain daemon (`npm start` in the
+  research-brain repo, Qdrant on :6333, Voyage + Anthropic keys in *its* `.env`)
+  must be reachable from the OTP backend. Copy its `RESEARCHBRAIN_API_KEY` value
+  into `RESEARCH_BRAIN_API_KEY` here. If researchbrain runs on another machine
+  (e.g. the Mac mini), start it with `BIND_HOST=0.0.0.0` and set
+  `RESEARCH_BRAIN_BASE_URL=http://<that-machine>:3000`. Check the connection badge
+  at the top of the Research Brain page, or `GET /api/research-brain/status`.
 
 ## The walkthrough (operator → reviewer → director)
 

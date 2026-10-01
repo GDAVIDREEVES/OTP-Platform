@@ -1,9 +1,12 @@
 """Research Brain — process-aware assistance.
 
 - /ask: TP knowledge Q&A. Retrieves from the user's researchbrain HTTP service
-  (`/api/rag/retrieve`) and synthesises an answer with the Claude API when
-  available. Citations carry source, concept path, authority tier, and rerank
+  (`/api/rag/retrieve`, bearer-authenticated with RESEARCH_BRAIN_API_KEY) and
+  synthesises an answer with the Claude API. If researchbrain is unreachable
+  but ANTHROPIC_API_KEY is set, Claude answers directly (mode "claude", no
+  citations). Citations carry source, concept path, authority tier, and rerank
   score. No researchbrain synthesis endpoint exists, so we synthesise our side.
+- /status: which of the three paths /ask will take right now.
 - /prepare: the agentic hand-off. Computes the real preparation server-side —
   the entity's posting count and gap-to-range from the live data — returns a
   draftPatch the workflow applies, and logs the assisted work to the audit trail
@@ -33,7 +36,11 @@ except Exception:  # pragma: no cover
 
 router = APIRouter()
 
-RESEARCH_BRAIN_BASE_URL = os.getenv("RESEARCH_BRAIN_BASE_URL", "http://127.0.0.1:3000")
+RESEARCH_BRAIN_BASE_URL = os.getenv("RESEARCH_BRAIN_BASE_URL", "http://127.0.0.1:3000").rstrip("/")
+# researchbrain protects /api/rag/* with a bearer token (its RESEARCHBRAIN_API_KEY).
+# Accept either spelling so the same value can be pasted from its .env.
+RESEARCH_BRAIN_API_KEY = os.getenv("RESEARCH_BRAIN_API_KEY") or os.getenv("RESEARCHBRAIN_API_KEY") or ""
+CLAUDE_MODEL = os.getenv("OTP_CLAUDE_MODEL", "claude-opus-5-5")
 
 # Process → researchbrain concept-path prefix (soft retrieval hint; falls back
 # to an unfiltered query if a prefix returns nothing).
@@ -46,24 +53,95 @@ CONCEPT_PATHS = {
 
 _TIER_LABEL = {1: "primary", 2: "secondary", 3: "commentary"}
 
+SYSTEM_PROMPT = (
+    "You are the Research Brain, the transfer-pricing assistant inside an operational "
+    "transfer-pricing platform used by a tax partner. Answer like a senior TP practitioner: "
+    "lead with the conclusion, then the reasoning, citing the governing authority (OECD TPG "
+    "chapter, IRC §482 regulations, local law) where relevant. Be concise — a few short "
+    "paragraphs or a tight bullet list. Flag where a position depends on facts you do not have. "
+    "Never invent case names, section numbers or figures."
+)
+
+
+def _auth_headers() -> dict[str, str]:
+    return {"Authorization": f"Bearer {RESEARCH_BRAIN_API_KEY}"} if RESEARCH_BRAIN_API_KEY else {}
+
+
+def _claude_configured() -> bool:
+    return bool(os.getenv("ANTHROPIC_API_KEY"))
+
+
+# ----------------- /status -----------------
+
+@router.get("/api/research-brain/status")
+def status():
+    """Which answer path /ask will take right now — shown in the UI header so a
+    presenter can see at a glance whether the knowledge base is connected."""
+    rb_ok, rb_detail = _probe_researchbrain()
+    claude = _claude_configured()
+    mode = "researchbrain" if rb_ok else ("claude" if claude else "offline")
+    return {
+        "mode": mode,
+        "researchbrain": {"url": RESEARCH_BRAIN_BASE_URL, "reachable": rb_ok, "auth_configured": bool(RESEARCH_BRAIN_API_KEY), "detail": rb_detail},
+        "claude": {"configured": claude, "model": CLAUDE_MODEL if claude else None},
+    }
+
+
+def _probe_researchbrain() -> tuple[bool, str]:
+    """Reachability AND token check. /api/rag/chunks with an empty id list is
+    bearer-protected but costs nothing: 401 = bad token, 503 = researchbrain has
+    no RESEARCHBRAIN_API_KEY, 400 = auth passed (empty body rejected after auth)."""
+    if httpx is None:
+        return False, "httpx not installed"
+    try:
+        with httpx.Client(timeout=2.5, headers=_auth_headers()) as client:
+            r = client.get(f"{RESEARCH_BRAIN_BASE_URL}/api/rag/health")
+            if r.status_code != 200:
+                return False, f"health returned HTTP {r.status_code}"
+            if not RESEARCH_BRAIN_API_KEY:
+                return False, "reachable, but RESEARCH_BRAIN_API_KEY is not set (retrieval needs the bearer token)"
+            r = client.post(f"{RESEARCH_BRAIN_BASE_URL}/api/rag/chunks", json={"chunk_ids": []})
+            if r.status_code == 401:
+                return False, "reachable, but researchbrain rejected the bearer token (check RESEARCH_BRAIN_API_KEY)"
+            if r.status_code == 503:
+                return False, "reachable, but researchbrain has no RESEARCHBRAIN_API_KEY set on its side"
+        return True, "ok"
+    except Exception as exc:  # connection refused, DNS, timeout
+        return False, f"unreachable ({type(exc).__name__})"
+
 
 # ----------------- /ask -----------------
 
 @router.post("/api/research-brain/ask")
 def ask(payload: AskIn):
-    citations, results, live = _retrieve(payload)
+    """Three answer paths, best available first:
+    1. researchbrain retrieval (cited chunks) + Claude synthesis   → mode "researchbrain"
+    2. Claude directly, grounded only in the question + platform context → mode "claude"
+    3. shaped offline text                                          → mode "offline"
+    `live` stays True for any AI-backed answer so older clients keep working."""
+    citations, results, live, reason = _retrieve(payload)
     if live:
-        return {"answer": _synthesize(payload.question, results), "citations": citations, "live": True}
-    return {"answer": _fallback_answer(), "citations": _fallback_citations(), "live": False}
+        return {"answer": _synthesize(payload, results), "citations": citations, "live": True, "mode": "researchbrain", "note": None}
+    if _claude_configured():
+        text = _direct_answer(payload)
+        if text:
+            return {
+                "answer": text,
+                "citations": [],
+                "live": True,
+                "mode": "claude",
+                "note": f"Knowledge-base retrieval unavailable ({reason}); answered by {CLAUDE_MODEL} without citations.",
+            }
+    return {"answer": _fallback_answer(), "citations": _fallback_citations(), "live": False, "mode": "offline", "note": reason}
 
 
 def _retrieve(payload: AskIn):
-    """Hit researchbrain retrieval. Returns (citations, results, live)."""
+    """Hit researchbrain retrieval. Returns (citations, results, live, reason)."""
     if httpx is None:
-        return [], [], False
+        return [], [], False, "httpx not installed"
 
     def _request(use_prefix: bool):
-        body: dict = {"query": payload.question, "tier_max": 2, "topK": 20, "topN": 5, "mode": "standard"}
+        body: dict = {"query": payload.question, "tier_max": 2, "topK": 20, "topN": 5, "mode": "standard", "caller": "otp-platform"}
         if payload.jurisdiction:
             body["jurisdiction"] = payload.jurisdiction
         if payload.tp_method:
@@ -73,18 +151,25 @@ def _retrieve(payload: AskIn):
             body["concept_path_prefix"] = prefix
         return body
 
+    url = f"{RESEARCH_BRAIN_BASE_URL}/api/rag/retrieve"
     try:
-        with httpx.Client(timeout=8.0) as client:
-            resp = client.post(f"{RESEARCH_BRAIN_BASE_URL}/api/rag/retrieve", json=_request(True))
+        with httpx.Client(timeout=12.0, headers=_auth_headers()) as client:
+            resp = client.post(url, json=_request(True))
+            if resp.status_code == 401:
+                return [], [], False, "researchbrain rejected the bearer token (check RESEARCH_BRAIN_API_KEY)"
+            if resp.status_code == 503:
+                return [], [], False, "researchbrain is up but RESEARCHBRAIN_API_KEY is unset on its side"
             if resp.status_code != 200:
-                return [], [], False
+                return [], [], False, f"researchbrain HTTP {resp.status_code}"
             results = resp.json().get("results", [])
             if not results:  # prefix may over-filter — retry unfiltered
-                resp = client.post(f"{RESEARCH_BRAIN_BASE_URL}/api/rag/retrieve", json=_request(False))
+                resp = client.post(url, json=_request(False))
                 results = resp.json().get("results", []) if resp.status_code == 200 else []
-        return _citations(results), results, True
-    except Exception:
-        return [], [], False
+        if not results:
+            return [], [], False, "researchbrain returned no matching chunks"
+        return _citations(results), results, True, "ok"
+    except Exception as exc:
+        return [], [], False, f"researchbrain unreachable at {RESEARCH_BRAIN_BASE_URL} ({type(exc).__name__})"
 
 
 def _citations(results: list) -> list[dict]:
@@ -103,27 +188,73 @@ def _citations(results: list) -> list[dict]:
     return out
 
 
-def _synthesize(question: str, results: list) -> str:
-    snippets = [x.get("content", "") for x in results[:3] if x.get("content")]
-    grounding = "\n\n".join(snippets)[:4000]
-    key = os.getenv("ANTHROPIC_API_KEY")
-    if key and grounding:
-        try:
-            import anthropic
+def _context_lines(payload: AskIn) -> str:
+    bits = []
+    if payload.process_id:
+        bits.append(f"Process: {payload.process_id}")
+    if payload.jurisdiction:
+        bits.append(f"Jurisdiction: {payload.jurisdiction}")
+    if payload.tp_method:
+        bits.append(f"TP method: {payload.tp_method}")
+    return "\n".join(bits)
 
-            client = anthropic.Anthropic(api_key=key)
-            msg = client.messages.create(
-                model=os.getenv("OTP_CLAUDE_MODEL", "claude-3-5-haiku-latest"),
-                max_tokens=400,
-                system="You are a transfer-pricing assistant. Answer concisely and only from the provided sources.",
-                messages=[{"role": "user", "content": f"Question: {question}\n\nSources:\n{grounding}"}],
-            )
-            text = "".join(getattr(b, "text", "") for b in msg.content).strip()
-            if text:
-                return text
-        except Exception:
-            pass
+
+def _claude(prompt: str, system: str, max_tokens: int = 1500) -> str | None:
+    """One Claude call; None on any failure so callers fall through to the next
+    answer path. Uses the SDK's typed errors — never string-matches messages."""
+    key = os.getenv("ANTHROPIC_API_KEY")
+    if not key:
+        return None
+    try:
+        import anthropic
+    except ImportError:
+        return None
+    client = anthropic.Anthropic(api_key=key, timeout=45.0, max_retries=1)
+    common = dict(
+        model=CLAUDE_MODEL,
+        max_tokens=max_tokens,
+        system=system,
+        output_config={"effort": "low"},  # chat latency over depth; thinking stays adaptive
+        messages=[{"role": "user", "content": prompt}],
+    )
+    try:
+        try:
+            # Server-side fallback routes a safety decline to another model inside the same call.
+            msg = client.beta.messages.create(betas=["server-side-fallback-2026-07-01"], fallbacks="default", **common)
+        except TypeError:  # older SDK without `fallbacks`
+            msg = client.messages.create(**common)
+        if getattr(msg, "stop_reason", None) == "refusal":
+            return None
+        text = "".join(getattr(b, "text", "") for b in msg.content if getattr(b, "type", "") == "text").strip()
+        return text or None
+    except anthropic.AuthenticationError:
+        return None
+    except anthropic.RateLimitError:
+        return None
+    except anthropic.APIStatusError:
+        return None
+    except anthropic.APIConnectionError:
+        return None
+
+
+def _synthesize(payload: AskIn, results: list) -> str:
+    snippets = [x.get("content", "") for x in results[:5] if x.get("content")]
+    grounding = "\n\n---\n\n".join(snippets)[:12000]
+    if grounding:
+        text = _claude(
+            f"{_context_lines(payload)}\n\nQuestion: {payload.question}\n\nRetrieved sources (answer only from these; say so if they do not cover the question):\n{grounding}",
+            SYSTEM_PROMPT + " Ground every statement in the retrieved sources provided.",
+        )
+        if text:
+            return text
     return _templated(snippets)
+
+
+def _direct_answer(payload: AskIn) -> str | None:
+    return _claude(
+        f"{_context_lines(payload)}\n\nQuestion: {payload.question}",
+        SYSTEM_PROMPT + " The firm knowledge base is offline for this question, so answer from general transfer-pricing knowledge and say which authorities the user should verify.",
+    )
 
 
 def _templated(snippets: list[str]) -> str:
@@ -135,11 +266,11 @@ def _templated(snippets: list[str]) -> str:
 
 def _fallback_answer() -> str:
     return (
-        "The Research Brain knowledge service isn’t reachable right now, so this is general guidance "
+        "Neither the Research Brain knowledge service nor the Claude API is configured, so this is general guidance "
         "rather than a cited answer. For arm’s-length questions, compare the tested party’s PLI against "
         "the benchmarking interquartile range; where it falls outside, a compensating adjustment to the "
-        "median is the usual defensible position, documented contemporaneously. Reconnect the "
-        "researchbrain service for sourced, citation-backed answers."
+        "median is the usual defensible position, documented contemporaneously. Set ANTHROPIC_API_KEY "
+        "(and RESEARCH_BRAIN_BASE_URL / RESEARCH_BRAIN_API_KEY for the knowledge base) in backend/.env."
     )
 
 

@@ -113,6 +113,24 @@ import type {
   PlBasis,
 } from './types';
 
+export type ResearchBrainMode = 'researchbrain' | 'claude' | 'offline';
+
+export interface ResearchBrainAnswer {
+  answer: string;
+  citations: { source: string; ref: string; snippet: string }[];
+  /** True for any AI-backed answer (knowledge base or Claude direct). */
+  live: boolean;
+  mode: ResearchBrainMode;
+  /** Why a lower path was taken (e.g. knowledge base unreachable). */
+  note: string | null;
+}
+
+export interface ResearchBrainStatus {
+  mode: ResearchBrainMode;
+  researchbrain: { url: string; reachable: boolean; auth_configured: boolean; detail: string };
+  claude: { configured: boolean; model: string | null };
+}
+
 export const API_BASE_URL: string =
   (import.meta as any).env?.VITE_API_BASE_URL ?? '';
 
@@ -893,11 +911,10 @@ export const api = {
     jurisdiction?: string;
     tp_method?: string;
   }) =>
-    sendJSON<{
-      answer: string;
-      citations: { source: string; ref: string; snippet: string }[];
-      live: boolean;
-    }>('POST', '/api/research-brain/ask', body),
+    sendJSON<ResearchBrainAnswer>('POST', '/api/research-brain/ask', body),
+
+  /** Which answer path /ask will take right now (knowledge base → Claude → offline). */
+  researchBrainStatus: () => getJSON<ResearchBrainStatus>('/api/research-brain/status'),
 
   // ---- Master Data ----
   mdFunctions: () => getJSON<TpFunction[]>('/api/master-data/functions'),

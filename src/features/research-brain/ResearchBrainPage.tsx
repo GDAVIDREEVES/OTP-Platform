@@ -27,7 +27,8 @@ import SendIcon from '@mui/icons-material/Send';
 import ResearchBrainConversation, {
   type ConversationAction,
 } from '@/features/research-brain/ResearchBrainConversation';
-import { api } from '@/shared/api/client';
+import { api, type ResearchBrainAnswer, type ResearchBrainStatus } from '@/shared/api/client';
+import { ModeChip, MODE_STYLE, modeOf } from '@/features/research-brain/modeChip';
 import { adjustmentRoute } from '@/kernel/workflow/originRoute';
 import { downloadJson } from '@/shared/utils/download';
 
@@ -39,12 +40,7 @@ interface SavedThread {
   pinned?: boolean;
 }
 
-interface LiveMsg {
-  q: string;
-  answer: string;
-  citations: { source: string; ref: string; snippet: string }[];
-  live: boolean;
-}
+type LiveMsg = ResearchBrainAnswer & { q: string };
 
 /** Seeded library. `t1` carries the worked IE-002 example conversation; the
  *  others are saved headers you continue by asking a follow-up. */
@@ -80,6 +76,16 @@ export default function ResearchBrain() {
   const [loading, setLoading] = useState(false);
   const [live, setLive] = useState<Record<string, LiveMsg[]>>({});
   const [snack, setSnack] = useState<string | null>(null);
+  const [status, setStatus] = useState<ResearchBrainStatus | null>(null);
+
+  // Connection badge: which answer path the backend will take right now.
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => api.researchBrainStatus().then((s) => alive && setStatus(s)).catch(() => alive && setStatus(null));
+    refresh();
+    const t = window.setInterval(refresh, 30_000);
+    return () => { alive = false; window.clearInterval(t); };
+  }, []);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -127,7 +133,7 @@ export default function ResearchBrain() {
     );
     try {
       const res = await api.researchBrainAsk({ question: q, tp_method: method, jurisdiction });
-      setLive((m) => ({ ...m, [active]: [...(m[active] ?? []), { q, answer: res.answer, citations: res.citations, live: res.live }] }));
+      setLive((m) => ({ ...m, [active]: [...(m[active] ?? []), { q, ...res }] }));
       // A fresh thread takes its title from the first question.
       setThreads((ts) =>
         ts.map((t) => (t.id === active && t.title === 'New query thread' ? { ...t, title: q.slice(0, 72) } : t)),
@@ -135,7 +141,7 @@ export default function ResearchBrain() {
     } catch {
       setLive((m) => ({
         ...m,
-        [active]: [...(m[active] ?? []), { q, answer: 'Request failed — the assistant is unavailable.', citations: [], live: false }],
+        [active]: [...(m[active] ?? []), { q, answer: 'Request failed — the assistant is unavailable.', citations: [], live: false, mode: 'offline', note: null }],
       }));
     } finally {
       setLoading(false);
@@ -274,7 +280,39 @@ export default function ResearchBrain() {
                     {activeThread?.title}
                   </Typography>
                 </Breadcrumbs>
-                <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
+                  {status && (
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={
+                        status.mode === 'researchbrain'
+                          ? 'Knowledge base connected'
+                          : status.mode === 'claude'
+                            ? `Claude direct · ${status.claude.model ?? ''}`
+                            : 'Assistant offline'
+                      }
+                      title={
+                        status.mode === 'researchbrain'
+                          ? `researchbrain at ${status.researchbrain.url}`
+                          : `${status.researchbrain.detail} — set RESEARCH_BRAIN_BASE_URL / RESEARCH_BRAIN_API_KEY${status.claude.configured ? '' : ' and ANTHROPIC_API_KEY'} in backend/.env`
+                      }
+                      sx={{
+                        height: 24,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: MODE_STYLE[status.mode].color,
+                        borderColor: MODE_STYLE[status.mode].color,
+                        '& .MuiChip-icon': { color: 'inherit' },
+                      }}
+                      icon={
+                        <Box
+                          component="span"
+                          sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: MODE_STYLE[status.mode].color, ml: '8px !important' }}
+                        />
+                      }
+                    />
+                  )}
                   <Button variant="outlined" size="small" startIcon={<ShareIcon />} onClick={() => void shareThread()}>
                     Share Thread
                   </Button>
@@ -360,11 +398,7 @@ export default function ResearchBrain() {
                       </Box>
                     </Box>
                     <Paper elevation={0} sx={{ maxWidth: '95%', border: '1px solid #E2E8F0', borderRadius: '12px 12px 12px 2px', p: 2 }}>
-                      <Chip
-                        size="small"
-                        label={m.live ? 'researchbrain · live' : 'offline fallback'}
-                        sx={{ mb: 1, height: 20, fontSize: 10, fontWeight: 700, bgcolor: m.live ? '#EDE9FE' : '#FEF3C7', color: m.live ? '#7C3AED' : '#B45309' }}
-                      />
+                      <ModeChip mode={modeOf(m)} title={m.note ?? undefined} sx={{ mb: 1 }} />
                       <Typography variant="body2" sx={{ color: '#0F172A', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
                         {m.answer}
                       </Typography>
@@ -380,6 +414,11 @@ export default function ResearchBrain() {
                             />
                           ))}
                         </Stack>
+                      )}
+                      {m.note && modeOf(m) !== 'researchbrain' && (
+                        <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', mt: 1 }}>
+                          {m.note}
+                        </Typography>
                       )}
                     </Paper>
                   </Box>
