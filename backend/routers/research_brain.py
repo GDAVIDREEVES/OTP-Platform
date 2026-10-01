@@ -83,7 +83,10 @@ def _claude_key_check() -> tuple[bool | None, str]:
     if not key:
         return None, "ANTHROPIC_API_KEY not set"
     now = time.monotonic()
-    if _KEY_CHECK["ok"] is not None and now - _KEY_CHECK["at"] < 60:
+    # A good key is re-checked every 60s; a bad one every 5s so a corrected
+    # .env + restart (or a rotated key) shows up almost immediately.
+    ttl = 60 if _KEY_CHECK["ok"] else 5
+    if _KEY_CHECK["ok"] is not None and now - _KEY_CHECK["at"] < ttl:
         return _KEY_CHECK["ok"], _KEY_CHECK["detail"]
     try:
         import anthropic
