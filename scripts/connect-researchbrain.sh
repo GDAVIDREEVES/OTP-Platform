@@ -55,7 +55,9 @@ echo "  wrote RESEARCH_BRAIN_BASE_URL / RESEARCH_BRAIN_API_KEY to $ENV_FILE"
 grep -qE '^ANTHROPIC_API_KEY=.+' "$ENV_FILE" || echo "  note: ANTHROPIC_API_KEY is not set in $ENV_FILE — cited answers need it for synthesis (./scripts/set-anthropic-key.sh)"
 
 # ---- 3. start the daemon if nothing is listening ------------------------------
-health() { curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$RB_URL/api/rag/health" 2>/dev/null || echo 000; }
+# curl prints 000 itself on a refused connection (and exits non-zero), so just
+# swallow the exit status; never append a second fallback value.
+health() { local c; c="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$RB_URL/api/rag/health" 2>/dev/null || true)"; printf '%s' "${c:-000}"; }
 code="$(health)"
 if [[ "$code" == "000" && "$START" == "1" ]]; then
   if [[ ! -d "$RB_DIR/node_modules" ]]; then
